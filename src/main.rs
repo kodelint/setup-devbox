@@ -1,5 +1,4 @@
 mod commands;
-mod logger;
 mod utils;
 mod schema;
 
