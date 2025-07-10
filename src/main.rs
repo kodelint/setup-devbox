@@ -1,5 +1,5 @@
 mod commands;
-
+mod logger;
 use clap::{Parser, Subcommand};
 use commands::{generate, now, sync, version};
 
@@ -42,6 +42,9 @@ enum Commands {
 
 fn main() {
     let cli = Cli::parse();
+
+    // Initialize logger for project
+    logger::init(cli.debug);
 
     match cli.command {
         Commands::Version => version::run(),
