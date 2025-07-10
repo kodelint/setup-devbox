@@ -7,4 +7,6 @@ edition = "2024"
 # We're using 'clap' to easily create command-line interfaces for our application.
 # The 'derive' feature lets us define our command-line arguments right in our Rust code, which is super convenient!
 clap = { version = "4.5.40", features = ["derive"] }
-
+# 'colored' is a fun little crate that lets us add colors to our text in the terminal.
+# It makes our output much easier to read and more engaging!
+colored = "3.0.0"
