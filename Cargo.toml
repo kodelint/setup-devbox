@@ -1,0 +1,10 @@
+[package]
+name = "setup-devbox"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# We're using 'clap' to easily create command-line interfaces for our application.
+# The 'derive' feature lets us define our command-line arguments right in our Rust code, which is super convenient!
+clap = { version = "4.5.40", features = ["derive"] }
+
