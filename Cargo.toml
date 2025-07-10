@@ -10,3 +10,20 @@ clap = { version = "4.5.40", features = ["derive"] }
 # 'colored' is a fun little crate that lets us add colors to our text in the terminal.
 # It makes our output much easier to read and more engaging!
 colored = "3.0.0"
+# 'serde' is like the universal translator for Rust data structures.
+# It helps us convert our Rust data into various formats (like JSON or YAML) and vice-versa.
+# The 'derive' feature gives us handy macros to automatically implement serialization/deserialization.
+serde = { version = "1.0.219", features = ["derive"] }
+# 'serde_yaml' specifically handles converting Rust data to and from the YAML format.
+# We often use YAML for configuration files because it's quite human-readable.
+serde_yaml = "0.9.34+deprecated"
+# 'serde_json' is another specialized part of the Serde family, but this one focuses on JSON.
+# JSON is a very common format for web APIs and data exchange.
+serde_json = "1.0.140"
+# 'toml' is a crate for working with TOML files, which are often used for Rust project configurations
+# (like our Cargo.toml!). It helps us read and write data in this format.
+toml = "0.9.0"
+# 'ureq' is a simple and easy-to-use HTTP client.
+# It's what we'll use to make requests to web services (like GitHub's API).
+# The 'json' feature adds convenience for handling JSON responses automatically.
+ureq = { version = "2.0.0", features = ["json"] }
