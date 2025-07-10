@@ -67,7 +67,7 @@ pub struct ToolEntry {
     // This crucial field tells `setup-devbox` *where* to get the tool from.
     // Examples: "github", "brew" (for Homebrew), "go" (for Go binaries), "cargo" (for Rust crates).
     pub source: String,
-    // If the `source` is "github", this `Option<String>` holds the GitHub repository
+    // If the `source` is "GitHub", this `Option<String>` holds the GitHub repository
     // in the "owner/repo_name" format (e.g., "hashicorp/terraform").
     pub repo: Option<String>,
     // Sometimes, a specific release on GitHub isn't directly the version number,
@@ -129,7 +129,7 @@ pub struct FontEntry {
     pub version: Option<String>,
     // The source from where the font can be obtained (e.g., "github", "nerdfonts").
     pub source: String,
-    // If the `source` is "github", this is the repository (e.g., "ryanoasis/nerd-fonts").
+    // If the `source` is "GitHub", this is the repository (e.g., "ryanoasis/nerd-fonts").
     pub repo: Option<String>,
     // A specific tag or release on GitHub to download the font from.
     pub tag: Option<String>,
@@ -137,7 +137,7 @@ pub struct FontEntry {
 
 /// Configuration schema for `settings.yaml`.
 /// This file allows users to define system-level settings (e.g., macOS defaults)
-/// that 'devbox' should apply.
+/// that `setup-devbox` should apply.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SettingsConfig {
     // This is a `HashMap` where the key is the operating system (e.g., "macos", "linux")
@@ -165,11 +165,11 @@ pub struct SettingEntry {
 }
 
 // Application State File Schema (state.json)
-// These structs define the structure of `setup-devbox` internal state file (`state.json`).
+// These structs define the structure of `setup-devbox`s internal state file (`state.json`).
 // This file is crucial for `setup-devbox` to remember what it has installed and configured,
 // so it doesn't try to re-install things or re-apply settings unnecessarily.
 
-/// The complete structure of `state.json`, which acts as `setup-devbox's` memory.
+/// The complete structure of `state.json`, which acts as `setup-devbox`s memory.
 /// It records everything `setup-devbox` has done – what tools are installed, settings applied, etc.
 /// 'Clone' is derived here because we might need to easily duplicate this state object in memory.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -230,12 +230,14 @@ pub struct FontState {
     pub files: Vec<String>,
 }
 
+//  Main Application Configuration
+
 /// This struct defines the main configuration file for the `setup-devbox` application itself.
 /// It tells `setup-devbox` *where* to find the other detailed configuration files (tools, settings, etc.).
 /// This allows for a flexible file structure where users can organize their configs.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MainConfig {
-    // An optional path to the `tools.yaml` file. If not specified, 'devbox' might look for a default.
+    // An optional path to the `tools.yaml` file. If not specified, `setup-devbox` might look for a default.
     pub tools: Option<String>,
     // An optional path to the `settings.yaml` file.
     pub settings: Option<String>,
