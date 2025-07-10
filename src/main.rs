@@ -1,6 +1,7 @@
 mod commands;
 mod utils;
 mod schema;
+mod logger;
 
 use clap::{Parser, Subcommand};
 use commands::{generate, now, sync, version};
