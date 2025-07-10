@@ -1,5 +1,5 @@
 mod commands;
-mod logger;
+mod utils;
 mod schema;
 
 use clap::{Parser, Subcommand};

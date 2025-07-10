@@ -164,7 +164,7 @@ pub struct SettingEntry {
     pub value_type: String,
 }
 
-// --- Application State File Schema (state.json) ---
+// Application State File Schema (state.json)
 // These structs define the structure of `setup-devbox`s internal state file (`state.json`).
 // This file is crucial for `setup-devbox` to remember what it has installed and configured,
 // so it doesn't try to re-install things or re-apply settings unnecessarily.
