@@ -3,7 +3,6 @@
 // It reads all the configuration files (tools, settings, shell, fonts),
 // compares them against the current 'state.json', and then orchestrates
 // the installation or application of everything that needs to be in place.
-
 // We bring in all the essential data structures (schemas) we defined earlier.
 // These structs tell us how our configuration files and our internal state file should be shaped.
 use crate::schema::{DevBoxState, FontConfig, MainConfig, SettingsConfig, ShellConfig, ToolConfig};
@@ -248,13 +247,73 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
     // Install Tools
     // If we have a `ToolConfig` (meaning `tools.yaml` was loaded), let's process the tools.
     if let Some(tools_cfg) = tools_config {
-        log_info!("💻 Installing Tools (feature coming soon!)");
+        // We'll create a mutable copy of our `DevBoxState` to track changes during this process.
+        let mut new_state = state.clone();
+        // A flag to track if any changes were made to the state, so we know if we need to save.
+        let mut updated = false;
+
+        // Loop through each tool entry defined in the configuration.
+        for tool in &tools_cfg.tools {
+            // Check if this tool is *already* recorded in our `new_state.tools` HashMap.
+            // This is how we avoid re-installing things that are already there!
+            if !new_state.tools.contains_key(&tool.name) {
+                log_info!("⚙Installing new tool: {}", tool.name.bold());
+                log_debug!("Full tool config details: {:?}", tool);
+
+                // Based on the tool's `source` (GitHub, brew, cargo, go), call the appropriate installer function.
+                let result = match tool.source.as_str() {
+                    "github" => github::install(tool), // Delegate to the GitHub installer.
+                    "brew" => brew::install(tool),     // Delegate to the Homebrew installer.
+                    "cargo" => cargo::install(tool),   // Delegate to the Cargo (Rust) installer.
+                    "go" => go::install(tool),         // Delegate to the Go installer.
+                    other => {
+                        // If the source is unrecognized, warn the user and skip this tool.
+                        log_warn!("Unknown source '{}' for tool '{}'. Skipping this tool.", other.yellow(), tool.name.bold());
+                        None // Indicate that no state was generated for this tool.
+                    }
+                };
+
+                // If the installation was successful (returned `Some(ToolState)`)...
+                if let Some(tool_state) = result {
+                    // Add the details of the newly installed tool to our `new_state`.
+                    new_state.tools.insert(tool.name.clone(), tool_state);
+                    updated = true; // Mark that the state has changed.
+                    log_info!("Successfully installed {}.", tool.name.bold());
+                } else {
+                    // If the installation failed, log an error.
+                    log_error!("Failed to install tool: {}. See previous logs for details.", tool.name.bold());
+                }
+            } else {
+                // If the tool is already in our state, just log that we're skipping it.
+                log_debug!("Tool '{}' already recorded as installed. Skipping installation.", tool.name);
+                // TODO: In a more advanced version, we might add logic here to *update*
+                // tools if the version specified in config is newer than the installed version.
+            }
+        }
+
+        // After trying to install all tools, if any state changes occurred, save the new state.
+        if updated {
+            log_info!("Updating application state file at {:?}", state_path);
+            match serde_json::to_string_pretty(&new_state) {
+                Ok(serialized) => {
+                    if let Err(err) = fs::write(&state_path, serialized) {
+                        log_error!("Failed to write updated state file to {:?}: {}", state_path, err);
+                    } else {
+                        log_info!("State file updated successfully. Your `setup-devbox` memory is now up-to-date!",);
+                    }
+                },
+                Err(err) => log_error!("Failed to serialize updated state for saving: {}", err),
+            }
+        } else {
+            // If no tools were installed or updated, let the user know.
+            log_info!("All tools from your configuration are already installed or up-to-date.");
+        }
     }
 
     // Apply macOS System Settings
     // If `settings.yaml` was loaded, we'd apply system settings here.
     if let Some(settings_cfg) = settings_config {
-        log_info!("💻 Applying system settings from settings.yaml (feature coming soon!)");
+        log_info!("Applying system settings from settings.yaml (feature coming soon!)");
         // TODO: The actual implementation for applying settings would go here,
         // likely involving iterating through `settings_cfg.settings` and executing
         // OS-specific commands (like `defaults write` on macOS).
@@ -263,7 +322,7 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
     // Apply Shell Configuration
     // If `shellac.yaml` was loaded, we'd apply shell configurations and aliases.
     if let Some(shell_cfg) = shell_config {
-        log_info!("🐚 Applying shell configuration from shellac.yaml (feature coming soon!)");
+        log_info!("Applying shell configuration from shellac.yaml (feature coming soon!)");
         // TODO: This section would handle writing `raw_configs` to `.bashrc`, `.zshrc`, etc.,
         // and setting up aliases. This often involves careful handling of existing shell files.
     }
@@ -271,11 +330,11 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
     // Install Fonts
     // If `fonts.yaml` was loaded, we'd install fonts.
     if let Some(fonts_cfg) = fonts_config {
-        log_info!("✒️ Installing fonts from fonts.yaml (feature coming soon!)");
+        log_info!("Installing fonts from fonts.yaml (feature coming soon!)");
         // TODO: Font installation typically involves downloading font files and placing them
         // in system-specific font directories, then refreshing the font cache.
     }
 
     // We've processed all the configurations!
-    log_info!("✨ DevBox 'now' command completed.");
+    log_info!("DevBox 'now' command completed.");
 }
