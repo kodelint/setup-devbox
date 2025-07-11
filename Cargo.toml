@@ -28,3 +28,7 @@ toml = "0.9.0"
 # It's what we'll use to make requests to web services (like GitHub's API).
 # The 'json' feature adds convenience for handling JSON responses automatically.
 ureq = { version = "2.0.0", features = ["json"] }
+flate2 = "1.1.2"
+tar = "0.4.44"
+zip = "4.3.0"
+bzip2 = "0.6.0"
