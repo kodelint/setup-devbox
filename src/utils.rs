@@ -1,5 +1,4 @@
-// src/utils.rs
-// This file is a collection of handy helper functions that our 'devbox' application
+// This file is a collection of handy helper functions that our `setup-devbox` application
 // uses throughout its various commands. Think of it as a toolbox with general-purpose
 // utilities for things like path manipulation, file operations, downloading, and system detection.
 
@@ -10,13 +9,13 @@ use colored::Colorize;
 // For decompressing gzipped archives (like .tar.gz files).
 use flate2::read::GzDecoder;
 // To get environment variables, like the temporary directory or home directory.
-use std::env;
+use std::{env, io};
 // For file system operations: creating directories, reading files, etc.
 use std::fs;
 // For creating and interacting with files.
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 // Core I/O functionalities and error handling.
-use std::io::{self};
+use std::io::{BufRead, BufReader, Write};
 // Types for working with file paths in a robust way.
 use std::path::{Path, PathBuf};
 // To run external commands (like 'file' or 'sudo installer').
@@ -89,7 +88,7 @@ pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
     Ok(()) // Indicate success!
 }
 
-/// Attempts to detect the type of a given file by executing the native `file` command (on Unix-like systems).
+/// Attempts to detect the type of given file by executing the native `file` command (on Unix-like systems).
 /// This is super useful for figuring out if a downloaded file is a zip, tar.gz, a raw binary, etc.,
 /// which then guides how we should extract or handle it.
 ///
@@ -140,7 +139,7 @@ pub fn detect_file_type(path: &Path) -> String {
 ///
 /// # Arguments
 /// * `src`: The path to the compressed archive file.
-/// * `dest`: The directory where the *extracted* content should be placed (inside a new "extracted" subdir).
+/// * `dest`: The directory where the *extracted* content should be placed (inside a new "extracted" sub-dir).
 ///
 /// # Returns
 /// * `io::Result<PathBuf>`: `Ok(PathBuf)` with the path to the newly created "extracted" directory,
@@ -338,11 +337,11 @@ pub fn make_executable(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-/// Returns a path to a dedicated temporary directory for 'devbox' operations.
+/// Returns a path to a dedicated temporary directory for `setup-devbox` operations.
 /// This ensures that temporary files are kept separate and can be easily cleaned up.
 ///
 /// # Returns
-/// * `PathBuf`: The path to the 'devbox' specific temporary directory.
+/// * `PathBuf`: The path to the `setup-devbox` specific temporary directory.
 pub fn get_temp_dir() -> PathBuf {
     // Start with the system's standard temporary directory.
     let path = env::temp_dir().join("setup-devbox");
@@ -396,7 +395,7 @@ pub fn generate_asset_filename(tool: &str, os: &str, arch: &str) -> String {
 }
 
 /// Normalizes various input strings for operating systems into a consistent, lowercase format.
-/// This helps 'devbox' deal with different ways OS names might appear in asset names or system info.
+/// This helps `setup-devbox` deal with different ways OS names might appear in asset names or system info.
 ///
 /// # Arguments
 /// * `os`: An input string representing an OS (e.g., "MacOS", "darwin", "Linux").
@@ -417,7 +416,7 @@ pub fn normalize_os(os: &str) -> String {
 }
 
 /// Normalizes various input strings for CPU architectures into a consistent, lowercase format.
-/// This ensures 'devbox' can correctly match architectures (e.g., "aarch64" vs "arm64").
+/// This ensures `setup-devbox` can correctly match architectures (e.g., "aarch64" vs "arm64").
 ///
 /// # Arguments
 /// * `arch`: An input string representing an architecture (e.g., "AARCH64", "x86_64", "amd64").
@@ -472,7 +471,7 @@ fn arch_aliases(arch: &str) -> Vec<String> {
 
 /// Checks if a given asset filename from a GitHub release (or similar source)
 /// is likely compatible with the current operating system and architecture.
-/// This is how 'devbox' smartly picks the correct download for your machine.
+/// This is how `setup-devbox` smartly picks the correct download for your machine.
 ///
 /// # Arguments
 /// * `filename`: The full filename of the asset (e.g., "mytool_1.0.0_macOS_arm64.tar.gz").
@@ -509,4 +508,137 @@ pub(crate) fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bo
     let matches = os_match && arch_match;
     log_debug!("[Utils] Asset '{}' matches platform (OS: {}, ARCH: {}) -> {}", filename.dimmed(), os.cyan(), arch.magenta(), matches.to_string().bold());
     matches
+}
+
+/// Helper function: Determines the appropriate shell RC file path for a given shell name.
+///
+/// This function currently supports `.zshrc` for Zsh and `.bashrc` for Bash.
+/// It constructs the full path by joining the user's home directory with the
+/// specific RC file name.
+///
+/// # Arguments
+/// * `shell`: A string slice representing the name of the shell (e.g., "zsh", "bash").
+///
+/// # Returns
+/// * `Option<PathBuf>`:
+///   - `Some(PathBuf)` containing the full path to the RC file if the shell is supported
+///     and the home directory can be determined.
+///   - `None` if the shell is not supported or the home directory cannot be found.
+pub(crate) fn get_rc_file(shell: &str) -> Option<PathBuf> {
+    log_debug!("[ShellRC:get_rc_file] Attempting to find RC file for shell: '{}'", shell.bold());
+
+    // Use `dirs::home_dir()` from the `dirs` crate to reliably get the current user's home directory.
+    let home_dir = match dirs::home_dir() {
+        Some(path) => path,
+        None => {
+            log_warn!("[ShellRC:get_rc_file] Could not determine the user's home directory. Cannot find RC file.");
+            return None; // Cannot proceed without the home directory.
+        }
+    };
+    log_debug!("[ShellRC:get_rc_file] User's home directory detected: {:?}", home_dir.display());
+
+    // Match the lowercase version of the shell name to determine the correct RC file.
+    let rc_file_name = match shell.to_lowercase().as_str() {
+        "zsh" => ".zshrc",
+        "bash" => ".bashrc",
+        _ => {
+            // If the shell name doesn't match a supported type, log a warning and return None.
+            log_warn!(
+                "[ShellRC:get_rc_file] Unsupported shell type '{}'. Currently only 'zsh' and 'bash' are explicitly mapped to RC files.",
+                shell.red()
+            );
+            return None;
+        }
+    };
+    log_debug!("[ShellRC:get_rc_file] RC file name determined: {}", rc_file_name.cyan());
+
+    // Construct the full path to the RC file by joining the home directory and the file name.
+    let rc_path = home_dir.join(rc_file_name);
+    log_debug!("[ShellRC:get_rc_file] Full RC file path: {:?}", rc_path.display());
+
+    Some(rc_path) // Return the constructed path wrapped in `Some`.
+}
+
+/// Helper function: Reads all non-empty, non-comment lines from a given RC file.
+///
+/// This function is designed to read the existing content of an RC file efficiently
+/// for later comparison. It handles cases where the file might not exist or be unreadable.
+///
+/// # Arguments
+/// * `rc_path`: A reference to a `Path` indicating the RC file to read.
+///
+/// # Returns
+/// * `Vec<String>`: A vector containing each line read from the file as a `String`.
+///                  Returns an empty vector if the file doesn't exist or an error occurs during reading.
+pub(crate) fn read_rc_lines(rc_path: &Path) -> Vec<String> {
+    log_debug!("[ShellRC:read_rc_lines] Attempting to read lines from RC file: {:?}", rc_path.display().to_string().dimmed());
+
+    // First, check if the file actually exists. If not, there are no lines to read.
+    if !rc_path.exists() {
+        log_debug!("[ShellRC:read_rc_lines] RC file {:?} does not exist. Returning an empty list of lines.", rc_path.display().to_string().yellow());
+        return vec![];
+    }
+
+    // Attempt to open the file for reading.
+    match fs::File::open(rc_path) {
+        Ok(file) => {
+            log_debug!("[ShellRC:read_rc_lines] RC file {:?} opened successfully for reading.", rc_path.display());
+            // Create a buffered reader for efficient line-by-line reading.
+            BufReader::new(file)
+                .lines() // Get an iterator over lines.
+                .filter_map(Result::ok) // Filter out any lines that resulted in an I/O error.
+                // It's good practice to also filter out empty lines or lines that are just comments,
+                // as these typically don't represent active configurations to compare against.
+                .filter(|line| !line.trim().is_empty() && !line.trim().starts_with('#'))
+                .collect() // Collect all valid lines into a `Vec<String>`.
+        }
+        Err(err) => {
+            // If the file cannot be opened (e.g., permission issues), log a warning.
+            log_warn!(
+                "[ShellRC:read_rc_lines] Could not read RC file {:?}: {}. Returning an empty list of lines.",
+                rc_path.display().to_string().red(),
+                err.to_string().red()
+            );
+            vec![] // Return an empty vector on error.
+        }
+    }
+}
+
+/// Helper function: Appends new lines to the end of the specified RC file.
+///
+/// This function opens the RC file in append mode. If the file doesn't exist,
+/// it will be created. It also adds a comment header to denote lines added by `setup-devbox`.
+///
+/// # Arguments
+/// * `rc_path`: A reference to a `Path` indicating the RC file to append to.
+/// * `lines`: A `Vec<String>` containing the new lines to be written.
+///
+/// # Returns
+/// * `std::io::Result<()>`: `Ok(())` on successful write, or an `Err` if an I/O error occurs.
+pub(crate) fn append_to_rc_file(rc_path: &Path, lines: Vec<String>) -> std::io::Result<()> {
+    log_debug!("[ShellRC:append_to_rc_file] Preparing to append {} new lines to RC file: {:?}", lines.len().to_string().bold(), rc_path.display().to_string().yellow());
+
+    // Open the file with specific options:
+    // - `create(true)`: If the file doesn't exist, create it.
+    // - `append(true)`: Open the file in append mode, so new writes go to the end.
+    let mut file = OpenOptions::new()
+        .create(true) // Create the file if it doesn't exist.
+        .append(true) // Open in append mode.
+        .open(rc_path)?; // Attempt to open the file. The `?` operator will propagate any errors.
+
+    log_debug!("[ShellRC:append_to_rc_file] RC file {:?} opened in append mode.", rc_path.display());
+
+    // Add a clear comment header before appending new configurations.
+    // This makes it easy for users to identify entries added by 'setup-devbox'.
+    writeln!(file, "\n# Added by setup-devbox")?;
+    log_debug!("[ShellRC:append_to_rc_file] Added 'Added by setup-devbox' header.");
+
+    // Write each new line to the file, followed by a newline character.
+    for (index, line) in lines.iter().enumerate() {
+        writeln!(file, "{}", line)?;
+        log_debug!("[ShellRC:append_to_rc_file] Appended line {}: '{}'", (index + 1).to_string().dimmed(), line.dimmed());
+    }
+
+    log_debug!("[ShellRC:append_to_rc_file] All new lines successfully written to {:?}", rc_path.display());
+    Ok(()) // Indicate success.
 }
