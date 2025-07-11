@@ -8,6 +8,10 @@
 use crate::schema::{DevBoxState, FontConfig, MainConfig, SettingsConfig, ShellConfig, ToolConfig};
 // This utility helps us resolve paths that use the '~' (tilde) for the user's home directory.
 use crate::utils::expand_tilde;
+// Here we import the specific installer modules for different sources.
+// Each of these modules (brew, cargo, GitHub, go) knows how to install tools
+// from their respective platforms.
+use crate::installers::{brew, cargo, github, go};
 // Our custom logging macros for debug, error, info, and warning messages.
 use crate::{log_debug, log_error, log_info, log_warn};
 // For pretty colored output in the terminal.
@@ -263,9 +267,11 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
                 // Based on the tool's `source` (GitHub, brew, cargo, go), call the appropriate installer function.
                 let result = match tool.source.as_str() {
                     "github" => github::install(tool), // Delegate to the GitHub installer.
-                    "brew" => brew::install(tool),     // Delegate to the Homebrew installer.
-                    "cargo" => cargo::install(tool),   // Delegate to the Cargo (Rust) installer.
-                    "go" => go::install(tool),         // Delegate to the Go installer.
+                    // Commenting rest of the package managers calls for now
+                    // Will visit them one by one
+                    // "brew" => brew::install(tool),     // Delegate to the Homebrew installer.
+                    // "cargo" => cargo::install(tool),   // Delegate to the Cargo (Rust) installer.
+                    // "go" => go::install(tool),         // Delegate to the Go installer.
                     other => {
                         // If the source is unrecognized, warn the user and skip this tool.
                         log_warn!("Unknown source '{}' for tool '{}'. Skipping this tool.", other.yellow(), tool.name.bold());
