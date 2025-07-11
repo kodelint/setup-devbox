@@ -433,6 +433,8 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
     // If we have `tools_config` (meaning `tools.yaml` was successfully loaded and parsed),
     // let's dive into processing the tool installations.
     if let Some(tools_cfg) = tools_config {
+        eprintln!("\n");
+        log_info!("[Tools] Processing Tools Installations...");
         // Initialize a flag to track if any tools were actually installed or updated in this block.
         let mut tools_updated = false;
         // This vector will temporarily collect the names of any tools we find are already installed,
@@ -511,7 +513,6 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
             // If the skipped_tools list is empty, it means all tools were either new or explicitly handled.
             log_debug!("[Tools] No tools were skipped as they were not found in the state.");
         }
-        eprintln!(); // Add a blank line for visual separation.
 
         // After processing all tools, if `tools_updated` is true (meaning we installed something new),
         // it's crucial to save the updated state to our `state.json` file.
@@ -536,7 +537,7 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
     // 5b. Install Fonts
     // If `fonts_config` (from `fonts.yaml`) was successfully loaded, we proceed with font installations.
     if let Some(fonts_cfg) = fonts_config {
-        log_info!("[Fonts] Processing font installations from fonts.yaml...");
+        log_info!("[Fonts] Processing Font Installations...");
         // Flag to track if any fonts were installed or updated in this section.
         let mut fonts_updated = false;
 
@@ -614,7 +615,7 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
     // 5c. Apply Shell Configuration (Raw Configs and Aliases)
     // If `shell_config` (from `shellrc.yaml`) was successfully loaded, we proceed to apply shell configurations.
     if let Some(shell_cfg) = shell_config {
-        log_info!("[Shell Config] Applying Shell configurations...");
+        log_info!("[Shell Config] Applying Shell Configurations...");
         log_debug!("[Shell Config] Applying shell configurations and aliases from shellrc.yaml...");
         // For deep debugging, pretty print the raw shell configuration (e.g., environment variables, path additions).
         match serde_json::to_string_pretty(&shell_cfg.shellrc) {
@@ -668,7 +669,7 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
     // 5d. Apply macOS System Settings
     // If `settings_config` (from `settings.yaml`) was loaded, we'd proceed to apply system settings here.
     if let Some(_settings_cfg) = settings_config {
-        log_info!("{} Applying system settings from settings.yaml...", "[OS Settings]".bold());
+        log_info!("{} Applying System Settings...", "[OS Settings]".bold());
         log_warn!("{} The 'settings' application feature is currently under development and will be implemented soon!", "[OS Settings]".bold());
         // TODO: The actual implementation for applying system settings would go here.
         // This would likely involve iterating through `_settings_cfg.settings` and executing
