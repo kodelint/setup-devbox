@@ -228,6 +228,7 @@ pub struct FontState {
     pub url: String,
     // A list of the actual font files (e.g., .ttf, .otf) that were installed for this font.
     pub files: Vec<String>,
+    pub version: String,
 }
 
 //  Main Application Configuration
