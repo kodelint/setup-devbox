@@ -267,9 +267,9 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
                 // Based on the tool's `source` (GitHub, brew, cargo, go), call the appropriate installer function.
                 let result = match tool.source.as_str() {
                     "github" => github::install(tool), // Delegate to the GitHub installer.
+                    "brew" => brew::install(tool),     // Delegate to the Homebrew installer.
                     // Commenting rest of the package managers calls for now
                     // Will visit them one by one
-                    // "brew" => brew::install(tool),     // Delegate to the Homebrew installer.
                     // "cargo" => cargo::install(tool),   // Delegate to the Cargo (Rust) installer.
                     // "go" => go::install(tool),         // Delegate to the Go installer.
                     other => {
