@@ -1,83 +1,114 @@
 // This file is a collection of handy helper functions that our `setup-devbox` application
 // uses throughout its various commands. Think of it as a toolbox with general-purpose
 // utilities for things like path manipulation, file operations, downloading, and system detection.
-// We bring in all the essential data structures (schemas) we defined earlier.
-// These structs tell us how our configuration files and our internal state file should be shaped.
+
+// These lines bring in necessary components from other parts of our project or external crates (libraries).
+// Bring in the `DevBoxState` schema.
+// This struct defines the structure for our application's persistent state,
+// allowing us to save and load information about installed tools, configurations, etc.
 use crate::schema::DevBoxState;
-// Bring in our custom logging macros for debug, error, info, and warning messages.
+
+// Bring in our custom logging macros.
+// These macros (`log_debug`, `log_error`, `log_info`, `log_warn`) provide
+// a standardized way to output messages to the console with different severity levels,
+// making it easier to track the application's flow and diagnose issues.
 use crate::{log_debug, log_error, log_info, log_warn};
-// For adding color to our terminal output (makes logs easier to read!).
+
+// For adding color to our terminal output.
+// The `colored` crate allows us to make log messages and other terminal output more readable
+// by applying colors (e.g., `.blue()`, `.green()`, `.red()`).
 use colored::Colorize;
+
 // For decompressing gzipped archives (like .tar.gz files).
+// `flate2` is a widely used Rust library for handling various compression formats,
+// and `GzDecoder` specifically deals with gzip decompression.
 use flate2::read::GzDecoder;
+
 // To get environment variables, like the temporary directory or home directory.
+// `std::env` provides functions to interact with the process's environment.
+// `std::io` contains core input/output functionalities and error types.
 use std::{env, io};
+
 // For file system operations: creating directories, reading files, etc.
+// `std::fs` provides functions for interacting with the file system.
 use std::fs;
+
 // For creating and interacting with files.
+// `std::fs::{File, OpenOptions}` allows for fine-grained control over file opening and creation.
 use std::fs::{File, OpenOptions};
+
 // Core I/O functionalities and error handling.
+// `std::io::{BufRead, BufReader, Write}` provides traits and types for buffered I/O,
+// which can significantly improve performance for reading and writing files line by line.
 use std::io::{BufRead, BufReader, Write};
+
 // Types for working with file paths in a robust way.
+// `std::path::{Path, PathBuf}` are essential for handling file system paths.
+// `Path` is a borrowed, immutable view of a path, while `PathBuf` owns the path data.
 use std::path::{Path, PathBuf};
+
 // To run external commands (like 'file' or 'sudo installer').
+// `std::process::Command` allows the application to spawn and control external processes.
 use std::process::Command;
+
 // For extracting tar archives.
+// The `tar` crate provides functionality to read and write tar archives.
 use tar::Archive;
+
 // For extracting zip archives.
+// The `zip` crate provides functionality to read and write zip archives.
 use zip::ZipArchive;
+
 // For making HTTP requests (downloading files).
-use ureq; // Added missing import for ureq
+// `ureq` is a simple and expressive HTTP client for Rust, used here for downloading files from URLs.
+use ureq;
 
 // This line is conditional: it's only compiled when targeting Unix-like systems (macOS, Linux).
-// It's used to set file permissions, specifically making files executable.
+// It's used to set file permissions, specifically making files executable, which is a Unix-specific concept.
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
-// For bzip2 decompression. This import is conditional on the "bzip2" feature.
+// For bzip2 decompression. This import is conditional on the "bzip2" feature being enabled in Cargo.toml.
+// The `bzip2` crate provides support for the BZip2 compression format.
 // Ensure your Cargo.toml has `bzip2 = { version = "...", optional = true }` and `features = ["bzip2"]` when used.
 #[cfg(feature = "bzip2")]
 use bzip2::read::BzDecoder;
 
 // For recursive directory walking in `find_executable`.
+// The `walkdir` crate provides an efficient way to traverse directory trees.
 // Ensure your Cargo.toml has `walkdir = "..."`.
 use walkdir;
 
-// For saving and loading DevBox state (JSON serialization).
-// Ensure your Cargo.toml has `serde = { version = "...", features = ["derive"] }` and `serde_json = "..."`.
-use serde::{Deserialize, Serialize};
 use serde_json;
-
-/// Represents a single installed tool within the DevBox state.
-/// This includes its name and the path where it was installed.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InstalledTool {
-    pub name: String,
-    pub path: PathBuf,
-    // Add more details about the tool here if necessary, e.g., version, source_url, etc.
-}
-
 
 /// A super useful function to resolve paths that start with a tilde `~`.
 /// On Unix-like systems, `~` is a shortcut for the user's home directory.
 /// This function expands that `~` into the full, absolute path, like `/Users/yourusername/`.
+/// This is crucial for user-friendly path inputs.
 ///
 /// # Arguments
-/// * `path`: A string slice representing the path, which might start with `~`.
+/// * `path`: A string slice (`&str`) representing the path, which might start with `~`.
 ///
 /// # Returns
-/// * `PathBuf`: The fully resolved path, or the original path if `~` wasn't present or home directory couldn't be found.
+/// * `PathBuf`: The fully resolved path if `~` was present and the home directory
+///              could be determined. Otherwise, it returns the original path unchanged.
 pub fn expand_tilde(path: &str) -> PathBuf {
-    // Check if the path actually starts with a tilde.
+    // Check if the input path string actually begins with a tilde character.
     if path.starts_with("~") {
-        // Try to get the user's home directory. `dirs::home_dir()` is from an external crate
-        // that reliably finds the home directory across different OSes.
+        // Attempt to retrieve the current user's home directory.
+        // `dirs::home_dir()` is a cross-platform way to get this path.
         if let Some(home) = dirs::home_dir() {
-            // If we found the home directory, replace the first occurrence of '~' with the home path.
+            // If the home directory was successfully found:
+            // 1. Convert the home directory `PathBuf` into a string slice (`to_string_lossy()`)
+            //    which safely handles non-UTF8 characters by replacing them.
+            // 2. Use `replacen` to replace only the *first* occurrence of `~` with the home path.
+            //    This ensures paths like `~/Documents/~/file.txt` are handled correctly.
             return PathBuf::from(path.replacen("~", &home.to_string_lossy(), 1));
         }
     }
-    // If no tilde, or home directory wasn't found, just return the path as is.
+    // If the path does not start with `~`, or if `dirs::home_dir()` failed to find
+    // the home directory, simply convert the original input path string into a `PathBuf`
+    // and return it as is.
     PathBuf::from(path)
 }
 
@@ -85,62 +116,87 @@ pub fn expand_tilde(path: &str) -> PathBuf {
 /// This is crucial for fetching tools and resources from the internet (e.g., GitHub releases).
 ///
 /// # Arguments
-/// * `url`: The URL of the file to download.
-/// * `dest`: The local file system path where the downloaded file should be saved.
+/// * `url`: The URL (as a string slice) of the file to download (e.g., "https://example.com/file.zip").
+/// * `dest`: The local file system path (`&Path`) where the downloaded file should be saved.
+///           This should be a full file path, including the desired filename.
 ///
 /// # Returns
-/// * `io::Result<()>`: `Ok(())` if the download was successful, or an `io::Error` if anything went wrong.
+/// * `io::Result<()>`:
+///   - `Ok(())` if the download was successful and the file was saved.
+///   - An `io::Error` if anything went wrong during the HTTP request, file creation, or data copying.
 pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
+    // Log a debug message indicating the start of the download, coloring the URL for clarity.
     log_debug!("[Utils] Starting download from URL: {}", url.blue());
 
     // Execute the HTTP GET request using the `ureq` library.
+    // `ureq::get(url).call()` sends the request and waits for a response.
     let response = match ureq::get(url).call() {
-        Ok(res) => res, // If the request was successful, we get a response.
+        Ok(res) => res, // If the request was successful, `res` contains the HTTP response.
         Err(e) => {
-            // If the HTTP request itself failed (e.g., network error, invalid URL).
+            // If the HTTP request itself failed (e.g., network error, invalid URL, DNS resolution failure).
             log_error!("[Utils] HTTP request failed for {}: {}", url.red(), e);
-            // Convert the ureq error into a standard `io::Error` for consistent error handling.
+            // Convert the `ureq` error into a standard `io::Error` for consistent error handling
+            // across the application. `io::ErrorKind::Other` is a generic error kind.
             return Err(io::Error::new(io::ErrorKind::Other, format!("HTTP error: {}", e)));
         }
     };
 
-    // Open the destination file for writing. This will create the file if it doesn't exist, or truncate it if it does.
-    let mut file = File::create(dest)?; // The `?` here handles potential file creation errors.
+    // Open the destination file for writing.
+    // `File::create(dest)` will create a new file if `dest` does not exist,
+    // or truncate (empty) an existing file at `dest` if it does.
+    // The `?` operator propagates any `io::Error` that occurs during file creation.
+    let mut file = File::create(dest)?;
 
-    // Get a reader for the response body (the actual data being downloaded).
+    // Get a reader for the response body (the actual data being downloaded from the network).
     let mut reader = response.into_reader();
-    // Copy all data from the network reader directly into our local file.
-    std::io::copy(&mut reader, &mut file)?; // The `?` here handles potential read/write errors.
+    // Copy all data from the network `reader` directly into our local `file`.
+    // This is an efficient way to stream data from the network to disk.
+    // The `?` operator propagates any `io::Error` that occurs during the copy process (read/write errors).
+    std::io::copy(&mut reader, &mut file)?;
 
+    // Log a debug message upon successful download, coloring the destination path.
     log_debug!("[Utils] File downloaded successfully to {:?}", dest.to_string_lossy().green());
-    Ok(()) // Indicate success!
+    Ok(()) // Indicate success by returning `Ok(())`.
 }
 
-/// Attempts to detect the type of given file by executing the native `file` command (on Unix-like systems).
+/// Attempts to detect the type of a given file by executing the native `file` command (on Unix-like systems).
 /// This is super useful for figuring out if a downloaded file is a zip, tar.gz, a raw binary, etc.,
-/// which then guides how we should extract or handle it.
+/// which then guides how we should extract or handle it. This method provides more accurate detection
+/// than just filename extensions because it inspects the file's content/magic bytes.
 ///
 /// # Arguments
-/// * `path`: The path to the file whose type we want to detect.
+/// * `path`: The path (`&Path`) to the file whose type we want to detect.
 ///
 /// # Returns
 /// * `String`: A normalized string representing the detected file type (e.g., "zip", "tar.gz", "binary", "unknown").
+///             It will never return an empty string.
 pub fn detect_file_type(path: &Path) -> String {
+    // Log a debug message indicating which file's type is being detected.
     log_debug!("[Utils] Detecting file type for: {:?}", path.to_string_lossy().yellow());
 
     // Execute the `file --brief <path>` command.
-    // `--brief` makes the output concise, just the file type description.
+    // - `Command::new("file")`: Creates a new command instance for the `file` utility.
+    // - `.arg("--brief")`: Adds the `--brief` argument, which tells `file` to output
+    //                      only the file type description, without the filename prefix.
+    // - `.arg(path)`: Adds the path of the file to be inspected.
+    // - `.output()`: Executes the command and waits for it to complete, capturing its
+    //                stdout, stderr, and exit status.
+    // - `.expect(...)`: If the command itself fails to execute (e.g., `file` not found
+    //                   in PATH), this will panic with the provided message.
     let output = Command::new("file")
         .arg("--brief")
         .arg(path)
         .output()
         .expect("Failed to execute 'file' command. Is it installed and in your PATH?");
 
-    // Convert the command's output (raw bytes) into a lowercase string for easier matching.
+    // Convert the command's standard output (which is `Vec<u8>`) into a `String`.
+    // `String::from_utf8_lossy()` converts bytes to a string, replacing invalid UTF-8 sequences.
+    // `.to_lowercase()` converts the entire string to lowercase for case-insensitive matching.
     let out = String::from_utf8_lossy(&output.stdout).to_lowercase();
     log_debug!("[Utils] 'file' command raw output for {:?}: '{}'", path, out.blue()); // Added for debugging
 
     // Now, we check the output string for various keywords to determine the file type.
+    // The order of `if-else if` statements is important to prioritize more specific matches.
     if out.contains("zip") {
         "zip".into() // If it contains "zip", it's a zip archive.
     } else if out.contains("gzip compressed") && out.contains("tar") {
@@ -150,28 +206,41 @@ pub fn detect_file_type(path: &Path) -> String {
     } else if out.contains("bzip2 compressed") && out.contains("tar") {
         "tar.bz2".into() // Bzip2 + tar = tar.bz2.
     } else if out.contains("bzip2") {
-        "bz2".into() // Just bzip2.
+        "bz2".into() // Just bzip2 compressed data.
     } else if out.contains("xar archive") && out.contains(".pkg") {
-        "pkg".into() // Specifically for macOS installer packages.
+        "pkg".into() // Specifically for macOS installer packages (XAR archives with .pkg extension).
     } else if out.contains("executable") || out.contains("binary") || out.contains("mach-o") || out.contains("elf") {
-        // Broaden detection for executables (added mach-o and elf for better Unix detection)
+        // Broaden detection for executables.
+        // - "executable" or "binary" are general indicators.
+        // - "mach-o" is a specific executable format for macOS/iOS.
+        // - "elf" is a specific executable format for Linux/Unix.
         "binary".into() // It's a standalone executable file.
     } else if out.contains("tar archive") {
         "tar".into() // A plain tar archive (uncompressed).
     } else {
+        // If none of the above keywords are found, we don't know the type.
         log_warn!("[Utils] Unrecognized file type for {:?}: '{}'. Treating as unknown.", path, out.purple());
-        "unknown".into() // If none of the above, we don't know what it is.
+        "unknown".into() // Return "unknown".
     }
 }
 
 /// Detects file type based purely on its filename extension(s) or common naming patterns.
 /// This is useful when the exact file type is known from its source (e.g., GitHub asset name)
 /// and a full `file` command inspection might be overkill or less precise for specific cases.
+/// This method is faster but less reliable than `detect_file_type` as it relies on naming conventions.
+///
+/// # Arguments
+/// * `filename`: The full filename (`&str`) to analyze (e.g., "mytool-v1.0.0-linux-x64.tar.gz").
+///
+/// # Returns
+/// * `String`: A normalized string representing the detected file type (e.g., "zip", "tar.gz", "binary", "unknown").
 pub fn detect_file_type_from_filename(filename: &str) -> String {
+    // Convert the filename to lowercase for case-insensitive matching.
     let filename_lower = filename.to_lowercase();
     log_debug!("[Utils] Detecting file type from filename: {}", filename_lower.yellow());
 
-    // Prioritize more specific/longer extensions first
+    // Prioritize more specific/longer extensions first to avoid false positives.
+    // For example, ".tar.gz" should be matched before just ".gz".
     if filename_lower.ends_with(".tar.gz") || filename_lower.ends_with(".tgz") {
         "tar.gz".to_string()
     } else if filename_lower.ends_with(".tar.bz2") || filename_lower.ends_with(".tbz") {
@@ -180,25 +249,30 @@ pub fn detect_file_type_from_filename(filename: &str) -> String {
         "zip".to_string()
     } else if filename_lower.ends_with(".tar") {
         "tar".to_string()
-    } else if filename_lower.ends_with(".gz") { // .gz should come after .tar.gz
+    } else if filename_lower.ends_with(".gz") { // .gz should come after .tar.gz to ensure .tar.gz is matched first
         "gz".to_string()
-    } else if filename_lower.ends_with(".deb") {
+    } else if filename_lower.ends_with(".deb") { // Debian package format
         "deb".to_string()
-    } else if filename_lower.ends_with(".rpm") {
+    } else if filename_lower.ends_with(".rpm") { // Red Hat package manager format
         "rpm".to_string()
-    } else if filename_lower.ends_with(".dmg") {
+    } else if filename_lower.ends_with(".dmg") { // macOS Disk Image
         "dmg".to_string()
     }
-    // Added logic for direct binaries without explicit extensions, but containing platform info
+    // Added logic for direct binaries without explicit extensions, but containing platform info.
+    // This heuristic tries to identify raw executables often named without extensions
+    // but containing OS/architecture hints.
     else if filename_lower.contains("macos") || filename_lower.contains("linux") || filename_lower.contains("windows") ||
         filename_lower.contains("darwin") || filename_lower.contains("amd64") || filename_lower.contains("x86_64") ||
         filename_lower.contains("arm64") || filename_lower.contains("aarch64") ||
-        // Consider common binary naming conventions without explicit OS/Arch if it's not an archive
+        // Consider common binary naming conventions without explicit OS/Arch if it's not an archive.
+        // This checks if the filename has no extension (e.g., "kubectl" instead of "kubectl.exe")
+        // AND contains common binary/CLI-related keywords.
         (!filename_lower.contains('.') && (filename_lower.contains("bin") || filename_lower.contains("cli"))) {
         log_debug!("[Utils] Filename '{}' suggests a direct binary (no standard archive extension, but contains platform/binary hints).", filename_lower.cyan());
         "binary".to_string()
     }
     else {
+        // If no known extension or pattern matches, return "unknown".
         log_warn!("[Utils] Unrecognized file type based on filename for '{}'. Returning 'unknown'.", filename_lower.purple());
         "unknown".to_string()
     }
@@ -207,151 +281,202 @@ pub fn detect_file_type_from_filename(filename: &str) -> String {
 
 /// Extracts the contents of a compressed archive (zip, tar.gz, etc.) into a new subdirectory
 /// within the specified destination path. This is a core utility for unpacking downloaded tools.
+/// The extracted contents will be placed in a new directory named "extracted" inside `dest`.
 ///
 /// # Arguments
-/// * `src`: The path to the compressed archive file.
-/// * `dest`: The directory where the *extracted* content should be placed (inside a new "extracted" sub-dir).
-/// * `known_file_type`: An optional string slice that, if provided, tells the function
-///   the exact type of the archive, bypassing internal detection. Useful when the
-///   caller already knows the type (e.g., from a GitHub asset name).
+/// * `src`: The path (`&Path`) to the compressed archive file that needs to be extracted.
+/// * `dest`: The parent directory (`&Path`) where the *extracted* content should be placed.
+///           A new subdirectory named "extracted" will be created inside this `dest` path.
+/// * `known_file_type`: An `Option<&str>`. If `Some(type_str)` is provided, it tells the function
+///   the exact type of the archive (e.g., "zip", "tar.gz"), bypassing internal detection.
+///   This is useful when the caller already knows the type (e.g., from a GitHub asset name),
+///   which can be faster or more accurate than re-detecting. If `None`, `detect_file_type` is used.
 ///
 /// # Returns
-/// * `io::Result<PathBuf>`: `Ok(PathBuf)` with the path to the newly created "extracted" directory,
-///                         or an `io::Error` if extraction fails or the archive type is unsupported.
+/// * `io::Result<PathBuf>`:
+///   - `Ok(PathBuf)` with the path to the newly created "extracted" directory if extraction was successful.
+///   - An `io::Error` if extraction fails, the archive type is unsupported, or any I/O operation fails.
 pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -> io::Result<PathBuf> {
     log_debug!("[Utils] Extracting archive {:?} into {:?}", src.to_string_lossy().blue(), dest.to_string_lossy().cyan());
 
-    // Use the known_file_type if provided, otherwise detect.
+    // Determine the file type to guide the extraction process.
+    // If `known_file_type` is provided (i.e., `Some(ft)`), use that.
+    // Otherwise, fall back to `detect_file_type` which uses the `file` command.
     let file_type = if let Some(ft) = known_file_type {
         log_debug!("[Utils] Using known file type from argument: {}", ft.green());
         ft.to_string()
     } else {
-        // Fallback to auto-detection using 'file' command
         log_debug!("[Utils] No known file type provided. Auto-detecting using 'file' command...");
         detect_file_type(src)
     };
 
     // Create a specific subdirectory named "extracted" inside the `dest` directory.
+    // This keeps extracted contents organized and prevents clutter in the main temporary directory.
+    // `fs::create_dir_all` creates all necessary parent directories if they don't exist.
+    // The `?` operator propagates any I/O error (e.g., permission denied) from directory creation.
     let extracted_path = dest.join("extracted");
     fs::create_dir_all(&extracted_path)?;
 
+    // Use a `match` statement to handle different archive types.
     match file_type.as_str() {
         "zip" => {
+            // Open the source zip file.
             let file = File::open(src)?;
+            // Create a new `ZipArchive` reader from the opened file.
             let mut archive = ZipArchive::new(file)?;
+            // Extract all contents of the zip archive into the `extracted_path`.
             archive.extract(&extracted_path)?;
             log_debug!("[Utils] Zip archive extracted successfully.");
         }
-        "tar.gz" => { // Be specific about tar.gz here
+        "tar.gz" => { // Handle specific `tar.gz` files.
+            // Open the gzipped tar file.
             let tar_gz = File::open(src)?;
+            // Create a `GzDecoder` to decompress the gzip stream.
             let decompressor = GzDecoder::new(tar_gz);
+            // Create a `tar::Archive` reader from the decompressed stream.
             let mut archive = Archive::new(decompressor);
+            // Unpack all contents of the tar archive into the `extracted_path`.
             archive.unpack(&extracted_path)?;
             log_debug!("[Utils] Tar.gz archive extracted successfully.");
         }
-        "gz" => { // Handle pure .gz files (not tarred)
+        "gz" => { // Handle pure `.gz` files (not tarred, typically a single compressed file).
             log_info!("[Utils] Decompressing plain GZ file. Contents will be the original file without tar extraction.");
             let gz_file = File::open(src)?;
             let mut decompressor = GzDecoder::new(gz_file);
-            let output_file_path = extracted_path.join(src.file_stem().unwrap_or_default()); // Remove .gz extension
+            // Determine the output file path by removing the ".gz" extension from the source filename.
+            let output_file_path = extracted_path.join(src.file_stem().unwrap_or_default());
             let mut output_file = File::create(&output_file_path)?;
+            // Copy the decompressed data from the `GzDecoder` to the new output file.
             io::copy(&mut decompressor, &mut output_file)?;
             log_debug!("[Utils] GZ file decompressed successfully to {:?}", output_file_path.display());
         }
-        #[cfg(feature = "bzip2")] // Conditional compilation for bzip2
+        #[cfg(feature = "bzip2")] // This block is only compiled if the "bzip2" feature is enabled.
         "tar.bz2" => {
+            // Open the bzipped tar file.
             let tar_bz2 = File::open(src)?;
-            let decompressor = BzDecoder::new(tar_bz2); // Use BzDecoder
+            // Create a `BzDecoder` to decompress the bzip2 stream.
+            let decompressor = BzDecoder::new(tar_bz2);
+            // Create a `tar::Archive` reader from the decompressed stream.
             let mut archive = Archive::new(decompressor);
+            // Unpack all contents of the tar archive into the `extracted_path`.
             archive.unpack(&extracted_path)?;
             log_debug!("[Utils] Tar.bz2 archive extracted successfully.");
         }
-        "tar" => {
+        "tar" => { // Handle plain `.tar` archives (uncompressed).
+            // Open the tar file.
             let tar = File::open(src)?;
+            // Create a `tar::Archive` reader directly from the file.
             let mut archive = Archive::new(tar);
+            // Unpack all contents of the tar archive into the `extracted_path`.
             archive.unpack(&extracted_path)?;
             log_debug!("[Utils] Tar archive extracted successfully.");
         }
-        "binary" => { // For standalone binaries like a .exe or uncompressed Mac binary
+        "binary" => { // For standalone binaries like a .exe or uncompressed Mac binary.
+            // In this case, "extraction" means simply copying the binary to the `extracted_path`.
             log_info!("[Utils] Copying detected 'binary' directly to extraction path.");
+            // Get the filename part from the source path.
             let file_name = src.file_name().ok_or_else(|| {
+                // If the source path doesn't have a filename, return an error.
                 io::Error::new(io::ErrorKind::InvalidInput, "Source path has no filename")
             })?;
+            // Copy the source file to the `extracted_path` maintaining its original filename.
             fs::copy(src, extracted_path.join(file_name))?;
             log_debug!("[Utils] Binary copied successfully to {:?}", extracted_path.join(file_name).display());
         }
-        "pkg" => { // For macOS .pkg files, copy them as they are installers, not archives to unpack
+        "pkg" => { // For macOS `.pkg` files, which are installers, not archives to unpack in the traditional sense.
+            // We copy them to the extracted path so they are available for installation later.
             log_info!("[Utils] Detected .pkg installer. Copying directly to extraction path for installation.");
             let file_name = src.file_name().ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "Source path has no filename")
             })?;
+            // Copy the `.pkg` file to the `extracted_path`.
             fs::copy(src, extracted_path.join(file_name))?;
             log_debug!("[Utils] .pkg file copied successfully to {:?}", extracted_path.join(file_name).display());
         }
         _ => {
+            // If the `file_type` string does not match any of the supported types.
             log_error!("[Utils] Unsupported archive type '{}' for extraction: {:?}", file_type.red(), src);
+            // Return an `io::Error` indicating that the archive type is not supported.
             return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
+                io::ErrorKind::InvalidData, // `InvalidData` is suitable for unsupported file formats.
                 format!("Unsupported archive type: {}", file_type),
             ));
         }
     }
 
+    // Log a success message with the path to the extracted contents.
     log_debug!("[Utils] ✨ Archive contents available at: {:?}", extracted_path.to_string_lossy().green());
-    Ok(extracted_path)
+    Ok(extracted_path) // Return the path to the directory where contents were extracted.
 }
 
 /// Recursively searches a given directory for the first executable file it finds.
 /// This is essential after extracting an archive, as the actual binary we need
-/// might be nested deep within subdirectories.
+/// might be nested deep within subdirectories or have a non-standard name.
 ///
 /// # Arguments
-/// * `dir`: The directory to start searching from.
+/// * `dir`: The directory (`&Path`) to start searching from. This directory and its
+///          subdirectories will be traversed.
 ///
 /// # Returns
-/// * `Option<PathBuf>`: `Some(PathBuf)` if an executable is found, `None` otherwise.
+/// * `Option<PathBuf>`:
+///   - `Some(PathBuf)` containing the full path to the first executable file found.
+///   - `None` if no executable file is found within the specified directory tree.
 pub fn find_executable(dir: &Path) -> Option<PathBuf> {
     log_debug!("[Utils] 🔎 Searching for an executable in: {:?}", dir.to_string_lossy().yellow());
 
-    // Common executable names or keywords to look for (added to improve detection).
+    // Define a list of common executable names or keywords to look for.
+    // This helps improve detection for binaries that might not have standard extensions
+    // or are named generically.
     let common_executables = [
         "bin", "cli", "app", "main", "daemon", // Generic names
         "go", "node", "python", "ruby", // Common runtime names if the binary is a wrapper
     ];
 
-    // Use `walkdir` to recursively iterate through the directory.
+    // Use `walkdir::WalkDir::new(dir)` to create an iterator that recursively
+    // traverses the directory `dir` and its subdirectories.
     for entry in walkdir::WalkDir::new(dir)
-        .into_iter()
-        .filter_map(|e| e.ok()) // Filter out any errors during directory traversal
+        .into_iter() // Convert `WalkDir` into an iterator.
+        .filter_map(|e| e.ok()) // Filter out any `Err` entries (e.g., permission denied)
+    // and unwrap `Ok` entries into `DirEntry`.
     {
-        let path = entry.path();
+        let path = entry.path(); // Get the `Path` for the current directory entry.
+        // Get the filename part of the path and convert it to lowercase for case-insensitive checks.
         let file_name_str = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
 
+        // Check if the current entry is a file (not a directory).
         if path.is_file() {
-            // Check for common executable extensions first (especially for Windows)
+            // 1. Check for common executable extensions first, especially relevant for Windows.
             if file_name_str.ends_with(".exe") || file_name_str.ends_with(".sh") || file_name_str.ends_with(".bat") {
                 log_debug!("[Utils] Found potential executable (by extension): {:?}", path.display());
-                return Some(path.to_path_buf());
+                return Some(path.to_path_buf()); // Return the path if an executable extension is found.
             }
 
-            // Check if the filename itself contains common executable indicators
+            // 2. Check if the filename itself contains common executable indicators or patterns.
+            // This includes the `common_executables` array and a heuristic for Unix-like systems:
+            // if there's no extension and the filename is not empty, it might be an executable.
             if common_executables.iter().any(|&name| file_name_str.contains(name)) ||
-                // If there's no extension, consider it a potential binary on Unix-like systems
-                (cfg!(unix) && path.extension().is_none() && file_name_str.len() > 0) {
+                // The `cfg!(unix)` attribute ensures this block only compiles on Unix-like systems.
+                (cfg!(unix) && path.extension().is_none() && !file_name_str.is_empty()) {
                 log_debug!("[Utils] Found potential executable (by name heuristic): {:?}", path.display());
-                // On Unix, perform an additional check for execute permission
+
+                // On Unix-like systems, perform an additional check for execute permissions.
                 #[cfg(unix)]
                 {
                     if let Ok(metadata) = fs::metadata(path) {
-                        if (metadata.permissions().mode() & 0o111) != 0 { // Check if any execute bit is set (user, group, or other)
+                        // Check if any execute bit is set (user, group, or other).
+                        // `metadata.permissions().mode()` gets the Unix file mode bits.
+                        // `& 0o111` performs a bitwise AND with `0o111` (octal for execute permissions for all).
+                        if (metadata.permissions().mode() & 0o111) != 0 {
                             log_debug!("[Utils] Found executable (name and permissions): {:?}", path.display());
-                            return Some(path.to_path_buf());
+                            return Some(path.to_path_buf()); // Return the path if it's executable.
                         } else {
                             log_debug!("[Utils] Skipping {:?}: Not executable by permissions.", path.display());
                         }
                     }
                 }
-                #[cfg(not(unix))] // On non-Unix (e.g., Windows), if it matches name/no extension, assume it's executable
+                // On non-Unix systems (e.g., Windows), if it matches name/no extension, assume it's executable.
+                // Windows handles executability differently (e.g., via `.exe` extension, not permissions bits).
+                #[cfg(not(unix))]
                 {
                     log_debug!("[Utils] Found potential executable (by name/no extension, non-Unix): {:?}", path.display());
                     return Some(path.to_path_buf());
@@ -361,199 +486,233 @@ pub fn find_executable(dir: &Path) -> Option<PathBuf> {
             }
         }
     }
+    // If the loop completes without finding any executable, log a warning and return `None`.
     log_warn!("[Utils] No executable found within {:?}", dir.to_string_lossy().purple());
-    None // No executable found after checking all entries.
+    None
 }
 
 /// Installs a macOS `.pkg` installer file using `sudo installer`.
-/// This is typically used for system-wide software installations on macOS.
+/// This function is specifically designed for macOS as `.pkg` files are native macOS installers.
+/// It requires `sudo` privileges to run, meaning the user will be prompted for their password.
 ///
 /// # Arguments
-/// * `path`: The path to the `.pkg` file.
+/// * `path`: The path (`&Path`) to the `.pkg` file that needs to be installed.
 ///
 /// # Returns
-/// * `io::Result<()>`: `Ok(())` if installation was successful, or an `io::Error` if it failed.
-#[cfg(target_os = "macos")] // This function only compiles on macOS
+/// * `io::Result<()>`:
+///   - `Ok(())` if the installation command was executed successfully and returned a success status.
+///   - An `io::Error` if the command fails to execute or returns a non-zero exit status (indicating failure).
+#[cfg(target_os = "macos")] // This function only compiles when the target operating system is macOS.
 pub fn install_pkg(path: &Path) -> io::Result<()> {
     log_info!("[Utils] Installing .pkg file: {:?}", path.to_string_lossy().bold());
 
     // Execute the `sudo installer -pkg <path> -target /` command.
-    // `sudo` requires user password. `installer` is the macOS package installer tool.
-    // `-pkg <path>` specifies the package file. `-target /` specifies the root as the installation target.
+    // - `Command::new("sudo")`: Invokes the `sudo` command, which prompts for user password
+    //                          and then executes the following command with root privileges.
+    // - `.arg("installer")`: The macOS built-in command-line tool for installing packages.
+    // - `.arg("-pkg").arg(path)`: Specifies the package file to install.
+    // - `.arg("-target").arg("/")`: Specifies the installation target. `/` typically means
+    //                               the root of the boot volume, making it a system-wide installation.
+    // - `.status()`: Executes the command and returns its exit status (`ExitStatus`).
+    // - `?`: Propagates any `io::Error` that occurs if the `sudo` command itself cannot be spawned.
     let status = Command::new("sudo")
         .arg("installer")
         .arg("-pkg")
         .arg(path)
         .arg("-target")
         .arg("/")
-        .status()?; // `?` propagates any command execution errors.
+        .status()?;
 
-    // Check if the command exited successfully.
+    // Check if the command exited successfully (i.e., with an exit code of 0).
     if !status.success() {
+        // If the command failed, log an error message and return an `io::Error`.
         log_error!("[Utils] .pkg installer failed with status: {:?}", status);
         return Err(io::Error::new(io::ErrorKind::Other, "Installer failed"));
     }
 
     log_info!("[Utils] .pkg file installed successfully!");
-    Ok(())
+    Ok(()) // Indicate success.
 }
 
 // Provide a dummy implementation for `install_pkg` on non-macOS systems to avoid compilation errors.
+// This ensures the code compiles on all platforms, even if the functionality isn't available.
 #[cfg(not(target_os = "macos"))]
 pub fn install_pkg(_path: &Path) -> io::Result<()> {
     log_warn!("[Utils] .pkg installation is only supported on macOS. Skipping for this platform.");
-    // Return an error indicating this operation is not supported
+    // Return an error indicating this operation is not supported on the current platform.
     Err(io::Error::new(io::ErrorKind::Other, ".pkg installation is only supported on macOS."))
 }
 
 
 /// Moves a file (typically a binary) from a source path to a destination path,
-/// and can also rename it in the process. It ensures that the destination's parent
-/// directories exist before attempting the move.
+/// and can also rename it in the process by providing a new filename in the `to` path.
+/// It ensures that the destination's parent directories exist before attempting the move.
 ///
 /// # Arguments
-/// * `from`: The source path of the file.
-/// * `to`: The destination path, including the new filename if renaming.
+/// * `from`: The source path (`&Path`) of the file to be moved.
+/// * `to`: The destination path (`&Path`), including the new desired filename if renaming.
 ///
 /// # Returns
-/// * `io::Result<()>`: `Ok(())` on success, or `io::Error` if move/rename fails.
+/// * `io::Result<()>`:
+///   - `Ok(())` on successful move/rename.
+///   - `io::Error` if the operation fails (e.g., source file not found, permission issues,
+///     or failure during fallback copy/remove).
 pub fn move_and_rename_binary(from: &Path, to: &Path) -> io::Result<()> {
     log_debug!("[Utils] Moving binary from {:?} to {:?}", from.to_string_lossy().yellow(), to.to_string_lossy().cyan());
 
     // If the destination path has parent directories (e.g., `/usr/local/bin/`),
     // ensure those directories exist before trying to move the file into them.
+    // `to.parent()` returns `Some(Path)` if `to` has a parent, `None` if `to` is a root or single component.
     if let Some(parent) = to.parent() {
-        fs::create_dir_all(parent)?; // Create all necessary parent directories.
+        // `fs::create_dir_all` creates all necessary parent directories recursively.
+        // The `?` propagates any `io::Error` from directory creation.
+        fs::create_dir_all(parent)?;
     }
 
-    // Perform the move operation. `fs::rename` is generally preferred for performance
-    // and atomicity if the source and destination are on the same filesystem.
-    // If they are on different filesystems, `rename` will fail, and you'd typically
-    // fall back to copy + remove.
+    // Perform the move operation using `fs::rename`.
+    // `fs::rename` is generally preferred because it is:
+    // 1. Atomic: The operation either fully succeeds or fully fails, preventing corrupted states.
+    // 2. Performant: It's often a simple metadata update on the same filesystem.
+    // However, it fails if source and destination are on different filesystems (cross-device link).
     match fs::rename(from, to) {
         Ok(_) => {
             log_debug!("[Utils] Binary moved/renamed to {}", to.to_string_lossy().green());
-            Ok(())
+            Ok(()) // Success case.
         },
+        // Handle the specific error case where `fs::rename` fails due to `CrossesDevices`.
+        // This means the source and destination paths are on different file systems.
         Err(e) if e.kind() == io::ErrorKind::CrossesDevices => {
-            // Fallback for different filesystems: copy and then remove original
             log_warn!("[Utils] Cross-device link detected, falling back to copy and remove for {:?} to {:?}: {}", from.display(), to.display(), e);
+            // Fallback strategy: copy the file to the new location.
             fs::copy(from, to)?;
+            // Then, remove the original file. This is not atomic.
             fs::remove_file(from)?;
             log_info!("[Utils] Binary copied and old removed successfully to {:?}", to.to_string_lossy().green());
-            Ok(())
+            Ok(()) // Success after fallback.
         },
+        // Handle any other `io::Error` that `fs::rename` might return.
         Err(e) => {
             log_error!("[Utils] Failed to move binary from {:?} to {:?}: {}", from.display(), to.display(), e);
-            Err(e)
+            Err(e) // Propagate the original error.
         }
     }
 }
 
 /// Makes a given file executable. On Unix-like systems, this is equivalent to `chmod +x file`.
-/// This is crucial for downloaded binaries to be runnable.
+/// This is crucial for downloaded binaries to be runnable, as files downloaded from the internet
+/// often do not preserve executable permissions.
 ///
 /// # Arguments
-/// * `path`: The path to the file to make executable.
+/// * `path`: The path (`&Path`) to the file to make executable.
 ///
 /// # Returns
-/// * `io::Result<()>`: `Ok(())` on success, or `io::Error` if permissions cannot be set.
-#[cfg(unix)] // This function only compiles on Unix-like systems
+/// * `io::Result<()>`:
+///   - `Ok(())` on success (permissions set or no-op on non-Unix).
+///   - `io::Error` if permissions cannot be read or set (only applicable on Unix).
+#[cfg(unix)] // This function only compiles on Unix-like operating systems (Linux, macOS).
 pub fn make_executable(path: &Path) -> io::Result<()> {
     log_debug!("[Utils] Making {:?} executable", path.to_string_lossy().yellow());
 
-    // Get the current permissions of the file.
+    // Get the current metadata (including permissions) of the file.
+    // The `?` operator propagates any `io::Error` if metadata cannot be retrieved.
     let mut perms = fs::metadata(path)?.permissions();
 
-    // Set the file's permissions to 0o755 (rwxr-xr-x). This grants read, write,
-    // and execute permissions to the owner, and read/execute to group and others.
+    // Set the file's permissions.
+    // `0o755` is an octal representation of file permissions:
+    // - Owner: Read (4) + Write (2) + Execute (1) = 7
+    // - Group: Read (4) + Execute (1) = 5
+    // - Others: Read (4) + Execute (1) = 5
+    // This grants full control to the owner, and read/execute to group and others.
     perms.set_mode(0o755);
 
     // Apply the modified permissions back to the file.
+    // The `?` operator propagates any `io::Error` if permissions cannot be set.
     fs::set_permissions(path, perms)?;
     log_debug!("[Utils] File {:?} is now executable.", path.to_string_lossy().green());
-    Ok(())
+    Ok(()) // Indicate success.
 }
 
 // Provide a dummy implementation for `make_executable` on non-Unix systems to avoid compilation errors.
+// On Windows, executable permissions are often implicit for `.exe` files and not controlled by mode bits.
 #[cfg(not(unix))]
 pub fn make_executable(_path: &Path) -> io::Result<()> {
     log_debug!("[Utils] `make_executable` is a no-op on this non-Unix platform (permissions handled differently).");
-    Ok(()) // On Windows, executable permissions are often implicit for `.exe` files.
+    Ok(()) // Return success, as no action is needed or possible on these platforms.
 }
 
 /// Returns a path to a dedicated temporary directory for `setup-devbox` operations.
-/// This ensures that temporary files are kept separate and can be easily cleaned up.
+/// This ensures that temporary files are kept separate from other system temporary files
+/// and can be easily identified and cleaned up. The directory is created if it doesn't exist.
 ///
 /// # Returns
-/// * `PathBuf`: The path to the `setup-devbox` specific temporary directory.
+/// * `PathBuf`: The absolute path to the `setup-devbox` specific temporary directory.
 pub fn get_temp_dir() -> PathBuf {
-    // Start with the system's standard temporary directory.
-    let path = env::temp_dir().join("setup-devbox");
+    // Start with the system's standard temporary directory (e.g., `/tmp` on Unix, `%TEMP%` on Windows).
+    let path = env::temp_dir()
+        // Append a subdirectory specific to our application (`setup-devbox`).
+        .join("setup-devbox");
     // Attempt to create this directory (and any necessary parent directories).
-    // We use `let _ =` to ignore the `Result` here because it's okay if it already exists.
+    // `let _ =` is used to ignore the `Result` returned by `fs::create_dir_all`.
+    // It's acceptable if the directory already exists, and if creation fails due to
+    // other reasons (e.g., permissions), we proceed with the path anyway, and subsequent
+    // file operations will fail, which is the correct behavior.
     let _ = fs::create_dir_all(&path);
     // Return the full path to our specific temporary directory.
     path
 }
 
 /// Detects the current machine's CPU architecture (e.g., "arm64", "x86_64").
-/// This is vital for downloading the correct version of a binary from GitHub releases.
+/// This is vital for downloading the correct version of a binary from GitHub releases
+/// or other sources that provide platform-specific builds.
 ///
 /// # Returns
-/// * `Option<String>`: The detected architecture as a canonical string, or `None` if detection fails.
+/// * `Option<String>`:
+///   - `Some(String)` containing the detected architecture as a canonical string
+///     (e.g., "arm64" for "aarch64", "x86_64" for "amd64").
+///   - `None` if detection somehow fails, though `std::env::consts::ARCH` is generally reliable.
 pub fn detect_architecture() -> Option<String> {
-    // `std::env::consts::ARCH` gives us the architecture Rust was compiled for (e.g., "aarch64", "x86_64").
-    // We then normalize it to a more common form.
+    // `std::env::consts::ARCH` provides the target architecture Rust was compiled for
+    // (e.g., "aarch64", "x86_64"). This is highly reliable for the running binary.
+    // We then pass it to `normalize_arch` to get a consistent string format.
     Some(normalize_arch(std::env::consts::ARCH).to_string())
 }
 
 /// Detects the current operating system (e.g., "macos", "linux", "windows").
-/// Similar to architecture detection, this is crucial for finding the right software release.
+/// Similar to architecture detection, this is crucial for finding the right software release
+/// assets that are built for the specific OS.
 ///
 /// # Returns
-/// * `Option<String>`: The detected OS as a canonical string, or `None` if detection fails.
+/// * `Option<String>`:
+///   - `Some(String)` containing the detected OS as a canonical string
+///     (e.g., "macos" for "darwin", "windows" for "win32").
+///   - `None` if detection somehow fails, though `std::env::consts::OS` is generally reliable.
 pub fn detect_os() -> Option<String> {
-    // `std::env::consts::OS` gives us the OS Rust was compiled for (e.g., "macos", "linux").
-    // We then normalize it.
+    // `std::env::consts::OS` provides the target operating system Rust was compiled for
+    // (e.g., "macOS", "linux", "windows").
+    // We then pass it to `normalize_os` to get a consistent string format.
     Some(normalize_os(std::env::consts::OS).to_string())
 }
 
-/// Generates a canonical filename for an asset based on a tool name, OS, and architecture.
-/// This helps in constructing expected download file names or matching against GitHub asset names.
-///
-/// # Arguments
-/// * `tool`: The name of the tool (e.g., "gh").
-/// * `os`: The operating system (e.g., "macos").
-/// * `arch`: The architecture (e.g., "arm64").
-///
-/// # Returns
-/// * `String`: The generated filename string (e.g., "gh-macos-arm64").
-pub fn generate_asset_filename(tool: &str, os: &str, arch: &str) -> String {
-    // First, normalize the OS and architecture strings to ensure consistency.
-    let os = normalize_os(os);
-    let arch = normalize_arch(arch);
-    // Format them into a standard `tool-os-arch` string.
-    let fname = format!("{}-{}-{}", tool, os, arch);
-    log_debug!("[Utils] Generated asset filename: {}", fname.green());
-    fname
-}
-
 /// Normalizes various input strings for operating systems into a consistent, lowercase format.
-/// This helps `setup-devbox` deal with different ways OS names might appear in asset names or system info.
+/// This helps `setup-devbox` deal with different ways OS names might appear in asset names
+/// (e.g., "macOS", "Darwin", "OSX") or from system information, mapping them to a common set.
 ///
 /// # Arguments
-/// * `os`: An input string representing an OS (e.g., "MacOS", "darwin", "Linux").
+/// * `os`: An input string (`&str`) representing an OS (e.g., "macOS", "darwin", "Linux").
 ///
 /// # Returns
-/// * `String`: The normalized OS string (e.g., "macos", "linux", "windows").
+/// * `String`: The normalized OS string (e.g., "macOS", "linux", "windows").
+///             If the input is not a known alias, the lowercase version of the input is returned.
 pub fn normalize_os(os: &str) -> String {
+    // Convert the input OS string to lowercase for case-insensitive matching.
     match os.to_lowercase().as_str() {
-        "macos" | "darwin" | "apple-darwin" => "macos".to_string(), // macOS variants map to "macos"
-        "linux" => "linux".to_string(), // Linux is straightforward
-        "windows" | "win32" | "win64" => "windows".to_string(), // Windows variants map to "windows"
+        "macos" | "darwin" | "apple-darwin" => "macos".to_string(), // Map various macOS/Darwin names to "macos".
+        "linux" => "linux".to_string(),                             // Linux is typically straightforward.
+        "windows" | "win32" | "win64" => "windows".to_string(),     // Map various Windows names to "windows".
         other => {
-            // If we encounter an unknown OS, log a warning and use it as-is.
+            // If we encounter an unknown OS variant, log a warning.
+            // We return the lowercase version of the unknown string as-is,
+            // hoping it might still match some asset names.
             log_warn!("[Utils] Unknown OS variant '{}', using as-is. This might cause issues with asset matching.", other.purple());
             other.to_string()
         }
@@ -561,115 +720,147 @@ pub fn normalize_os(os: &str) -> String {
 }
 
 /// Normalizes various input strings for CPU architectures into a consistent, lowercase format.
-/// This ensures `setup-devbox` can correctly match architectures (e.g., "aarch64" vs "arm64").
+/// This ensures `setup-devbox` can correctly match architectures (e.g., "aarch64" vs "arm64",
+/// or "amd64" vs "x86_64") when parsing asset names from releases.
 ///
 /// # Arguments
-/// * `arch`: An input string representing an architecture (e.g., "AARCH64", "x86_64", "amd64").
+/// * `arch`: An input string (`&str`) representing an architecture (e.g., "AARCH64", "x86_64", "amd64").
 ///
 /// # Returns
 /// * `String`: The normalized architecture string (e.g., "arm64", "x86_64").
+///             If the input is not a known alias, the lowercase version of the input is returned.
 pub fn normalize_arch(arch: &str) -> String {
+    // Convert the input architecture string to lowercase for case-insensitive matching.
     match arch.to_lowercase().as_str() {
-        "aarch64" | "arm64" => "arm64".to_string(), // ARM 64-bit variants map to "arm64"
-        "amd64" | "x86_64" => "x86_64".to_string(), // AMD 64-bit variants map to "x86_64"
+        "aarch64" | "arm64" => "arm64".to_string(), // Map ARM 64-bit variants to "arm64".
+        "amd64" | "x86_64" => "x86_64".to_string(), // Map AMD/Intel 64-bit variants to "x86_64".
         other => {
-            // If unknown, log a warning and use it as-is.
+            // If we encounter an unknown architecture variant, log a warning.
+            // We return the lowercase version of the unknown string as-is.
             log_warn!("[Utils] Unknown ARCH variant '{}', using as-is. This might cause issues with asset matching.", other.purple());
             other.to_string()
         }
     }
 }
 
-// These functions (`os_aliases` and `arch_aliases`) are used internally by `asset_matches_platform`.
-// They provide a list of common alternative names for a given OS or architecture,
-// helping us correctly identify relevant files from GitHub releases, even if they use
-// slightly different naming conventions.
-
+/// Helper function: Provides a list of common alternative names (aliases) for a given operating system.
+/// This is used internally by `asset_matches_platform` to improve the flexibility of matching
+/// GitHub release asset filenames, which might use various naming conventions for the same OS.
+///
+/// # Arguments
+/// * `os`: A string slice representing a normalized OS name (e.g., "macos", "linux").
+///
+/// # Returns
+/// * `Vec<String>`: A vector of strings containing the input OS name and its known aliases.
 fn os_aliases(os: &str) -> Vec<String> {
     match os.to_lowercase().as_str() {
-        "macos" => vec!["macos", "darwin", "apple-darwin", "macosx"]
+        "macos" => vec!["macos", "darwin", "apple-darwin", "macosx"] // Aliases for macOS.
             .into_iter()
             .map(|s| s.to_string())
             .collect(),
-        "linux" => vec!["linux"].into_iter().map(|s| s.to_string()).collect(),
-        "windows" => vec!["windows", "win32", "win64"]
+        "linux" => vec!["linux"] // Aliases for Linux (currently just "linux" itself).
             .into_iter()
             .map(|s| s.to_string())
             .collect(),
-        other => vec![other.to_string()], // If it's something else, just use it as is.
+        "windows" => vec!["windows", "win32", "win64"] // Aliases for Windows.
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect(),
+        other => vec![other.to_string()], // For unknown OS, just return the input string.
     }
 }
 
+/// Helper function: Provides a list of common alternative names (aliases) for a given CPU architecture.
+/// This is used internally by `asset_matches_platform` to handle different naming conventions
+/// for architectures in release asset filenames (e.g., "aarch64" vs "arm64").
+///
+/// # Arguments
+/// * `arch`: A string slice representing a normalized architecture name (e.g., "arm64", "x86_64").
+///
+/// # Returns
+/// * `Vec<String>`: A vector of strings containing the input architecture name and its known aliases.
 fn arch_aliases(arch: &str) -> Vec<String> {
     match arch.to_lowercase().as_str() {
-        "arm64" => vec!["arm64", "aarch64"]
+        "arm64" => vec!["arm64", "aarch64"] // Aliases for ARM 64-bit.
             .into_iter()
             .map(|s| s.to_string())
             .collect(),
-        "x86_64" => vec!["x86_64", "amd64"]
+        "x86_64" => vec!["x86_64", "amd64"] // Aliases for x86 64-bit.
             .into_iter()
             .map(|s| s.to_string())
             .collect(),
-        other => vec![other.to_string()], // If it's something else, just use it as is.
+        other => vec![other.to_string()], // For unknown architecture, just return the input string.
     }
 }
 
 /// Checks if a given asset filename from a GitHub release (or similar source)
 /// is likely compatible with the current operating system and architecture.
-/// This is how `setup-devbox` smartly picks the correct download for your machine.
+/// This is how `setup-devbox` intelligently selects the correct download asset
+/// from a list of available files. It performs fuzzy matching using aliases.
 ///
 /// # Arguments
-/// * `filename`: The full filename of the asset (e.g., "mytool_1.0.0_macOS_arm64.tar.gz").
-/// * `os`: The current operating system (e.g., "macos").
-/// * `arch`: The current architecture (e.g., "arm64").
+/// * `filename`: The full filename (`&str`) of the asset (e.g., "mytool_1.0.0_macOS_arm64.tar.gz").
+/// * `os`: The current operating system as a normalized string (e.g., "macos").
+/// * `arch`: The current architecture as a normalized string (e.g., "arm64").
 ///
 /// # Returns
-/// * `bool`: `true` if the filename contains recognizable OS and architecture keywords for the platform, `false` otherwise.
+/// * `bool`: `true` if the filename contains recognizable keywords for the platform's OS and architecture,
+///           considering aliases and a special Rosetta 2 fallback for macOS ARM64. `false` otherwise.
 pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
+    // Convert inputs to lowercase for case-insensitive comparison.
     let asset_name_lower = filename.to_lowercase();
     let os_lower = os.to_lowercase();
     let arch_lower = arch.to_lowercase();
 
-    // Check for OS match first using aliases
+    // 1. Check for OS match:
+    // Iterate through all known aliases for the current OS. If any alias is found
+    // as a substring within the asset filename, it's considered an OS match.
     let os_matches = os_aliases(&os_lower)
         .iter()
         .any(|alias| asset_name_lower.contains(alias));
 
+    // If no OS match, immediately return false. No need to check architecture.
     if !os_matches {
         log_debug!("[Utils] Asset '{}' does not match OS '{}'", filename.dimmed(), os);
         return false;
     }
 
-    // Check for Architecture match using aliases
+    // 2. Check for Architecture match:
+    // Iterate through all known aliases for the current architecture. If any alias is found
+    // as a substring within the asset filename, it's considered an architecture match.
     let arch_matches = arch_aliases(&arch_lower)
         .iter()
         .any(|alias| asset_name_lower.contains(alias));
 
-    // Special consideration for macOS ARM64 (aarch64):
-    // If the target is macOS ARM64 and the asset contains "x86_64" (and not an explicit ARM64/aarch64 variant),
-    // it might be runnable via Rosetta 2. This is a common fallback strategy for universal binaries or older releases.
+    // 3. Special consideration for macOS ARM64 (aarch64) with Rosetta 2 fallback:
+    // If the target is macOS ARM64, and the asset filename contains "x86_64" (Intel architecture)
+    // but *does not* contain "arm64" or "aarch64" (explicit ARM64),
+    // it's considered a potential match because macOS can run x86_64 binaries via Rosetta 2 emulation.
     let rosetta_fallback = (os_lower == "macos" && arch_lower == "arm64") &&
         asset_name_lower.contains("x86_64") &&
         !(asset_name_lower.contains("arm64") || asset_name_lower.contains("aarch64"));
 
+    // If neither a direct architecture match nor the Rosetta fallback condition is met, return false.
     if !(arch_matches || rosetta_fallback) {
         log_debug!("[Utils] Asset '{}' does not match architecture '{}' (and no Rosetta fallback).", filename.dimmed(), arch);
         return false;
     }
 
-    // Optional: Exclude common source/debug/checksum files if not explicitly desired.
+    // 4. Optional: Exclude common source, debug, or checksum files.
+    // These files are usually not the actual executable binaries we want to download.
     // This helps in picking the actual binary release.
     if asset_name_lower.contains("src") ||
         asset_name_lower.contains("source") ||
         asset_name_lower.contains("debug") ||
         asset_name_lower.contains("checksum") ||
         asset_name_lower.contains("sha256") ||
-        asset_name_lower.contains("tar.gz.sig") ||
-        asset_name_lower.ends_with(".asc") { // Common signature file extension
+        asset_name_lower.contains("tar.gz.sig") || // Common signature file for tar.gz
+        asset_name_lower.ends_with(".asc") {      // Common detached signature file extension
         log_debug!("[Utils] Asset '{}' excluded due to containing common non-binary keywords.", filename.dimmed());
         return false;
     }
 
+    // If all checks pass, the asset is considered a match for the current platform.
     log_debug!("[Utils] Asset '{}' matches platform (OS: {}, ARCH: {}) -> {}", filename.dimmed(), os.cyan(), arch.magenta(), "true".bold());
     true
 }
@@ -678,35 +869,39 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
 ///
 /// This function currently supports `.zshrc` for Zsh and `.bashrc` for Bash.
 /// It constructs the full path by joining the user's home directory with the
-/// specific RC file name.
+/// specific RC file name. This is crucial for modifying shell configurations.
 ///
 /// # Arguments
-/// * `shell`: A string slice representing the name of the shell (e.g., "zsh", "bash").
+/// * `shell`: A string slice (`&str`) representing the name of the shell (e.g., "zsh", "bash").
 ///
 /// # Returns
 /// * `Option<PathBuf>`:
-///   - `Some(PathBuf)` containing the full path to the RC file if the shell is supported
-///     and the home directory can be determined.
-///   - `None` if the shell is not supported or the home directory cannot be found.
+///   - `Some(PathBuf)` containing the full absolute path to the RC file if the shell is supported
+///     and the user's home directory can be determined.
+///   - `None` if the shell is not supported (not "zsh" or "bash") or if the home directory
+///     cannot be found (e.g., `dirs::home_dir()` returns None).
 pub fn get_rc_file(shell: &str) -> Option<PathBuf> {
     log_debug!("[ShellRC:get_rc_file] Attempting to find RC file for shell: '{}'", shell.bold());
 
-    // Use `dirs::home_dir()` from the `dirs` crate to reliably get the current user's home directory.
+    // Use `dirs::home_dir()` from the `dirs` crate to reliably get the current user's home directory
+    // across different operating systems.
     let home_dir = match dirs::home_dir() {
-        Some(path) => path,
+        Some(path) => path, // If found, assign it to `home_dir`.
         None => {
+            // If the home directory cannot be determined, log a warning and return `None`.
             log_warn!("[ShellRC:get_rc_file] Could not determine the user's home directory. Cannot find RC file.");
             return None; // Cannot proceed without the home directory.
         }
     };
     log_debug!("[ShellRC:get_rc_file] User's home directory detected: {:?}", home_dir.display());
 
-    // Match the lowercase version of the shell name to determine the correct RC file.
+    // Match the lowercase version of the shell name to determine the correct RC file name.
     let rc_file_name = match shell.to_lowercase().as_str() {
-        "zsh" => ".zshrc",
-        "bash" => ".bashrc",
+        "zsh" => ".zshrc", // For Zsh, the configuration file is typically `.zshrc` in the home directory.
+        "bash" => ".bashrc", // For Bash, it's typically `.bashrc`.
         _ => {
-            // If the shell name doesn't match a supported type, log a warning and return None.
+            // If the provided `shell` name doesn't match any supported type, log a warning
+            // and return `None`, as we don't know which RC file to use.
             log_warn!(
                 "[ShellRC:get_rc_file] Unsupported shell type '{}'. Currently only 'zsh' and 'bash' are explicitly mapped to RC files.",
                 shell.red()
@@ -716,28 +911,32 @@ pub fn get_rc_file(shell: &str) -> Option<PathBuf> {
     };
     log_debug!("[ShellRC:get_rc_file] RC file name determined: {}", rc_file_name.cyan());
 
-    // Construct the full path to the RC file by joining the home directory and the file name.
+    // Construct the full absolute path to the RC file by joining the home directory and the RC file name.
     let rc_path = home_dir.join(rc_file_name);
     log_debug!("[ShellRC:get_rc_file] Full RC file path: {:?}", rc_path.display());
 
-    Some(rc_path) // Return the constructed path wrapped in `Some`.
+    Some(rc_path) // Return the constructed path wrapped in `Some` to indicate success.
 }
 
 /// Helper function: Reads all non-empty, non-comment lines from a given RC file.
 ///
 /// This function is designed to read the existing content of an RC file efficiently
-/// for later comparison. It handles cases where the file might not exist or be unreadable.
+/// for later comparison (e.g., to check if certain configurations already exist).
+/// It gracefully handles cases where the file might not exist or be unreadable.
 ///
 /// # Arguments
 /// * `rc_path`: A reference to a `Path` indicating the RC file to read.
 ///
 /// # Returns
-/// * `Vec<String>`: A vector containing each line read from the file as a `String`.
-///                  Returns an empty vector if the file doesn't exist or an error occurs during reading.
+/// * `Vec<String>`: A vector containing each relevant line read from the file as a `String`.
+///                  - Relevant lines are those that are not empty and do not start with '#'.
+///                  - Returns an empty vector (`Vec::new()`) if the file doesn't exist,
+///                    or if an error occurs during reading (e.g., permission issues).
 pub fn read_rc_lines(rc_path: &Path) -> Vec<String> {
     log_debug!("[ShellRC:read_rc_lines] Attempting to read lines from RC file: {:?}", rc_path.display().to_string().dimmed());
 
-    // First, check if the file actually exists. If not, there are no lines to read.
+    // First, check if the file actually exists. If not, there are no lines to read,
+    // and we can return an empty vector immediately without attempting to open it.
     if !rc_path.exists() {
         log_debug!("[ShellRC:read_rc_lines] RC file {:?} does not exist. Returning an empty list of lines.", rc_path.display().to_string().yellow());
         return vec![];
@@ -749,12 +948,13 @@ pub fn read_rc_lines(rc_path: &Path) -> Vec<String> {
             log_debug!("[ShellRC:read_rc_lines] RC file {:?} opened successfully for reading.", rc_path.display());
             // Create a buffered reader for efficient line-by-line reading.
             BufReader::new(file)
-                .lines() // Get an iterator over lines.
-                .filter_map(Result::ok) // Filter out any lines that resulted in an I/O error.
-                // It's good practice to also filter out empty lines or lines that are just comments,
-                // as these typically don't represent active configurations to compare against.
+                .lines() // Get an iterator over lines. Each item is a `Result<String, io::Error>`.
+                .filter_map(Result::ok) // Filter out any lines that resulted in an I/O error (`Err` variants)
+                // and unwrap `Ok` variants to get the `String`.
+                // Filter out empty lines or lines that are just comments (starting with '#').
+                // `.trim()` removes leading/trailing whitespace.
                 .filter(|line| !line.trim().is_empty() && !line.trim().starts_with('#'))
-                .collect() // Collect all valid lines into a `Vec<String>`.
+                .collect() // Collect all valid, non-empty, non-comment lines into a `Vec<String>`.
         }
         Err(err) => {
             // If the file cannot be opened (e.g., permission issues), log a warning.
@@ -763,7 +963,7 @@ pub fn read_rc_lines(rc_path: &Path) -> Vec<String> {
                 rc_path.display().to_string().red(),
                 err.to_string().red()
             );
-            vec![] // Return an empty vector on error.
+            vec![] // Return an empty vector on error, signifying no lines could be read.
         }
     }
 }
@@ -771,129 +971,167 @@ pub fn read_rc_lines(rc_path: &Path) -> Vec<String> {
 /// Helper function: Appends new lines to the end of the specified RC file.
 ///
 /// This function opens the RC file in append mode. If the file doesn't exist,
-/// it will be created. It also adds a comment header to denote lines added by `setup-devbox`.
+/// it will be created. It also adds a clear comment header to denote lines added by `setup-devbox`,
+/// making it easy for users to identify and manage these additions.
 ///
 /// # Arguments
 /// * `rc_path`: A reference to a `Path` indicating the RC file to append to.
-/// * `lines`: A `Vec<String>` containing the new lines to be written.
+/// * `lines`: A `Vec<String>` containing the new lines to be written to the file.
 ///
 /// # Returns
-/// * `std::io::Result<()>`: `Ok(())` on successful write, or an `Err` if an I/O error occurs.
+/// * `std::io::Result<()>`:
+///   - `Ok(())` on successful write of all lines.
+///   - An `Err` if any I/O error occurs during file opening or writing.
 pub fn append_to_rc_file(rc_path: &Path, lines: Vec<String>) -> std::io::Result<()> {
     log_debug!("[ShellRC:append_to_rc_file] Preparing to append {} new lines to RC file: {:?}", lines.len().to_string().bold(), rc_path.display().to_string().yellow());
 
-    // Open the file with specific options:
-    // - `create(true)`: If the file doesn't exist, create it.
-    // - `append(true)`: Open the file in append mode, so new writes go to the end.
+    // Open the file with specific options using `OpenOptions::new()`:
+    // - `create(true)`: If the file does not exist, create it.
+    // - `append(true)`: Open the file in append mode, so new writes are added to the end of the file.
     let mut file = OpenOptions::new()
         .create(true) // Create the file if it doesn't exist.
         .append(true) // Open in append mode.
-        .open(rc_path)?; // Attempt to open the file. The `?` operator will propagate any errors.
+        .open(rc_path)?; // Attempt to open the file. The `?` operator will propagate any `io::Error`.
 
     log_debug!("[ShellRC:append_to_rc_file] RC file {:?} opened in append mode.", rc_path.display());
 
     // Add a clear comment header before appending new configurations.
-    // This makes it easy for users to identify entries added by 'setup-devbox'.
+    // This makes it easy for users to identify entries added by 'setup-devbox' in their RC file.
+    // `writeln!` writes the string followed by a newline.
     writeln!(file, "\n# Added by setup-devbox")?;
     log_debug!("[ShellRC:append_to_rc_file] Added 'Added by setup-devbox' header.");
 
-    // Write each new line to the file, followed by a newline character.
+    // Write each new line from the `lines` vector to the file.
+    // Each line is written followed by a newline character to ensure they are on separate lines.
     for (index, line) in lines.iter().enumerate() {
         writeln!(file, "{}", line)?;
         log_debug!("[ShellRC:append_to_rc_file] Appended line {}: '{}'", (index + 1).to_string().dimmed(), line.dimmed());
     }
 
     log_debug!("[ShellRC:append_to_rc_file] All new lines successfully written to {:?}", rc_path.display());
-    Ok(()) // Indicate success.
+    Ok(()) // Indicate successful completion of the append operation.
 }
 
 /// This function checks if a multi-line string `needle_lines` exists
-/// sequentially within a vector of `haystack_lines`.
+/// sequentially within a vector of `haystack_lines`. It performs a robust comparison
+/// by trimming whitespace and checking if the haystack lines *start with* the needle lines.
+/// This is useful for verifying if a block of configuration has already been added to an RC file.
+///
+/// # Arguments
+/// * `haystack_lines`: A slice (`&[String]`) representing the lines to search within
+///                     (e.g., lines read from an RC file).
+/// * `needle_lines`: A slice (`&[String]`) representing the sequence of lines to find
+///                   (e.g., the configuration block to check for).
+///
+/// # Returns
+/// * `bool`: `true` if the entire `needle_lines` block is found sequentially within `haystack_lines`,
+///           `false` otherwise. Returns `true` if `needle_lines` is empty.
 pub fn contains_multiline_block(haystack_lines: &[String], needle_lines: &[String]) -> bool {
+    // Edge case: An empty block is always considered "contained".
     if needle_lines.is_empty() {
-        return true; // An empty block is always "contained"
+        return true;
     }
+    // Optimization: If the haystack is shorter than the needle, it cannot contain it.
     if haystack_lines.len() < needle_lines.len() {
-        return false; // Haystack is too short to contain the needle
+        return false;
     }
 
-    // Iterate through the haystack, looking for the start of the needle
+    // Iterate through the `haystack_lines`, starting from index `i`.
+    // The loop runs up to `haystack_lines.len() - needle_lines.len()` to ensure there are
+    // enough remaining lines in the haystack to potentially contain the entire needle.
     for i in 0..=(haystack_lines.len() - needle_lines.len()) {
-        let mut match_found = true;
-        // Check if the sequence of lines from `haystack_lines[i]` matches `needle_lines`
+        let mut match_found = true; // Assume a match until proven otherwise for the current `i`.
+
+        // Check if the sequence of lines starting from `haystack_lines[i]` matches `needle_lines`.
         for j in 0..needle_lines.len() {
-            // Trim both lines for robust comparison, and then check if the haystack line
-            // *starts with* the trimmed needle line. Using `starts_with` is better than `==`
-            // because there might be slight leading/trailing spaces or comments in the RC file
-            // that `read_rc_lines` might not perfectly normalize, but the core content should match.
-            // Also, consider `contains` if individual lines might have other text, but `starts_with`
-            // is generally more precise for configuration blocks.
+            // Trim leading/trailing whitespace from both the haystack line and the needle line
+            // for more robust comparison, as RC files might have inconsistent formatting.
+            //
+            // Using `starts_with` is better than `==` because:
+            // 1. There might be slight leading/trailing spaces or comments on the same line
+            //    in the RC file that `read_rc_lines` might not perfectly normalize.
+            // 2. A line in the haystack might contain the needle line as a prefix, but then
+            //    have additional content (e.g., "export PATH=... # My comment").
             if !haystack_lines[i + j].trim().starts_with(needle_lines[j].trim()) {
-                match_found = false;
-                break;
+                match_found = false; // If any line doesn't match, this sequence is not a match.
+                break;               // Stop checking this sequence and move to the next `i`.
             }
         }
         if match_found {
-            return true; // Found the entire multi-line block
+            return true; // If the inner loop completed, it means the entire multi-line block was found.
         }
     }
-    false // Block not found
+    false // If the outer loop completes, the block was not found anywhere in the haystack.
 }
 
 /// Saves the current `DevBoxState` to the specified `state.json` file.
 ///
-/// This function serializes the state into a pretty-printed JSON format
-/// and writes it to the disk. It also handles creating the parent directories
-/// if they do not exist.
+/// This function serializes the `DevBoxState` struct into a human-readable, pretty-printed JSON format
+/// and writes it to the disk. It also handles creating any necessary parent directories for the
+/// state file if they do not exist, ensuring the save operation can proceed smoothly.
+/// This is essential for `setup-devbox` to persist its "memory" of installed tools.
 ///
 /// # Arguments
-/// * `state`: A reference to the `DevBoxState` struct to be saved.
-/// * `state_path`: A reference to a `PathBuf` indicating where the state file should be saved.
+/// * `state`: A reference to the `DevBoxState` struct that needs to be saved.
+/// * `state_path`: A reference to a `PathBuf` indicating the full path where the state file
+///                 (`state.json`) should be saved.
 ///
 /// # Returns
-/// * `bool`: `true` if the state was saved successfully, `false` otherwise.
+/// * `bool`:
+///   - `true` if the state was successfully serialized and written to the file.
+///   - `false` otherwise (e.g., failed to create directories, failed to serialize, failed to write).
 pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
     log_debug!("[StateSave] Attempting to save DevBoxState to: {:?}", state_path.display());
 
     // Ensure the parent directory for the state file exists.
+    // `state_path.parent()` returns `Some(Path)` if the path has a parent directory.
     if let Some(parent_dir) = state_path.parent() {
+        // Check if the parent directory already exists.
         if !parent_dir.exists() {
             log_info!("[StateSave] Parent directory {:?} does not exist. Creating it now.", parent_dir.display());
+            // Attempt to create all necessary parent directories.
+            // If `fs::create_dir_all` fails, log an error and return `false` because saving cannot proceed.
             if let Err(e) = fs::create_dir_all(parent_dir) {
                 log_error!(
                     "[StateSave] Failed to create directory for state file at {:?}: {}. Cannot save state.",
                     parent_dir.display().to_string().red(),
                     e
                 );
-                return false; // Critical failure, cannot save.
+                return false; // Critical failure, cannot save state.
             }
         }
     }
 
-    // Try to serialize the `DevBoxState` into a pretty-printed JSON string.
+    // Try to serialize the `DevBoxState` struct into a pretty-printed JSON string.
+    // `serde_json::to_string_pretty` makes the JSON output readable for debugging and inspection.
     match serde_json::to_string_pretty(state) {
         Ok(serialized_state) => {
-            // Attempt to write the serialized JSON content to the state file.
+            // If serialization was successful, attempt to write the JSON string to the state file.
+            // `fs::write` is a convenience function that creates the file (or truncates it) and writes all data.
             match fs::write(state_path, serialized_state) {
                 Ok(_) => {
+                    // Print an empty line to ensure clean terminal output, separating logs from other output.
+                    eprint!("\n");
                     log_info!("[StateSave] DevBox state saved successfully to {}", state_path.display().to_string().green());
                     log_debug!("[StateSave] State content written to disk.");
-                    true // Success!
+                    true // Indicate successful saving.
                 },
                 Err(err) => {
+                    // If writing to the file fails (e.g., disk full, permission denied).
                     log_error!(
                         "[StateSave] Failed to write updated state file to {:?}: {}. Your `setup-devbox` memory might not be saved correctly.",
                         state_path.display().to_string().red(),
                         err
                     );
-                    false // Failed to write.
+                    false // Indicate failure to write.
                 }
             }
         },
         Err(err) => {
-            // If serialization itself fails, it's an internal error (e.g., schema mismatch).
+            // If serialization itself fails, it indicates an internal application error
+            // (e.g., `DevBoxState` struct cannot be serialized, or data is invalid).
             log_error!("[StateSave] Failed to serialize DevBox state for saving: {}. This is an internal application error.", err);
-            false // Failed to serialize.
+            false // Indicate failure to serialize.
         }
     }
 }
