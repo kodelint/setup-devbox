@@ -207,7 +207,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         // For common archive types (zip, tar.gz, tar.bz2, tar).
         // The `extract_archive` function now expects the `known_file_type` parameter.
         "zip" | "tar.gz" | "gz" | "tar.bz2" | "tar" => {
-            log_info!("[GitHub] Extracting archive for {}.", tool.name.to_string().bold());
+            log_debug!("[GitHub] Extracting archive for {}.", tool.name.to_string().blue());
             // Extract the archive into a temporary subdirectory.
             let extracted_path = match utils::extract_archive(&archive_path, &temp_dir, Some(&file_type_from_name)) { // *** Pass `file_type_from_name` here ***
                 Ok(path) => path,
@@ -216,7 +216,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
                     return None;
                 }
             };
-            log_info!("[GitHub] Searching for executable in extracted contents for {}.", tool.name.to_string().bold());
+            log_debug!("[GitHub] Searching for executable in extracted contents for {}.", tool.name.to_string().blue());
             // Find the actual executable binary within the extracted contents (it might be nested).
             let executable_path = match utils::find_executable(&extracted_path) {
                 Some(path) => path,
@@ -226,13 +226,13 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
                 }
             };
 
-            log_info!("[GitHub] Moving and renaming executable for {}.", tool.name.to_string().bold());
+            log_debug!("[GitHub] Moving and renaming executable for {}.", tool.name.to_string().blue());
             // Move the found executable to its final installation path and potentially rename it.
             if let Err(err) = utils::move_and_rename_binary(&executable_path, &install_path) {
                 log_error!("[GitHub] Failed to move extracted binary for {}: {}", tool.name.to_string().red(), err);
                 return None;
             }
-            log_info!("[GitHub] Making extracted binary executable for {}.", tool.name.to_string().bold());
+            log_debug!("[GitHub] Making extracted binary executable for {}.", tool.name.to_string().blue());
             // Make the final binary executable.
             if let Err(err) = utils::make_executable(&install_path) {
                 log_error!("[GitHub] Failed to make extracted binary executable for {}: {}", tool.name.to_string().red(), err);

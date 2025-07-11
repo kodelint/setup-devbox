@@ -49,7 +49,7 @@ use colored::Colorize;
 pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
     // Let's kick things off with a friendly message, telling the user which shell
     // we're focusing on for configuration.
-    log_info!("[ShellRC] Starting the process to apply configurations for shell: {}", shellrc.shell.bold());
+    log_debug!("[ShellRC] Starting the process to apply configurations for shell: {}", shellrc.shell.bold());
     // For deeper dives, let's log the full details of the shell configuration
     // and the aliases we've received. This is great for debugging!
     // Pretty print shellrc (ShellRC struct)
@@ -174,7 +174,7 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
     if new_lines_to_add.is_empty() {
         // If the list is empty, it means your RC file is already up-to-date!
         log_info!(
-            "[ShellRC] Good news! No new configurations or aliases were found for {}. Your RC file remains untouched.",
+            "[ShellRC] No new configurations or aliases were found for {}.",
             rc_path.display().to_string().cyan()
         );
     } else {

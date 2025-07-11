@@ -876,6 +876,7 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
             // Attempt to write the serialized JSON content to the state file.
             match fs::write(state_path, serialized_state) {
                 Ok(_) => {
+                    eprint!("\n");
                     log_info!("[StateSave] DevBox state saved successfully to {}", state_path.display().to_string().green());
                     log_debug!("[StateSave] State content written to disk.");
                     true // Success!
@@ -896,4 +897,51 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
             false // Failed to serialize.
         }
     }
+}
+
+pub fn draw_titled_rectangle(title: &str, border_char: char, width: usize, height: usize) {
+    // Ensure minimum width for borders and title + spaces
+    // Minimum 2 for borders + at least 2 for padding on each side (4 total) + title length
+    if width < title.len() + 4 || height < 3 {
+        eprintln!(
+            "{} Warning: Rectangle dimensions (width: {}, height: {}) are too small to fit the title \"{}\" or form a valid box. Skipping drawing.",
+            "[WARN]".yellow(),
+            width, height, title
+        );
+        return;
+    }
+
+    let inner_width = width - 2; // Space between vertical borders
+
+    // Top border
+    eprintln!("{}", border_char.to_string().repeat(width).blue().bold()); // Colorize for emphasis
+
+    // Iterate through inner rows
+    for i in 0..height - 2 {
+        if i == (height - 2) / 2 { // This is the row where the title should be centered
+            let total_padding_spaces = inner_width.saturating_sub(title.len());
+            let padding_left = total_padding_spaces / 2;
+            let padding_right = total_padding_spaces - padding_left; // Handles odd remaining spaces
+
+            eprintln!(
+                "{}{}{}{}{}",
+                border_char.to_string().blue().bold(), // Left border
+                " ".repeat(padding_left),
+                title.bold(), // Colorize title
+                " ".repeat(padding_right),
+                border_char.to_string().blue().bold() // Right border
+            );
+        } else {
+            // Empty rows
+            eprintln!(
+                "{}{}{}",
+                border_char.to_string().blue().bold(), // Left border
+                " ".repeat(inner_width),
+                border_char.to_string().blue().bold() // Right border
+            );
+        }
+    }
+
+    // Bottom border
+    eprintln!("{}", border_char.to_string().repeat(width).blue().bold()); // Colorize for emphasis
 }

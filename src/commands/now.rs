@@ -8,7 +8,11 @@
 // These structs tell us how our configuration files and our internal state file should be shaped.
 use crate::schema::{DevBoxState, FontConfig, MainConfig, SettingsConfig, ShellConfig, ToolConfig};
 // This module provides utility functions like expanding '~' in paths and our new state saver.
-use crate::utils::{expand_tilde, save_devbox_state};
+use crate::utils::{
+    expand_tilde,
+    save_devbox_state,
+    draw_titled_rectangle
+};
 // Here we import the specific installer modules for different sources.
 // Each of these modules knows how to install tools or configure specific system aspects.
 use crate::installers::{
@@ -377,22 +381,25 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
     // If we have `ToolConfig` (meaning `tools.yaml` was successfully loaded and parsed),
     // let's go ahead and process the tool installations.
     if let Some(tools_cfg) = tools_config {
-        log_info!("Processing tool installations...");
-        let mut tools_updated = false; // Flag to track if any tools were installed/updated in this block.
+
+        eprintln!("\n");
+        log_info!("Processing Tools Installations...");
+        // Flag to track if any tools were installed/updated in this block.
+        let mut tools_updated = false;
+        // Collection to track if any tools needs to skipped
+        let mut skipped_tools: Vec<String> = Vec::new();
 
         // Loop through each `ToolEntry` defined in the `tools.yaml` configuration.
         for tool in &tools_cfg.tools {
             log_debug!("Considering tool: {:?}", tool.name.bold());
-            // Check if this tool is *already* recorded in our `state.tools` HashMap.
-            // This is how `setup-devbox` knows to avoid re-installing tools that are already managed.
+
             if !state.tools.contains_key(&tool.name) {
+                // This block handles NEW tool installations
                 print!("\n");
-                eprintln!("{}", "==============================================================================================".blue());
-                log_info!("Installing new tool: {}", tool.name.to_string().blue());
+                eprintln!("{}", "==============================================================================================".bright_blue());
+                log_info!("Installing new tool from {}: {}", tool.source.to_string().bright_yellow(), tool.name.to_string().bright_blue().bold());
                 log_debug!("Full configuration details for tool '{}': {:?}", tool.name, tool);
 
-                // Based on the tool's `source` (e.g., "GitHub", "brew"),
-                // we delegate the actual installation task to the appropriate installer module.
                 let installation_result = match tool.source.as_str() {
                     "github" => github::install(tool), // Hand off to the GitHub installer.
                     "brew" => brew::install(tool),     // Hand off to the Homebrew installer.
@@ -400,49 +407,53 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
                     // "cargo" => cargo::install(tool),
                     // "go" => go::install(tool),
                     other => {
-                        // If the tool's source is unrecognized, warn the user and skip this tool.
                         log_warn!(
-                            "Unsupported source '{}' for tool '{}'. Skipping this tool's installation.",
-                            other.yellow(),
-                            tool.name.bold()
-                        );
+                        "Unsupported source '{}' for tool '{}'. Skipping this tool's installation.",
+                        other.yellow(),
+                        tool.name.bold()
+                    );
                         None // Indicate that no `ToolState` was generated for this tool.
                     }
                 };
 
-                // If the installation was successful (meaning `Some(ToolState)` was returned)...
                 if let Some(tool_state) = installation_result {
-                    // Add the details of the newly installed tool to our `state.tools` HashMap.
                     state.tools.insert(tool.name.clone(), tool_state);
-                    tools_updated = true; // Mark that tools state has changed in this block.
-                    log_info!("Successfully installed tool: {}", tool.name.bold().green());
+                    tools_updated = true;
+                    log_info!("{}: {}", "Successfully installed tool".yellow() ,tool.name.bold().bright_green());
                     eprintln!("{}", "==============================================================================================".blue());
                     print!("\n");
                 } else {
-                    // If the installation failed for any reason, log an error.
                     log_error!(
-                        "Failed to install tool: {}. Please review previous logs for specific errors during installation.",
-                        tool.name.bold().red()
-                    );
+                    "Failed to install tool: {}. Please review previous logs for specific errors during installation.",
+                    tool.name.bold().red()
+                );
                 }
             } else {
-                // If the tool is already recorded in our `state.tools` map, we just log that we're skipping it.
-                log_info!("Tool '{}' is already recorded as installed. Skipping re-installation.", tool.name.blue());
-                // TODO: In a more advanced version, we might add logic here to *update*
-                // tools if the version specified in config is newer than the installed version.
+                skipped_tools.push(tool.name.clone());
+                log_debug!("Tool '{}' is already recorded as installed. Added to skipped list.", tool.name.blue()); // Changed to debug
             }
         }
 
-        // After processing all tools, if any `tools_updated` occurred, save the state.
+        if !skipped_tools.is_empty() {
+            let skipped_tools_str = skipped_tools.join(", ");
+            log_info!(
+            "The following tools were already recorded as installed and were skipped: {}",
+            skipped_tools_str.blue()
+        );
+        } else {
+            log_debug!("No tools were skipped as they were not found in the state.");
+        }
+
         if tools_updated {
-            log_info!("Tool state updated. Saving current DevBox state...");
+            log_info!("New tools installed or state updated. Saving current DevBox state...");
             if !save_devbox_state(&state, &state_path_resolved) {
                 log_error!("Failed to save state after tool installations. Data loss risk!");
             }
+            log_debug!("State saved successfully after tool updates.");
         } else {
             log_info!("No new tools installed or state changes detected for tools.");
         }
-        log_info!("Finished processing all tool installations.");
+        eprintln!();
     } else {
         log_debug!("No tool configurations found (tools.yaml missing or empty). Skipping tool installation phase.");
     }
@@ -450,8 +461,11 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
     // 5b. Install Fonts
     // If `fonts_config` (from `fonts.yaml`) was loaded, we proceed with font installations.
     if let Some(fonts_cfg) = fonts_config {
-        log_info!("Processing font installations from fonts.yaml...");
+        log_info!("Processing Fonts Installations from fonts.yaml...");
         let mut fonts_updated = false; // Flag to track if any fonts were installed/updated.
+
+        // Collect names of already installed fonts
+        let mut skipped_fonts: Vec<String> = Vec::new();
 
         // Loop through each `FontEntry` defined in the `fonts.yaml` configuration.
         for font in &fonts_cfg.fonts {
@@ -459,6 +473,9 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
             // Check if this font is *already* recorded in our `state.fonts` HashMap.
             // This prevents re-installing fonts that are already managed.
             if !state.fonts.contains_key(&font.name) {
+                // This block handles NEW font installations
+                print!("\n");
+                eprintln!("{}", "==============================================================================================".bright_blue());
                 log_info!("Installing new font: {}", font.name.bold());
                 log_debug!("Full configuration details for font '{}': {:?}", font.name, font);
 
@@ -472,6 +489,8 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
                     state.fonts.insert(font.name.clone(), font_state);
                     fonts_updated = true; // Mark that fonts state has changed.
                     log_info!("Successfully installed font: {}", font.name.bold().green());
+                    eprintln!("{}", "==============================================================================================".bright_blue());
+                    print!("\n");
                 } else {
                     // If the installation failed, log an error.
                     log_error!(
@@ -480,10 +499,20 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
                     );
                 }
             } else {
-                // If the font is already in our state, we just log that we're skipping it.
-                log_info!("Font '{}' is already recorded as installed. Skipping re-installation.", font.name.blue());
-                // TODO: Similar to tools, consider adding update logic for fonts here if versioning changes.
+                skipped_fonts.push(font.name.clone());
+                log_debug!("Font '{}' is already recorded as installed. Added to skipped list.", font.name.blue()); // Changed to debug
             }
+        }
+
+        // Print consolidated skipped fonts message after the loop
+        if !skipped_fonts.is_empty() {
+            let skipped_fonts_str = skipped_fonts.join(", ");
+            log_info!(
+                "The following fonts were already recorded as installed and were skipped: {}",
+                skipped_fonts_str.blue()
+            );
+        } else {
+            log_debug!("No fonts were skipped as they were not found in the state.");
         }
 
         // After processing all fonts, if any `fonts_updated` occurred, save the state.
@@ -492,6 +521,7 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
             if !save_devbox_state(&state, &state_path_resolved) {
                 log_error!("Failed to save state after font installations. Data loss risk!");
             }
+            log_info!("State saved successfully after font updates."); // Add explicit success
         } else {
             log_info!("No new fonts installed or state changes detected for fonts.");
         }
@@ -503,7 +533,9 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
     // 5c. Apply Shell Configuration (Raw Configs and Aliases)
     // If `shell_config` (from `shellrc.yaml`) was loaded, we apply shell configurations.
     if let Some(shell_cfg) = shell_config {
-        log_info!("Applying shell configurations and aliases from shellrc.yaml...");
+        eprintln!("\n");
+        log_info!("Applying Shell configurations...");
+        log_debug!("Applying shell configurations and aliases from shellrc.yaml...");
         // Pretty print shell_cfg.shellrc
         match serde_json::to_string_pretty(&shell_cfg.shellrc) {
             Ok(pretty_shellrc) => {
@@ -537,18 +569,23 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
         // if this section was processed.
         shellrc::apply_shellrc(&shell_cfg.shellrc, &shell_cfg.aliases);
 
-        log_info!("Shell configuration application phase completed. Saving current DevBox state...");
+        log_debug!("Shell configuration application phase completed. Saving current DevBox state...");
+        //
+        // Still thinking about it, SHELL Configuration are not something to be recorded in State File
+        // Anyway `setup-devbox` reads the SHELLRC (.zshrc, .bashrc etc)
+        //
         // Always save state after shellrc attempt, as `apply_shellrc` does its own checks
         // for new lines and writes. Even if no new lines, the process was 'completed'.
-        if !save_devbox_state(&state, &state_path_resolved) {
-            log_error!("Failed to save state after shell configuration. Data loss risk!");
-        }
+        // if !save_devbox_state(&state, &state_path_resolved) {
+        //     log_error!("Failed to save state after shell configuration. Data loss risk!");
+        // }
     } else {
         log_debug!("No shell configurations found (shellrc.yaml missing or empty). Skipping shell configuration phase.");
     }
     // 5d. Apply macOS System Settings
     // If `settings.yaml` was loaded, we'd apply system settings here.
     if let Some(_settings_cfg) = settings_config {
+        eprintln!("\n");
         log_info!("Applying system settings from settings.yaml...");
         log_warn!("The 'settings' application feature is currently under development and will be implemented soon!");
         // TODO: The actual implementation for applying settings would go here.
@@ -569,6 +606,6 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
     }
 
     // Finally, let's wrap up the `now` command execution.
-    log_info!("DevBox 'now' command completed its mission!");
+    log_info!("'setup-devbox now' command completed!!");
     log_debug!("Exited now::run() function.");
 }
