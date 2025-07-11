@@ -101,7 +101,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
     let bin_name = tool.rename_to.clone().unwrap_or_else(|| name.clone());
     let install_path = PathBuf::from(format!("{}/bin/{}", brew_prefix, bin_name));
 
-    log_debug!("[Brew] Expected final binary path for {}: {:?}", name.bold(), install_path.to_string_lossy().cyan());
+    log_debug!("[Brew] Expected final binary path for {}: {:?}", name.bold(), install_path.display().to_string().cyan());
 
     // 4. Return ToolState for Tracking
     // Create and return a `ToolState` object to record this successful installation.
@@ -109,7 +109,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         // Use the version from the config, or default to "latest" since Homebrew handles versioning.
         version: tool.version.clone().unwrap_or_else(|| "latest".to_string()),
         // The detected installation path.
-        install_path: install_path.to_string_lossy().to_string(),
+        install_path: install_path.display().to_string(),
         // Mark that this tool was installed by `setup-devbox`.
         installed_by_devbox: true,
         // The installation method used.

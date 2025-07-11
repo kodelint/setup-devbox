@@ -5,24 +5,24 @@ use std::sync::OnceLock;
 /// Macros for logging
 #[macro_export]
 macro_rules! log_info {
-    ($($arg:tt)*) => (println!("{} {}", "[INFO]".on_green(), format!($($arg)*)));
+    ($($arg:tt)*) => (eprintln!("{} {}", "[INFO]".bright_cyan(), format!($($arg)*)));
 }
 
 #[macro_export]
 macro_rules! log_warn {
-    ($($arg:tt)*) => (println!("{} {}", "[WARN]".yellow(), format!($($arg)*)));
+    ($($arg:tt)*) => (eprintln!("{} {}", "[WARN]".yellow(), format!($($arg)*)));
 }
 
 #[macro_export]
 macro_rules! log_error {
-    ($($arg:tt)*) => (println!("{} {}", "[ERROR]".red(), format!($($arg)*)));
+    ($($arg:tt)*) => (eprintln!("{} {}", "[ERROR]".bright_red(), format!($($arg)*)));
 }
 
 #[macro_export]
 macro_rules! log_debug {
     ($($arg:tt)*) => {
         if $crate::logger::is_debug_enabled() {
-            println!("{} {}", "[DEBUG]".blue(), format!($($arg)*));
+           eprintln!("{} {}", "[DEBUG]".dimmed(), format!($($arg)*));
         }
     };
 }

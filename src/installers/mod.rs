@@ -1,6 +1,6 @@
-pub mod github;
-pub mod brew;
-pub mod go;
-pub mod cargo;
-mod fonts;
-mod shellrc;
+pub(crate) mod github;
+pub(crate) mod brew;
+pub(crate) mod go;
+pub(crate) mod cargo;
+pub(crate) mod fonts;
+pub(crate) mod shellrc;

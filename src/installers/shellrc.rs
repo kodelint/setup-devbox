@@ -12,7 +12,7 @@ use crate::schema::{AliasEntry, ShellRc};
 // `append_to_rc_file`: for adding new lines to the shell RC file.
 // `get_rc_file`: for figuring out which RC file to target.
 // `read_rc_lines`: for reading the existing content of an RC file.
-use crate::utils::{append_to_rc_file, get_rc_file, read_rc_lines};
+use crate::utils::{append_to_rc_file, contains_multiline_block, get_rc_file, read_rc_lines};
 // These are our custom logging tools! They let us print messages
 // to the console at different detail levels:
 // `log_debug`: for highly detailed messages, usually for troubleshooting.
@@ -52,8 +52,27 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
     log_info!("[ShellRC] Starting the process to apply configurations for shell: {}", shellrc.shell.bold());
     // For deeper dives, let's log the full details of the shell configuration
     // and the aliases we've received. This is great for debugging!
-    log_debug!("[ShellRC] Received ShellRc configuration details: {:?}", shellrc);
-    log_debug!("[ShellRC] Received aliases to consider: {:?}", aliases);
+    // Pretty print shellrc (ShellRC struct)
+    match serde_json::to_string_pretty(shellrc) {
+        Ok(pretty_shellrc) => {
+            log_debug!("[ShellRC] Received ShellRc configuration details:\n{}", pretty_shellrc);
+        },
+        Err(e) => {
+            log_warn!("[ShellRC] Failed to pretty-print ShellRc for debug log: {}", e);
+            log_debug!("[ShellRC] Received ShellRc configuration details: {:?}", shellrc); // Fallback to debug
+        }
+    }
+
+    // Pretty print aliases (slice of AliasEntry)
+    match serde_json::to_string_pretty(aliases) {
+        Ok(pretty_aliases) => {
+            log_debug!("[ShellRC] Received aliases to consider:\n{}", pretty_aliases);
+        },
+        Err(e) => {
+            log_warn!("[ShellRC] Failed to pretty-print aliases for debug log: {}", e);
+            log_debug!("[ShellRC] Received aliases to consider: {:?}", aliases); // Fallback to debug
+        }
+    }
 
     // Step 1: Identify the Correct RC File
     // We need to pinpoint the exact shell RC file (like `.zshrc` or `.bashrc`)
@@ -70,7 +89,7 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
         return; // We can't proceed, so let's exit this function.
     };
     // Success! We've found the target RC file. Let's let everyone know.
-    log_info!("[ShellRC] Identified the target RC file path: {}", rc_path.display().to_string().cyan());
+    log_debug!("[ShellRC] Identified the target RC file path: {}", rc_path.display().to_string().cyan());
     log_debug!("[ShellRC] Preparing to read the existing content of the RC file for smart merging.");
 
     // Step 2: Read Existing RC File Content
@@ -95,23 +114,34 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
     // Step 3a: Process Raw Configurations from `shellrc.yaml`
     log_debug!("[ShellRC] Now, let's carefully review the 'raw_configs' from your shellrc.yaml.");
     // We'll go through each raw configuration snippet you've provided.
+    log_debug!("[ShellRC] Now, let's carefully review the 'raw_configs' from your shellrc.yaml.");
     for raw_config_entry in &shellrc.raw_configs {
-        // First, we tidy up the raw configuration by removing any extra spaces
-        // from the beginning or end. This helps with accurate comparisons.
-        let trimmed_raw = raw_config_entry.trim();
-        log_debug!("[ShellRC] Examining raw config entry: '{}'", trimmed_raw.dimmed());
+        // Split the raw_config_entry into individual lines for comparison
+        let raw_config_lines: Vec<String> = raw_config_entry
+            .lines()
+            .map(|s| s.to_string())
+            .filter(|s| !s.trim().is_empty() && !s.trim().starts_with('#')) // Apply similar filtering as read_rc_lines
+            .collect();
 
-        // This is the core logic for avoiding duplicates:
-        // We check if *any* of the `existing_lines` in the RC file already `contains`
-        // our `trimmed_raw` configuration. Using `contains` makes this check robust
-        // against slight variations like extra spaces or comments on the same line in the RC file.
-        if !existing_lines.iter().any(|existing_line| existing_line.contains(trimmed_raw)) {
+        // If the parsed config block is empty, skip it.
+        if raw_config_lines.is_empty() {
+            log_debug!("[ShellRC] Raw config entry was empty or only comments/whitespace. Skipping.");
+            continue;
+        }
+
+        log_debug!(
+            "[ShellRC] Examining raw config entry ({} lines): '{}'",
+            raw_config_lines.len().to_string().dimmed(),
+            raw_config_lines[0].trim().dimmed() // Just show the first line for debug
+        );
+
+        if !contains_multiline_block(&existing_lines, &raw_config_lines) {
             // Hooray! This raw config is not found in the existing file. It's truly new!
-            log_info!("[ShellRC] Discovered a new raw configuration! Adding: {}", trimmed_raw.green());
-            new_lines_to_add.push(raw_config_entry.clone()); // Add the original (untrimmed) line to our list.
+            log_info!("[ShellRC] Discovered a new raw configuration! Adding:\n{}", raw_config_entry.green());
+            new_lines_to_add.push(raw_config_entry.clone()); // Add the original (untrimmed) raw config
         } else {
             // No need to add this one; it's already there!
-            log_debug!("[ShellRC] Raw config '{}' is already happily living in your RC file. Skipping.", trimmed_raw.yellow());
+            log_debug!("[ShellRC] Raw config is already happily living in your RC file. Skipping.");
         }
     }
     log_debug!("[ShellRC] Finished checking all 'raw_configs'.");
@@ -144,7 +174,7 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
     if new_lines_to_add.is_empty() {
         // If the list is empty, it means your RC file is already up-to-date!
         log_info!(
-            "[ShellRC] Good news! No new configurations or aliases were found for {:?}. Your RC file remains untouched.",
+            "[ShellRC] Good news! No new configurations or aliases were found for {}. Your RC file remains untouched.",
             rc_path.display().to_string().cyan()
         );
     } else {
@@ -159,9 +189,8 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
             Ok(_) => {
                 // Success! The file has been updated.
                 log_info!(
-                    "[ShellRC] RC file {} updated successfully! For these changes to take effect, remember to reload your shell (e.g., type `source {}` in your terminal).",
-                    rc_path.display().to_string().green(),
-                    rc_path.file_name().unwrap().to_string_lossy().blue() // Just display the filename for the source command
+                    "[ShellRC] RC file {} updated successfully!",
+                    rc_path.display().to_string().green()// Just display the filename for the source command
                 );
                 log_debug!("[ShellRC] Append operation finished with no issues.");
             }

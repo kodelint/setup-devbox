@@ -107,7 +107,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
     // typically including the repository, release tag, and an asset filename.
     // We construct the expected asset filename by replacing spaces in the font name
     // (as filenames usually don't contain spaces) and appending the tag and ".zip".
-    let asset_name = format!("{}-{}.zip", font.name.replace(' ', ""), tag);
+    let asset_name = format!("{}.zip", font.name.replace(' ', "")); // Most fonts are distributed as ZIPs
     // Combine the repository, tag, and asset name into a full GitHub release download URL.
     let url = format!("https://github.com/{}/releases/download/{}/{}", repo, tag, asset_name);
     log_info!("[Font] Attempting to download font archive for '{}' from URL: {}", font.name.bold(), url.blue());
@@ -135,12 +135,18 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
         // Return None as the download failed, indicating installation cannot proceed.
         return None;
     }
-    log_info!("[Font] Font archive downloaded successfully to {:?}", archive_path.display().to_string().green());
+    log_info!("[Font] Font archive downloaded successfully to {}", archive_path.display().to_string().green());
 
     // 5. Extract the Font Archive
+    // Detect the file type based on the filename, which is more reliable for archives
+    // from known sources like GitHub releases.
+    let file_type_from_name = utils::detect_file_type_from_filename(&archive_path.to_string_lossy());
+    log_debug!("[Font] Detected downloaded file type (from filename): {}", file_type_from_name.magenta());
+
+
     // Extract the contents of the downloaded ZIP archive into another specific
     // subdirectory within the temporary directory. This keeps extracted files organized.
-    let extracted_dir = match utils::extract_archive(&archive_path, &temp_dir) {
+    let extracted_dir = match utils::extract_archive(&archive_path, &temp_dir, Some(&file_type_from_name)) { // <--- PASS KNOWN TYPE HERE
         Ok(path) => path, // If extraction is successful, `path` is the directory where contents were placed.
         Err(err) => {
             // If extraction fails, log the error.
@@ -156,7 +162,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
             return None; // Return None as extraction failed.
         }
     };
-    log_info!("[Font] Font archive extracted to: {:?}", extracted_dir.display().to_string().green());
+    log_info!("[Font] Font archive extracted to: {}", extracted_dir.display().to_string().green());
     // After successful extraction, the original downloaded archive is no longer needed.
     // Attempt to remove it to free up disk space.
     let _ = fs::remove_file(&archive_path);
@@ -245,7 +251,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
             // Attempt to get the file extension.
             if let Some(ext) = path.extension() {
                 // Convert the extension to a lowercase string for case-insensitive comparison.
-                let ext_str = ext.to_string_lossy().to_lowercase();
+                let ext_str = ext.display().to_string().to_lowercase();
 
                 // Check if the file extension is a common font file type (.ttf or .otf).
                 if ext_str == "ttf" || ext_str == "otf" {
@@ -275,7 +281,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
                         // If the copy is successful, log a debug message and add the target path
                         // to our list of successfully installed font files.
                         log_debug!("[Font] Successfully copied font file: {:?}", target_path.display().to_string().green());
-                        installed_font_files.push(target_path.to_string_lossy().to_string());
+                        installed_font_files.push(target_path.display().to_string().to_string());
                     }
                 } else {
                     log_debug!("[Font] Skipping non-font file based on extension: {:?} (extension: {})", path.display().to_string().dimmed(), ext_str.dimmed());
