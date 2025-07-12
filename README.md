@@ -3,6 +3,8 @@
 ![Rust Logo](https://img.shields.io/badge/Rust-red?style=for-the-badge&logo=rust)
 ![YAML Config](https://img.shields.io/badge/YAML-blue?style=for-the-badge&logo=yaml)
 ![Platform](https://img.shields.io/badge/Platform-macOS-blue?style=for-the-badge&logo=apple)
+
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/kodelint/setup-devbox/actions/workflows/release.yml/badge.svg)](https://github.com/kodelint/setup-devbox/actions/workflows/release.yml)
 [![GitHub release](https://img.shields.io/github/release/kodelint/setup-devbox.svg)](https://github.com/kodelint/setup-devbox/releases)
