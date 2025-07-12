@@ -67,11 +67,7 @@ use ureq;
 // It's used to set file permissions, specifically making files executable, which is a Unix-specific concept.
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-
-// For bzip2 decompression. This import is conditional on the "bzip2" feature being enabled in Cargo.toml.
-// The `bzip2` crate provides support for the BZip2 compression format.
-// Ensure your Cargo.toml has `bzip2 = { version = "...", optional = true }` and `features = ["bzip2"]` when used.
-#[cfg(feature = "bzip2")]
+// For bzip2 decompression.
 use bzip2::read::BzDecoder;
 
 // For recursive directory walking in `find_executable`.
@@ -159,7 +155,7 @@ pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
     Ok(()) // Indicate success by returning `Ok(())`.
 }
 
-/// Attempts to detect the type of a given file by executing the native `file` command (on Unix-like systems).
+/// Attempts to detect the type of given file by executing the native `file` command (on Unix-like systems).
 /// This is super useful for figuring out if a downloaded file is a zip, tar.gz, a raw binary, etc.,
 /// which then guides how we should extract or handle it. This method provides more accurate detection
 /// than just filename extensions because it inspects the file's content/magic bytes.
@@ -350,7 +346,6 @@ pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -
             io::copy(&mut decompressor, &mut output_file)?;
             log_debug!("[Utils] GZ file decompressed successfully to {:?}", output_file_path.display());
         }
-        #[cfg(feature = "bzip2")] // This block is only compiled if the "bzip2" feature is enabled.
         "tar.bz2" => {
             // Open the bzipped tar file.
             let tar_bz2 = File::open(src)?;
@@ -684,7 +679,7 @@ pub fn detect_architecture() -> Option<String> {
 /// # Returns
 /// * `Option<String>`:
 ///   - `Some(String)` containing the detected OS as a canonical string
-///     (e.g., "macos" for "darwin", "windows" for "win32").
+///     (e.g., "macOS" for "darwin", "windows" for "win32").
 ///   - `None` if detection somehow fails, though `std::env::consts::OS` is generally reliable.
 pub fn detect_os() -> Option<String> {
     // `std::env::consts::OS` provides the target operating system Rust was compiled for
@@ -1133,5 +1128,77 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
             log_error!("[StateSave] Failed to serialize DevBox state for saving: {}. This is an internal application error.", err);
             false // Indicate failure to serialize.
         }
+    }
+}
+
+/// Loads the `DevBoxState` from a specified `state.json` file.
+///
+/// This function attempts to read the JSON content from the given path,
+/// then deserialize it into a `DevBoxState` struct. If the file does not exist,
+/// an empty (default) `DevBoxState` is returned, signifying a fresh start.
+///
+/// # Arguments
+/// * `state_path`: A reference to a `Path` indicating the full path to the `state.json` file.
+///
+/// # Returns
+/// * `io::Result<DevBoxState>`:
+///   - `Ok(DevBoxState)` containing the loaded state, or a default empty state if the file
+///     doesn't exist.
+///   - `Err(io::Error)` if the file exists but cannot be read (e.g., permissions),
+///     or if the JSON content is invalid and cannot be deserialized.
+pub fn read_devbox_state(state_path: &Path) -> io::Result<DevBoxState> {
+    log_debug!("[StateLoad] Attempting to load DevBoxState from: {:?}", state_path.display().to_string().blue());
+
+    // Check if the state file exists.
+    if !state_path.exists() {
+        log_warn!("[StateLoad] DevBox state file does not exist at {:?}. Initializing with default (empty) state.", state_path.display().to_string().yellow());
+        // If the file doesn't exist, return a default (empty) state.
+        return Ok(DevBoxState::default());
+    }
+
+    // Read the file content into a string.
+    let file_content = fs::read_to_string(state_path)
+        .map_err(|e| {
+            // If reading fails, log an error and return an `io::Error`.
+            log_error!("[StateLoad] Failed to read state file {:?}: {}", state_path.display().to_string().red(), e);
+            e
+        })?; // Propagate the error if `read_to_string` fails.
+
+    // Try to deserialize the JSON string content into a `DevBoxState` struct.
+    serde_json::from_str(&file_content)
+        .map_err(|e| {
+            // If deserialization fails (e.g., malformed JSON, schema mismatch),
+            // log an error and return an `io::Error`.
+            log_error!("[StateLoad] Failed to parse state file {:?}: {}. The file might be corrupted.", state_path.display().to_string().red(), e);
+            io::Error::new(io::ErrorKind::InvalidData, format!("Failed to parse state file: {}", e))
+        })
+}
+
+/// Returns the canonical path to the DevBox directory, typically `~/.setup-devbox`.
+/// This is the base directory where `state.json` and the `config` folder reside.
+/// If the home directory cannot be determined, it will log an error and
+/// fall back to the current directory, which might lead to unexpected behavior.
+///
+/// # Returns
+/// * `PathBuf`: The path to the `.setup-devbox` directory.
+pub fn get_devbox_dir() -> PathBuf {
+    // Attempt to get the user's home directory.
+    if let Some(home_dir) = dirs::home_dir() {
+        // Corrected: Use ".setup-devbox" instead of ".devbox"
+        let setup_devbox_dir = home_dir.join(".setup-devbox");
+        log_debug!("[Utils] DevBox directory resolved to: {}", setup_devbox_dir.display().to_string().cyan());
+        setup_devbox_dir
+    } else {
+        // If the home directory cannot be determined, log an error and use the current directory as a fallback.
+        log_error!("[Utils] Could not determine home directory. Falling back to current directory for .setup-devbox path.");
+        // Get the current working directory.
+        let current_dir = env::current_dir().unwrap_or_else(|e| {
+            // If even current directory can't be found, panic as it's a critical error.
+            panic!("Failed to get current directory and home directory: {}", e);
+        });
+        // Corrected: Use ".setup-devbox" for the fallback path
+        let fallback_dir = current_dir.join(".setup-devbox");
+        log_warn!("[Utils] Fallback DevBox directory: {}", fallback_dir.display().to_string().yellow());
+        fallback_dir
     }
 }
