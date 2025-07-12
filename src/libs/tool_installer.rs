@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use colored::Colorize;
 // Imports custom logging macros.
 use crate::{log_debug, log_error, log_info, log_warn};
-use crate::installers::{brew, cargo, github, go, rustup};
+use crate::installers::{brew, cargo, github, go, pip, rustup};
 // Imports schema definitions for application state and tool configurations.
 use crate::schema::{DevBoxState, ToolConfig};
 // Imports the function for saving the application state.
@@ -49,6 +49,7 @@ pub fn install_tools(tools_cfg: ToolConfig, state: &mut DevBoxState, state_path_
                 "go" => go::install(tool),         // Call Go installer for "go" source.
                 "cargo" => cargo::install(tool),   // Call Cargo installer for "cargo" source.
                 "rustup" => rustup::install(tool), // Call Rustup installer for "rustup" source.
+                "pip" => pip::install(tool),       // Call PIP installer for "python" source.
                 other => {
                     // Log a warning if the source is not supported and skip the tool.
                     log_warn!(
