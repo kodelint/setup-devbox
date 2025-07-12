@@ -7,12 +7,17 @@
 // your `AliasEntry` and `ShellRc` configurations structured. These are
 // likely defined in your `schema.rs` file.
 use crate::schema::{AliasEntry, ShellRc};
-// We're importing specific helper functions from our `utils` module.
+// We're importing specific helper functions from our `lib::shell_configurator` module.
 // These are like specialized tools that handle parts of the work:
 // `append_to_rc_file`: for adding new lines to the shell RC file.
 // `get_rc_file`: for figuring out which RC file to target.
 // `read_rc_lines`: for reading the existing content of an RC file.
-use crate::utils::{append_to_rc_file, contains_multiline_block, get_rc_file, read_rc_lines};
+use crate::libs::shell_configurator::{
+    contains_multiline_block,
+    append_to_rc_file,
+    get_rc_file,
+    read_rc_lines
+};
 // These are our custom logging tools! They let us print messages
 // to the console at different detail levels:
 // `log_debug`: for highly detailed messages, usually for troubleshooting.
