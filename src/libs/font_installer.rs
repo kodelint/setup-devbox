@@ -1,9 +1,21 @@
+// src/libs/font_installer.rs
+
 use std::path::PathBuf;
 use colored::Colorize;
+// Adjust the import path for logging macros if they are not directly in `crate::` but, for example, in `crate::utils::logging`.
+// Assuming they are still at the top-level crate import for now.
 use crate::{log_debug, log_error, log_info};
-use crate::installers::fonts;
+
+// The path to the font installer module will change because it's now under `installers`.
+// It was already `crate::installers::fonts;` so this line remains the same as `font_installer.rs` calls it.
+use crate::installers::fonts; // This import is correct for the new structure
+
 use crate::schema::{DevBoxState, FontConfig};
+// If `state_management` is also in `src/libs/`, its path would be `crate::libs::state_management::save_devbox_state;`
+// For now, assuming it's `crate::libs::state_management::save_devbox_state` or a top-level `crate::state_management`.
+// Based on your original file, it's `crate::libs::state_management::save_devbox_state`, so it remains the same.
 use crate::libs::state_management::save_devbox_state;
+
 
 /// Installs fonts based on the provided configuration and updates the application state.
 ///
@@ -27,16 +39,12 @@ pub fn install_fonts(fonts_cfg: FontConfig, state: &mut DevBoxState, state_path_
         if !state.fonts.contains_key(&font.name) {
             print!("\n");
             eprintln!("{}", "==============================================================================================".bright_blue());
-            log_info!("[Fonts] Installing new font: {}", font.name.bold());
-            log_debug!("[Fonts] Full configuration details for font '{}': {:?}", font.name, font);
-
-            let installation_result = fonts::install(font);
-
-            if let Some(font_state) = installation_result {
-                state.fonts.insert(font.name.clone(), font_state);
+            log_info!("[Fonts] Installing {}...", font.name.bold().cyan());
+            if let Some(font_state) = fonts::install(font) {
+                state.fonts.insert(font_state.name.clone(), font_state);
                 fonts_updated = true;
-                log_info!("[Fonts] Successfully installed font: {}", font.name.bold().green());
-                eprintln!("{}", "==============================================================================================".bright_blue());
+                log_info!("[Fonts] Successfully installed {}.", font.name.bold().green());
+                eprintln!("{}", "===============================================================================================".bright_blue());
                 print!("\n");
             } else {
                 log_error!(

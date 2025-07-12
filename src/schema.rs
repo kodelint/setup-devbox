@@ -139,6 +139,12 @@ pub struct FontEntry {
     pub repo: Option<String>,
     // A specific tag or release on GitHub to download the font from.
     pub tag: Option<String>,
+    // If 'install_only' is not in YAML, it defaults to None
+    #[serde(default)]
+    // When serializing, skip if None
+    #[serde(skip_serializing_if = "Option::is_none")]
+    // Optional list of keywords for filtering
+    pub install_only: Option<Vec<String>>,
 }
 
 /// Configuration schema for `settings.yaml`.

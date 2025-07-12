@@ -1,12 +1,12 @@
 // src/libs/settings_applier.rs
 
-use std::process::Command;
-use std::path::PathBuf;
-use colored::Colorize;
-use crate::{log_debug, log_error, log_info, log_warn};
-// Make sure to import SettingEntry here (since it's used as the config entry type)
-use crate::schema::{DevBoxState, SettingsConfig, SettingEntry, SettingState};
 use crate::libs::state_management::save_devbox_state;
+// Make sure to import SettingEntry here (since it's used as the config entry type)
+use crate::schema::{DevBoxState, SettingState, SettingsConfig};
+use crate::{log_debug, log_error, log_info, log_warn};
+use colored::Colorize;
+use std::path::PathBuf;
+use std::process::Command;
 
 /// Applies system settings based on the provided configuration and updates the application state.
 // ... (documentation remains the same) ...
