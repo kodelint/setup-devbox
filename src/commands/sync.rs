@@ -2,16 +2,14 @@ use crate::schema::{
     FontConfig, // Core state and main config
     FontEntry, MainConfig, SettingEntry, SettingsConfig, ToolConfig, ToolEntry
 };
-use crate::utils::{
-    get_devbox_dir,
-    read_devbox_state
-};
+use crate::utils::get_devbox_dir;
 use crate::{
     log_debug,
     log_error,
     log_info,
     log_warn
 };
+use crate::libs::state_management::read_devbox_state;
 use clap::Args;
 use colored::Colorize;
 use std::collections::HashMap;

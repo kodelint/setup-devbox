@@ -9,6 +9,7 @@ mod utils;      // General utility functions that might be useful across differe
 mod schema;     // Defines the structure of our configuration files (e.g., how a 'tool' or 'font' is described).
 mod logger;     // Handles setting up and managing our application's logging (debug, info, error messages).
 mod installers;
+mod libs;
 
 use std::path::PathBuf;
 // Contains the logic for installing various types of software (like GitHub tools, Homebrew packages, fonts).

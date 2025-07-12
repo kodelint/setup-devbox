@@ -2,63 +2,42 @@
 // uses throughout its various commands. Think of it as a toolbox with general-purpose
 // utilities for things like path manipulation, file operations, downloading, and system detection.
 
-// These lines bring in necessary components from other parts of our project or external crates (libraries).
-// Bring in the `DevBoxState` schema.
-// This struct defines the structure for our application's persistent state,
-// allowing us to save and load information about installed tools, configurations, etc.
-use crate::schema::DevBoxState;
-
 // Bring in our custom logging macros.
 // These macros (`log_debug`, `log_error`, `log_info`, `log_warn`) provide
 // a standardized way to output messages to the console with different severity levels,
 // making it easier to track the application's flow and diagnose issues.
 use crate::{log_debug, log_error, log_info, log_warn};
-
 // For adding color to our terminal output.
 // The `colored` crate allows us to make log messages and other terminal output more readable
 // by applying colors (e.g., `.blue()`, `.green()`, `.red()`).
 use colored::Colorize;
-
 // For decompressing gzipped archives (like .tar.gz files).
 // `flate2` is a widely used Rust library for handling various compression formats,
 // and `GzDecoder` specifically deals with gzip decompression.
 use flate2::read::GzDecoder;
-
 // To get environment variables, like the temporary directory or home directory.
 // `std::env` provides functions to interact with the process's environment.
 // `std::io` contains core input/output functionalities and error types.
 use std::{env, io};
-
 // For file system operations: creating directories, reading files, etc.
 // `std::fs` provides functions for interacting with the file system.
 use std::fs;
-
 // For creating and interacting with files.
 // `std::fs::{File, OpenOptions}` allows for fine-grained control over file opening and creation.
-use std::fs::{File, OpenOptions};
-
-// Core I/O functionalities and error handling.
-// `std::io::{BufRead, BufReader, Write}` provides traits and types for buffered I/O,
-// which can significantly improve performance for reading and writing files line by line.
-use std::io::{BufRead, BufReader, Write};
-
+use std::fs::File;
 // Types for working with file paths in a robust way.
 // `std::path::{Path, PathBuf}` are essential for handling file system paths.
 // `Path` is a borrowed, immutable view of a path, while `PathBuf` owns the path data.
 use std::path::{Path, PathBuf};
-
 // To run external commands (like 'file' or 'sudo installer').
 // `std::process::Command` allows the application to spawn and control external processes.
 use std::process::Command;
-
 // For extracting tar archives.
 // The `tar` crate provides functionality to read and write tar archives.
 use tar::Archive;
-
 // For extracting zip archives.
 // The `zip` crate provides functionality to read and write zip archives.
 use zip::ZipArchive;
-
 // For making HTTP requests (downloading files).
 // `ureq` is a simple and expressive HTTP client for Rust, used here for downloading files from URLs.
 use ureq;
@@ -74,8 +53,6 @@ use bzip2::read::BzDecoder;
 // The `walkdir` crate provides an efficient way to traverse directory trees.
 // Ensure your Cargo.toml has `walkdir = "..."`.
 use walkdir;
-
-use serde_json;
 
 /// A super useful function to resolve paths that start with a tilde `~`.
 /// On Unix-like systems, `~` is a shortcut for the user's home directory.
@@ -858,320 +835,6 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
     // If all checks pass, the asset is considered a match for the current platform.
     log_debug!("[Utils] Asset '{}' matches platform (OS: {}, ARCH: {}) -> {}", filename.dimmed(), os.cyan(), arch.magenta(), "true".bold());
     true
-}
-
-/// Helper function: Determines the appropriate shell RC file path for a given shell name.
-///
-/// This function currently supports `.zshrc` for Zsh and `.bashrc` for Bash.
-/// It constructs the full path by joining the user's home directory with the
-/// specific RC file name. This is crucial for modifying shell configurations.
-///
-/// # Arguments
-/// * `shell`: A string slice (`&str`) representing the name of the shell (e.g., "zsh", "bash").
-///
-/// # Returns
-/// * `Option<PathBuf>`:
-///   - `Some(PathBuf)` containing the full absolute path to the RC file if the shell is supported
-///     and the user's home directory can be determined.
-///   - `None` if the shell is not supported (not "zsh" or "bash") or if the home directory
-///     cannot be found (e.g., `dirs::home_dir()` returns None).
-pub fn get_rc_file(shell: &str) -> Option<PathBuf> {
-    log_debug!("[ShellRC:get_rc_file] Attempting to find RC file for shell: '{}'", shell.bold());
-
-    // Use `dirs::home_dir()` from the `dirs` crate to reliably get the current user's home directory
-    // across different operating systems.
-    let home_dir = match dirs::home_dir() {
-        Some(path) => path, // If found, assign it to `home_dir`.
-        None => {
-            // If the home directory cannot be determined, log a warning and return `None`.
-            log_warn!("[ShellRC:get_rc_file] Could not determine the user's home directory. Cannot find RC file.");
-            return None; // Cannot proceed without the home directory.
-        }
-    };
-    log_debug!("[ShellRC:get_rc_file] User's home directory detected: {:?}", home_dir.display());
-
-    // Match the lowercase version of the shell name to determine the correct RC file name.
-    let rc_file_name = match shell.to_lowercase().as_str() {
-        "zsh" => ".zshrc", // For Zsh, the configuration file is typically `.zshrc` in the home directory.
-        "bash" => ".bashrc", // For Bash, it's typically `.bashrc`.
-        _ => {
-            // If the provided `shell` name doesn't match any supported type, log a warning
-            // and return `None`, as we don't know which RC file to use.
-            log_warn!(
-                "[ShellRC:get_rc_file] Unsupported shell type '{}'. Currently only 'zsh' and 'bash' are explicitly mapped to RC files.",
-                shell.red()
-            );
-            return None;
-        }
-    };
-    log_debug!("[ShellRC:get_rc_file] RC file name determined: {}", rc_file_name.cyan());
-
-    // Construct the full absolute path to the RC file by joining the home directory and the RC file name.
-    let rc_path = home_dir.join(rc_file_name);
-    log_debug!("[ShellRC:get_rc_file] Full RC file path: {:?}", rc_path.display());
-
-    Some(rc_path) // Return the constructed path wrapped in `Some` to indicate success.
-}
-
-/// Helper function: Reads all non-empty, non-comment lines from a given RC file.
-///
-/// This function is designed to read the existing content of an RC file efficiently
-/// for later comparison (e.g., to check if certain configurations already exist).
-/// It gracefully handles cases where the file might not exist or be unreadable.
-///
-/// # Arguments
-/// * `rc_path`: A reference to a `Path` indicating the RC file to read.
-///
-/// # Returns
-/// * `Vec<String>`: A vector containing each relevant line read from the file as a `String`.
-///                  - Relevant lines are those that are not empty and do not start with '#'.
-///                  - Returns an empty vector (`Vec::new()`) if the file doesn't exist,
-///                    or if an error occurs during reading (e.g., permission issues).
-pub fn read_rc_lines(rc_path: &Path) -> Vec<String> {
-    log_debug!("[ShellRC:read_rc_lines] Attempting to read lines from RC file: {:?}", rc_path.display().to_string().dimmed());
-
-    // First, check if the file actually exists. If not, there are no lines to read,
-    // and we can return an empty vector immediately without attempting to open it.
-    if !rc_path.exists() {
-        log_debug!("[ShellRC:read_rc_lines] RC file {:?} does not exist. Returning an empty list of lines.", rc_path.display().to_string().yellow());
-        return vec![];
-    }
-
-    // Attempt to open the file for reading.
-    match fs::File::open(rc_path) {
-        Ok(file) => {
-            log_debug!("[ShellRC:read_rc_lines] RC file {:?} opened successfully for reading.", rc_path.display());
-            // Create a buffered reader for efficient line-by-line reading.
-            BufReader::new(file)
-                .lines() // Get an iterator over lines. Each item is a `Result<String, io::Error>`.
-                .filter_map(Result::ok) // Filter out any lines that resulted in an I/O error (`Err` variants)
-                // and unwrap `Ok` variants to get the `String`.
-                // Filter out empty lines or lines that are just comments (starting with '#').
-                // `.trim()` removes leading/trailing whitespace.
-                .filter(|line| !line.trim().is_empty() && !line.trim().starts_with('#'))
-                .collect() // Collect all valid, non-empty, non-comment lines into a `Vec<String>`.
-        }
-        Err(err) => {
-            // If the file cannot be opened (e.g., permission issues), log a warning.
-            log_warn!(
-                "[ShellRC:read_rc_lines] Could not read RC file {:?}: {}. Returning an empty list of lines.",
-                rc_path.display().to_string().red(),
-                err.to_string().red()
-            );
-            vec![] // Return an empty vector on error, signifying no lines could be read.
-        }
-    }
-}
-
-/// Helper function: Appends new lines to the end of the specified RC file.
-///
-/// This function opens the RC file in append mode. If the file doesn't exist,
-/// it will be created. It also adds a clear comment header to denote lines added by `setup-devbox`,
-/// making it easy for users to identify and manage these additions.
-///
-/// # Arguments
-/// * `rc_path`: A reference to a `Path` indicating the RC file to append to.
-/// * `lines`: A `Vec<String>` containing the new lines to be written to the file.
-///
-/// # Returns
-/// * `std::io::Result<()>`:
-///   - `Ok(())` on successful write of all lines.
-///   - An `Err` if any I/O error occurs during file opening or writing.
-pub fn append_to_rc_file(rc_path: &Path, lines: Vec<String>) -> std::io::Result<()> {
-    log_debug!("[ShellRC:append_to_rc_file] Preparing to append {} new lines to RC file: {:?}", lines.len().to_string().bold(), rc_path.display().to_string().yellow());
-
-    // Open the file with specific options using `OpenOptions::new()`:
-    // - `create(true)`: If the file does not exist, create it.
-    // - `append(true)`: Open the file in append mode, so new writes are added to the end of the file.
-    let mut file = OpenOptions::new()
-        .create(true) // Create the file if it doesn't exist.
-        .append(true) // Open in append mode.
-        .open(rc_path)?; // Attempt to open the file. The `?` operator will propagate any `io::Error`.
-
-    log_debug!("[ShellRC:append_to_rc_file] RC file {:?} opened in append mode.", rc_path.display());
-
-    // Add a clear comment header before appending new configurations.
-    // This makes it easy for users to identify entries added by 'setup-devbox' in their RC file.
-    // `writeln!` writes the string followed by a newline.
-    writeln!(file, "\n# Added by setup-devbox")?;
-    log_debug!("[ShellRC:append_to_rc_file] Added 'Added by setup-devbox' header.");
-
-    // Write each new line from the `lines` vector to the file.
-    // Each line is written followed by a newline character to ensure they are on separate lines.
-    for (index, line) in lines.iter().enumerate() {
-        writeln!(file, "{}", line)?;
-        log_debug!("[ShellRC:append_to_rc_file] Appended line {}: '{}'", (index + 1).to_string().dimmed(), line.dimmed());
-    }
-
-    log_debug!("[ShellRC:append_to_rc_file] All new lines successfully written to {:?}", rc_path.display());
-    Ok(()) // Indicate successful completion of the append operation.
-}
-
-/// This function checks if a multi-line string `needle_lines` exists
-/// sequentially within a vector of `haystack_lines`. It performs a robust comparison
-/// by trimming whitespace and checking if the haystack lines *start with* the needle lines.
-/// This is useful for verifying if a block of configuration has already been added to an RC file.
-///
-/// # Arguments
-/// * `haystack_lines`: A slice (`&[String]`) representing the lines to search within
-///                     (e.g., lines read from an RC file).
-/// * `needle_lines`: A slice (`&[String]`) representing the sequence of lines to find
-///                   (e.g., the configuration block to check for).
-///
-/// # Returns
-/// * `bool`: `true` if the entire `needle_lines` block is found sequentially within `haystack_lines`,
-///           `false` otherwise. Returns `true` if `needle_lines` is empty.
-pub fn contains_multiline_block(haystack_lines: &[String], needle_lines: &[String]) -> bool {
-    // Edge case: An empty block is always considered "contained".
-    if needle_lines.is_empty() {
-        return true;
-    }
-    // Optimization: If the haystack is shorter than the needle, it cannot contain it.
-    if haystack_lines.len() < needle_lines.len() {
-        return false;
-    }
-
-    // Iterate through the `haystack_lines`, starting from index `i`.
-    // The loop runs up to `haystack_lines.len() - needle_lines.len()` to ensure there are
-    // enough remaining lines in the haystack to potentially contain the entire needle.
-    for i in 0..=(haystack_lines.len() - needle_lines.len()) {
-        let mut match_found = true; // Assume a match until proven otherwise for the current `i`.
-
-        // Check if the sequence of lines starting from `haystack_lines[i]` matches `needle_lines`.
-        for j in 0..needle_lines.len() {
-            // Trim leading/trailing whitespace from both the haystack line and the needle line
-            // for more robust comparison, as RC files might have inconsistent formatting.
-            //
-            // Using `starts_with` is better than `==` because:
-            // 1. There might be slight leading/trailing spaces or comments on the same line
-            //    in the RC file that `read_rc_lines` might not perfectly normalize.
-            // 2. A line in the haystack might contain the needle line as a prefix, but then
-            //    have additional content (e.g., "export PATH=... # My comment").
-            if !haystack_lines[i + j].trim().starts_with(needle_lines[j].trim()) {
-                match_found = false; // If any line doesn't match, this sequence is not a match.
-                break;               // Stop checking this sequence and move to the next `i`.
-            }
-        }
-        if match_found {
-            return true; // If the inner loop completed, it means the entire multi-line block was found.
-        }
-    }
-    false // If the outer loop completes, the block was not found anywhere in the haystack.
-}
-
-/// Saves the current `DevBoxState` to the specified `state.json` file.
-///
-/// This function serializes the `DevBoxState` struct into a human-readable, pretty-printed JSON format
-/// and writes it to the disk. It also handles creating any necessary parent directories for the
-/// state file if they do not exist, ensuring the save operation can proceed smoothly.
-/// This is essential for `setup-devbox` to persist its "memory" of installed tools.
-///
-/// # Arguments
-/// * `state`: A reference to the `DevBoxState` struct that needs to be saved.
-/// * `state_path`: A reference to a `PathBuf` indicating the full path where the state file
-///                 (`state.json`) should be saved.
-///
-/// # Returns
-/// * `bool`:
-///   - `true` if the state was successfully serialized and written to the file.
-///   - `false` otherwise (e.g., failed to create directories, failed to serialize, failed to write).
-pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
-    log_debug!("[StateSave] Attempting to save DevBoxState to: {:?}", state_path.display());
-
-    // Ensure the parent directory for the state file exists.
-    // `state_path.parent()` returns `Some(Path)` if the path has a parent directory.
-    if let Some(parent_dir) = state_path.parent() {
-        // Check if the parent directory already exists.
-        if !parent_dir.exists() {
-            log_info!("[StateSave] Parent directory {:?} does not exist. Creating it now.", parent_dir.display());
-            // Attempt to create all necessary parent directories.
-            // If `fs::create_dir_all` fails, log an error and return `false` because saving cannot proceed.
-            if let Err(e) = fs::create_dir_all(parent_dir) {
-                log_error!(
-                    "[StateSave] Failed to create directory for state file at {:?}: {}. Cannot save state.",
-                    parent_dir.display().to_string().red(),
-                    e
-                );
-                return false; // Critical failure, cannot save state.
-            }
-        }
-    }
-
-    // Try to serialize the `DevBoxState` struct into a pretty-printed JSON string.
-    // `serde_json::to_string_pretty` makes the JSON output readable for debugging and inspection.
-    match serde_json::to_string_pretty(state) {
-        Ok(serialized_state) => {
-            // If serialization was successful, attempt to write the JSON string to the state file.
-            // `fs::write` is a convenience function that creates the file (or truncates it) and writes all data.
-            match fs::write(state_path, serialized_state) {
-                Ok(_) => {
-                    // Print an empty line to ensure clean terminal output, separating logs from other output.
-                    eprint!("\n");
-                    log_info!("[StateSave] DevBox state saved successfully to {}", state_path.display().to_string().green());
-                    log_debug!("[StateSave] State content written to disk.");
-                    true // Indicate successful saving.
-                },
-                Err(err) => {
-                    // If writing to the file fails (e.g., disk full, permission denied).
-                    log_error!(
-                        "[StateSave] Failed to write updated state file to {:?}: {}. Your `setup-devbox` memory might not be saved correctly.",
-                        state_path.display().to_string().red(),
-                        err
-                    );
-                    false // Indicate failure to write.
-                }
-            }
-        },
-        Err(err) => {
-            // If serialization itself fails, it indicates an internal application error
-            // (e.g., `DevBoxState` struct cannot be serialized, or data is invalid).
-            log_error!("[StateSave] Failed to serialize DevBox state for saving: {}. This is an internal application error.", err);
-            false // Indicate failure to serialize.
-        }
-    }
-}
-
-/// Loads the `DevBoxState` from a specified `state.json` file.
-///
-/// This function attempts to read the JSON content from the given path,
-/// then deserialize it into a `DevBoxState` struct. If the file does not exist,
-/// an empty (default) `DevBoxState` is returned, signifying a fresh start.
-///
-/// # Arguments
-/// * `state_path`: A reference to a `Path` indicating the full path to the `state.json` file.
-///
-/// # Returns
-/// * `io::Result<DevBoxState>`:
-///   - `Ok(DevBoxState)` containing the loaded state, or a default empty state if the file
-///     doesn't exist.
-///   - `Err(io::Error)` if the file exists but cannot be read (e.g., permissions),
-///     or if the JSON content is invalid and cannot be deserialized.
-pub fn read_devbox_state(state_path: &Path) -> io::Result<DevBoxState> {
-    log_debug!("[StateLoad] Attempting to load DevBoxState from: {:?}", state_path.display().to_string().blue());
-
-    // Check if the state file exists.
-    if !state_path.exists() {
-        log_warn!("[StateLoad] DevBox state file does not exist at {:?}. Initializing with default (empty) state.", state_path.display().to_string().yellow());
-        // If the file doesn't exist, return a default (empty) state.
-        return Ok(DevBoxState::default());
-    }
-
-    // Read the file content into a string.
-    let file_content = fs::read_to_string(state_path)
-        .map_err(|e| {
-            // If reading fails, log an error and return an `io::Error`.
-            log_error!("[StateLoad] Failed to read state file {:?}: {}", state_path.display().to_string().red(), e);
-            e
-        })?; // Propagate the error if `read_to_string` fails.
-
-    // Try to deserialize the JSON string content into a `DevBoxState` struct.
-    serde_json::from_str(&file_content)
-        .map_err(|e| {
-            // If deserialization fails (e.g., malformed JSON, schema mismatch),
-            // log an error and return an `io::Error`.
-            log_error!("[StateLoad] Failed to parse state file {:?}: {}. The file might be corrupted.", state_path.display().to_string().red(), e);
-            io::Error::new(io::ErrorKind::InvalidData, format!("Failed to parse state file: {}", e))
-        })
 }
 
 /// Returns the canonical path to the DevBox directory, typically `~/.setup-devbox`.
