@@ -253,7 +253,7 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
                 // If we can't read the master config file (e.g., it's missing, permissions are off, or corrupted),
                 // we log a critical error and halt execution. We simply can't proceed without our master plan!
                 log_error!(
-                    "Failed to read main config.yaml at {:?}: {}. Please ensure the file exists and is readable.",
+                    "Failed to read main config.yaml at {}: {}. Please ensure the file exists and is readable.",
                     config_path_resolved.display().to_string().red(),
                     e
                 );

@@ -146,7 +146,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
 
     // Extract the contents of the downloaded ZIP archive into another specific
     // subdirectory within the temporary directory. This keeps extracted files organized.
-    let extracted_dir = match utils::extract_archive(&archive_path, &temp_dir, Some(&file_type_from_name)) { // <--- PASS KNOWN TYPE HERE
+    let extracted_dir = match utils::extract_archive(&archive_path, &temp_dir, Some(&file_type_from_name)) {
         Ok(path) => path, // If extraction is successful, `path` is the directory where contents were placed.
         Err(err) => {
             // If extraction fails, log the error.
@@ -331,7 +331,14 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
             // Prioritize the `version` field from `FontEntry`. If not present, fall back to the `tag`.
             // If neither is present (should be caught by earlier validation for 'tag'), use "unknown".
             version: font.version.clone().unwrap_or_else(|| font.tag.clone().unwrap_or_else(|| "unknown".to_string())),
-            url, // Store the exact URL from which the font archive was downloaded.
+            // Store the exact URL from which the font archive was downloaded.
+            url,
+            // Record the repository name
+            // Helps in `sync` command
+            repo: font.repo.clone(),
+            // Record the tag name
+            // Helps in `sync` command
+            tag: font.tag.clone(),
             files: installed_font_files, // Store the list of absolute paths to the installed font files.
         })
     } else {

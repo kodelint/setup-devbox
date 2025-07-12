@@ -118,5 +118,11 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         renamed_to: tool.rename_to.clone(),
         // We can denote the package type as "brew" for consistency.
         package_type: "brew".to_string(),
+        // Not required for `Homebrew` installations
+        // This is just placeholder for symmetry
+        repo: Option::from("UNKNOWN_FROM_CONFIG".to_string()),
+        // Not required for `Homebrew` installations
+        // This is just placeholder for symmetry
+        tag: Option::from("UNKNOWN_FROM_CONFIG".to_string()),
     })
 }

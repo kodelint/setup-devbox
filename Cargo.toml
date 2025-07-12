@@ -1,35 +1,83 @@
+# Cargo.toml
+
+# This section defines fundamental information about your Rust project,
+# similar to how a package.json works for Node.js or a pom.xml for Java.
 [package]
+# 'name' is the name of your executable binary and the package itself.
+# This is how you'll typically run your application (e.g., `cargo run --bin setup-devbox`).
 name = "setup-devbox"
+# 'version' follows Semantic Versioning (Major.Minor.Patch).
+# It indicates the current release version of your application.
 version = "0.1.0"
+# 'edition' specifies the Rust edition to use for compiling this package.
+# Rust editions allow the language to evolve without breaking existing code.
+# "2024" is a newer edition that enables modern Rust features and syntax.
 edition = "2024"
 
+# This section lists all the external crates (libraries) that your project depends on.
+# Cargo automatically downloads, compiles, and links these dependencies for you.
 [dependencies]
+# 'dirs' is a handy cross-platform utility crate for finding common user directories.
+# This is super useful for locating things like the user's home directory, config directory,
+# or data directory, which are essential for storing application-specific files (like state.json or configs).
 dirs = "6.0.0"
-# We're using 'clap' to easily create command-line interfaces for our application.
+
+# 'clap' is a powerful and flexible crate for parsing command-line arguments.
+# It makes it easy to define subcommands, options, and flags for your CLI application.
 # The 'derive' feature lets us define our command-line arguments right in our Rust code, which is super convenient!
-clap = { version = "4.5.40", features = ["derive"] }
+# 'version' specifies the exact version of the clap crate to use.
+# 'features = ["derive"]' enables declarative argument parsing using Rust's derive macros.
+clap = { version = "4.5.41", features = ["derive"] }
+
 # 'colored' is a fun little crate that lets us add colors to our text in the terminal.
 # It makes our output much easier to read and more engaging!
 colored = "3.0.0"
+
 # 'serde' is like the universal translator for Rust data structures.
 # It helps us convert our Rust data into various formats (like JSON or YAML) and vice-versa.
 # The 'derive' feature gives us handy macros to automatically implement serialization/deserialization.
+# 'version' specifies the exact version of the serde core library.
+# 'features = ["derive"]' provides macros like `#[derive(Serialize, Deserialize)]`.
 serde = { version = "1.0.219", features = ["derive"] }
+
 # 'serde_yaml' specifically handles converting Rust data to and from the YAML format.
 # We often use YAML for configuration files because it's quite human-readable.
-serde_yaml = "0.9.34+deprecated"
+serde_yaml = "0.9.34"
+
 # 'serde_json' is another specialized part of the Serde family, but this one focuses on JSON.
 # JSON is a very common format for web APIs and data exchange.
 serde_json = "1.0.140"
+
 # 'toml' is a crate for working with TOML files, which are often used for Rust project configurations
 # (like our Cargo.toml!). It helps us read and write data in this format.
-toml = "0.9.0"
+toml = "0.9.1"
+
 # 'ureq' is a simple and easy-to-use HTTP client.
 # It's what we'll use to make requests to web services (like GitHub's API).
 # The 'json' feature adds convenience for handling JSON responses automatically.
-ureq = { version = "2.0.0", features = ["json"] }
+# 'version' specifies the exact version of the ureq crate.
+# 'features = ["json"]' adds convenience methods for sending and receiving JSON data in HTTP requests.
+ureq = { version = "2.12.1", features = ["json"] }
+
+# 'flate2' is a Rust binding to compression libraries (`miniz_oxide` and `zlib`).
+# It's essential for handling common compression formats like Gzip, often found in `.tar.gz` archives.
 flate2 = "1.1.2"
+
+# 'tar' is a crate for creating, reading, and extracting `.tar` archives.
+# These archives are commonly used on Unix-like systems to bundle multiple files into one.
+# It's often used in conjunction with a compression library like `flate2` or `bzip2`.
 tar = "0.4.44"
-zip = "4.3.0"
+
+# 'zip' is a library for working with `.zip` archives.
+# Zip files are another popular format for bundling and compressing files, especially common on Windows.
+zip = "0.6.0"
+
+# 'bzip2' provides bindings to the `bzip2` compression library.
+# This crate allows your application to handle `.bz2` compressed files and `.tar.bz2` archives.
+# Since it's a direct dependency here, it will always be compiled into your application.
 bzip2 = "0.6.0"
+
+# 'walkdir' is a utility for recursively walking a directory tree.
+# This is useful for tasks like finding all files within a directory,
+# or cleaning up temporary directories after installations.
 walkdir = "2.5.0"
