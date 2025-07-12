@@ -124,5 +124,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         // Not required for `Homebrew` installations
         // This is just placeholder for symmetry
         tag: Option::from("UNKNOWN_FROM_CONFIG".to_string()),
+        // Pass the options from ToolEntry to ToolState.
+        options: None,
     })
 }

@@ -100,11 +100,12 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
     for (tool_name, tool_state) in devbox_state.tools {
         tools_entries.push(ToolEntry {
             name: tool_name, // Use the key from the HashMap as the tool's name
-            version: Some(tool_state.version), // `ToolState.version` maps to `ToolEntry.version`
-            source: tool_state.install_method, // `ToolState.install_method` maps to `ToolEntry.source`
-            repo: tool_state.repo,
-            tag: tool_state.tag,
-            rename_to: tool_state.renamed_to, // Maps directly
+            version: Some(tool_state.version),   // `ToolState.version` maps to `ToolEntry.version`
+            source: tool_state.install_method,   // `ToolState.install_method` maps to `ToolEntry.source`
+            repo: tool_state.repo,               // Repo Name
+            tag: tool_state.tag,                 // Git Tag usually
+            rename_to: tool_state.renamed_to,    // Maps directly
+            options: tool_state.options.clone(), // Pass the options if any
         });
     }
     let tool_config = ToolConfig { tools: tools_entries };
