@@ -144,17 +144,25 @@ pub struct FontEntry {
 /// Configuration schema for `settings.yaml`.
 /// This file allows users to define system-level settings (e.g., macOS defaults)
 /// that `setup-devbox` should apply.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SettingsConfig {
     // This is a `HashMap` where the key is the operating system (e.g., "macos", "linux")
     // and the value is a list of `SettingEntry` structs. This allows users to
     // specify OS-specific settings.
-    pub settings: HashMap<String, Vec<SettingEntry>>, // Key: OS name (e.g., "macos"), Value: List of settings for that OS
+    pub settings: OsSpecificSettings, // Key: OS name (e.g., "macos"), Value: List of settings for that OS
+}
+
+// Container for OS-specific settings
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct OsSpecificSettings {
+    #[serde(default)] // Defaults to empty vector if 'macOS' key is missing
+    pub macos: Vec<SettingEntry>,
+    // You can add fields for other operating systems here (e.g., `pub linux: Vec<LinuxSettingEntry>`)
 }
 
 /// Represents a single system setting to be applied, typically for macOS defaults commands.
 /// This allows for granular control over system behavior.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SettingEntry {
     // The domain of the setting (e.g., "com.apple.finder" for Finder settings).
     pub domain: String,
@@ -167,7 +175,7 @@ pub struct SettingEntry {
     // This is often done when the external format uses a keyword that's reserved in Rust.
     // This field specifies the data type of the `value` (e.g., "string", "bool", "integer").
     #[serde(rename = "type")]
-    pub value_type: String,
+    pub value_type: String, // e.g., "bool", "int", "float", "string", "array", "dict"
 }
 
 // Application State File Schema (state.json)
@@ -230,6 +238,7 @@ pub struct SettingState {
     pub value: String,
     // Note: The `value_type` from `SettingEntry` isn't stored here.
     // The state just records *what* was set, assuming the type was handled during application.
+    pub value_type: String,
 }
 
 /// Records the state of a single font that `setup-devbox` has installed.
