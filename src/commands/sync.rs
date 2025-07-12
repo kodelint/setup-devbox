@@ -151,6 +151,8 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
             source: source_type,
             repo: font_state.repo,
             tag: font_state.tag,
+            // Todo: Fix below
+            install_only: None,
         });
     }
     let font_config = FontConfig { fonts: fonts_entries };
