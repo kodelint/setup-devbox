@@ -11,23 +11,33 @@
 // These structs are like blueprints that tell us how our configuration files
 // and our internal 'state.json' file should be shaped. They ensure we're
 // always working with well-organized and predictable data.
-use crate::schema::DevBoxState;
+use crate::schema::DevBoxState; // Imports the main application state struct.
 // Our custom logging macros for debug, error, info, and warning messages.
 // These are essential for giving you clear feedback on what `setup-devbox` is doing!
-use crate::{log_debug, log_info};
+use crate::{log_debug, log_info}; // Imports custom logging macros for debug and info levels.
 // For pretty colored output in the terminal, making logs not just informative but also a joy to read.
-use colored::Colorize;
+use colored::Colorize; // Imports `Colorize` trait for colored terminal output.
 
+// Imports various modules from the `libs` directory, each responsible for a specific aspect
+// of the setup-devbox setup process.
 use crate::libs::{
     config_loading::{
+        // Function to load configurations from a master `config.yaml`.
         load_master_configs,
+        // Function to load a single configuration file directly.
         load_single_config,
     },
+    // Function to handle font installation.
     font_installer::install_fonts,
+    // Module for resolving and managing file paths.
     paths,
+    // Function to apply macOS system settings.
     settings_applier::apply_system_settings,
+    // Function to apply shell configurations and aliases.
     shell_configurator::apply_shell_configs,
+    // Module for loading and saving the application state.
     state_management,
+    // Function to handle tool installation.
     tool_installer::install_tools
 };
 
@@ -54,19 +64,19 @@ use crate::libs::{
 pub fn run(config_path: Option<String>, state_path: Option<String>) {
     log_debug!("Entered now::run() function.");
 
-    // 1. Determine Configuration and State File Paths
+    // 1. Determine Configuration and State File Paths.
     // Calls a dedicated function to resolve paths, handling defaults and tilde expansion.
     let (config_path_resolved, config_filename, state_path_resolved) =
         match paths::resolve_paths(config_path, state_path) {
             Some(paths) => paths,
-            None => return, // Exit if paths cannot be resolved (error logged within resolve_paths)
+            None => return, // Exit if paths cannot be resolved (error logged within resolve_paths).
         };
 
-    // 2. Load or Initialize Application State (`state.json`)
+    // 2. Load or Initialize Application State (`state.json`).
     // Loads existing state or creates a new one if `state.json` doesn't exist.
     let mut state: DevBoxState = state_management::load_or_initialize_state(&state_path_resolved);
 
-    // 3. Variables to Hold Parsed Configuration and 4. Configuration Loading Logic
+    // 3. Variables to Hold Parsed Configuration and 4. Configuration Loading Logic.
     // Load configurations based on whether a master `config.yaml` is used or a single file.
     let parsed_configs = if config_filename == "config.yaml" {
         load_master_configs(&config_path_resolved)
@@ -81,28 +91,32 @@ pub fn run(config_path: Option<String>, state_path: Option<String>) {
     // any changes occurred within that specific section. This keeps our app's
     // memory perfectly in sync.
 
-    // 5a. Install Tools
+    // 5a. Install Tools.
+    // If tool configurations are found, delegate to `install_tools` for processing.
     if let Some(tools_cfg) = parsed_configs.tools {
         install_tools(tools_cfg, &mut state, &state_path_resolved);
     } else {
         log_debug!("[Tools] No tool configurations found (tools.yaml missing or empty). Skipping tool installation phase.");
     }
 
-    // 5b. Install Fonts
+    // 5b. Install Fonts.
+    // If font configurations are found, delegate to `install_fonts`.
     if let Some(fonts_cfg) = parsed_configs.fonts {
         install_fonts(fonts_cfg, &mut state, &state_path_resolved);
     } else {
         log_debug!("[Fonts] No font configurations found (fonts.yaml missing or empty). Skipping font installation phase.");
     }
 
-    // 5c. Apply Shell Configuration (Raw Configs and Aliases)
+    // 5c. Apply Shell Configuration (Raw Configs and Aliases).
+    // If shell configurations are found, delegate to `apply_shell_configs`.
     if let Some(shell_cfg) = parsed_configs.shell {
         apply_shell_configs(shell_cfg);
     } else {
         log_debug!("[Shell Config] No shell configurations found (shellrc.yaml missing or empty). Skipping shell configuration phase.");
     }
 
-    // 5d. Apply macOS System Settings
+    // 5d. Apply macOS System Settings.
+    // If system settings configurations are found, delegate to `apply_system_settings`.
     if let Some(settings_cfg) = parsed_configs.settings {
         apply_system_settings(settings_cfg, &mut state, &state_path_resolved);
     } else {
