@@ -35,7 +35,7 @@ use std::sync::OnceLock;
 // We use `bright_cyan` for a friendly, informative blue-green touch.
 #[macro_export]
 macro_rules! log_info {
-    ($($arg:tt)*) => (eprintln!("{} {}", "[INFO]".bright_cyan(), format!($($arg)*)));
+    ($($arg:tt)*) => (eprintln!("{} {}", "[INFO]".on_bright_cyan(), format!($($arg)*)));
 }
 
 // `log_warn!` is for situations that aren't critical errors but might
