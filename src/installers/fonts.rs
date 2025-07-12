@@ -37,8 +37,10 @@ use crate::utils;
 /// 5. Extracts the contents of the archive.
 /// 6. Identifies the standard macOS font installation directory (~/Library/Fonts).
 /// 7. Iterates through the extracted files, identifying and copying actual font files (.ttf, .otf).
-/// 8. Cleans up temporary files and directories.
-/// 9. Returns a `FontState` object upon successful installation, providing details
+/// 8. Applies an `install_only` filter to copy only specific font files
+///    whose names contain the specified keywords (case-insensitive).
+/// 9. Cleans up temporary files and directories.
+/// 10. Returns a `FontState` object upon successful installation, providing details
 ///    about the installed font, or `None` if any critical step fails.
 ///
 /// # Arguments
@@ -229,6 +231,22 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
         return None;
     }
 
+    // Determine if an `install_only` filter is present and not empty.
+    // Convert keywords to lowercase once to optimize comparisons.
+    let filter_keywords: Option<Vec<String>> = font.install_only.as_ref().map(|keywords| {
+        keywords.iter().map(|k| k.to_lowercase()).collect()
+    });
+
+    if let Some(keywords) = &filter_keywords {
+        if keywords.is_empty() {
+            log_info!("[Font] 'install_only' field is empty for '{}'. All detected font files will be considered for installation.", font.name.blue());
+        } else {
+            log_info!("[Font] Applying 'install_only' filter for '{}' with keywords: {:?}", font.name.blue(), keywords);
+        }
+    } else {
+        log_info!("[Font] No 'install_only' filter specified for '{}'. All detected font files will be considered for installation.", font.name.blue());
+    }
+
     // Iterate through each entry (file or subdirectory) found within the extracted archive's directory.
     for entry in read_dir_result.unwrap() {
         // Safely unwrap each directory entry. If an entry is invalid, skip it with a warning.
@@ -255,33 +273,50 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
 
                 // Check if the file extension is a common font file type (.ttf or .otf).
                 if ext_str == "ttf" || ext_str == "otf" {
-                    // If it's a font file, extract its filename.
                     let file_name = match path.file_name() {
-                        Some(name) => name,
+                        Some(name) => name.to_string_lossy().to_string(), // Get filename as String
                         None => {
                             log_warn!("[Font] Skipping font file with no valid filename detected: {:?}", path.display().to_string().yellow());
-                            continue; // Skip this file if its name cannot be determined.
+                            continue;
                         }
                     };
-                    // Construct the full target path in the user's Fonts directory.
-                    let target_path = fonts_dir.join(file_name);
-                    log_debug!("[Font] Attempting to copy font file from {:?} to {:?}", path.display().to_string().yellow(), target_path.display().to_string().yellow());
+                    let file_name_lower = file_name.to_lowercase();
 
-                    // Perform the file copy operation.
-                    if let Err(err) = fs::copy(&path, &target_path) {
-                        // If copying fails for a specific font file, log a warning but continue
-                        // processing other files, as one failed copy shouldn't halt the whole process.
-                        log_warn!(
-                            "[Font] Failed to copy font file {:?} to {:?}: {}",
-                            path.display().to_string().yellow(),
-                            target_path.display().to_string().yellow(),
-                            err
-                        );
+                    // Apply the `install_only` filter
+                    let should_install = if let Some(keywords) = &filter_keywords {
+                        // If `install_only` is specified and not empty, check if any keyword matches.
+                        // If keywords are empty, it means no specific filter, so all fonts are allowed.
+                        keywords.is_empty() || keywords.iter().any(|keyword| {
+                            file_name_lower.contains(keyword)
+                        })
                     } else {
-                        // If the copy is successful, log a debug message and add the target path
-                        // to our list of successfully installed font files.
-                        log_debug!("[Font] Successfully copied font file: {:?}", target_path.display().to_string().green());
-                        installed_font_files.push(target_path.display().to_string().to_string());
+                        // If `install_only` is not specified in FontEntry, install all font files.
+                        true
+                    };
+
+                    if should_install {
+                        // Construct the full target path in the user's Fonts directory.
+                        let target_path = fonts_dir.join(&file_name); // Use the original filename
+                        log_debug!("[Font] Attempting to copy font file from {:?} to {:?}", path.display().to_string().yellow(), target_path.display().to_string().yellow());
+
+                        // Perform the file copy operation.
+                        if let Err(err) = fs::copy(&path, &target_path) {
+                            // If copying fails for a specific font file, log a warning but continue
+                            // processing other files, as one failed copy shouldn't halt the whole process.
+                            log_warn!(
+                                "[Font] Failed to copy font file {:?} to {:?}: {}",
+                                path.display().to_string().yellow(),
+                                target_path.display().to_string().yellow(),
+                                err
+                            );
+                        } else {
+                            // If the copy is successful, log a debug message and add the target path
+                            // to our list of successfully installed font files.
+                            log_debug!("[Font] Successfully copied font file: {:?}", target_path.display().to_string().green());
+                            installed_font_files.push(target_path.display().to_string());
+                        }
+                    } else {
+                        log_debug!("[Font] Skipping font file '{}' (does not match 'install_only' filter).", file_name.dimmed());
                     }
                 } else {
                     log_debug!("[Font] Skipping non-font file based on extension: {:?} (extension: {})", path.display().to_string().dimmed(), ext_str.dimmed());
@@ -308,7 +343,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
         // If no font files were found or successfully copied, issue a warning.
         log_warn!(
             "[Font] No .ttf or .otf font files were found or successfully copied from the archive for '{}'. \
-             The font might not be correctly installed or the archive format is unexpected.",
+             The font might not be correctly installed, the archive format is unexpected, or no files matched the 'install_only' filter.",
             font.name.yellow()
         );
     }
