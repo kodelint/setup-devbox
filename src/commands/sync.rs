@@ -1,7 +1,4 @@
-use crate::schema::{
-    FontConfig, // Core state and main config
-    FontEntry, MainConfig, SettingEntry, SettingsConfig, ToolConfig, ToolEntry
-};
+use crate::schema::{FontConfig, FontEntry, MainConfig, OsSpecificSettings, SettingEntry, SettingsConfig, ToolConfig, ToolEntry};
 use crate::utils::get_devbox_dir;
 use crate::{
     log_debug,
@@ -42,7 +39,7 @@ pub fn run(args: SyncConfigArgs) {
     let devbox_dir = get_devbox_dir();
     let default_state_path = devbox_dir.join("state.json");
     let default_config_dir = devbox_dir.join("configs");
-    
+
     // The logic below now directly executes sync_state_to_configs.
     // This was previously inside the `SyncCommands::SyncConfig(args)` arm.
     log_info!("[Sync] Syncing config files from state file.");
@@ -121,11 +118,19 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
             domain: setting_state.domain,
             key: setting_state.key,
             value: setting_state.value,
-            value_type: "string".to_string(), // Placeholder, cannot infer actual type
+            value_type: setting_state.value_type, // Now correctly populated from SettingState!
         });
     }
-    settings_entries_by_os.insert("macos".to_string(), macos_settings);
-    let settings_config = SettingsConfig { settings: settings_entries_by_os };
+
+    // CORRECTED: Create an OsSpecificSettings instance
+    let os_specific_settings = OsSpecificSettings {
+        macos: macos_settings,
+        // Add other OS vectors here if you expand OsSpecificSettings
+        // linux: Vec::new(), // Example for future expansion
+    };
+
+    // Assign the correctly structured OsSpecificSettings to SettingsConfig
+    let settings_config = SettingsConfig { settings: os_specific_settings };
 
 
     // 5. Convert FontState entries to FontEntry
