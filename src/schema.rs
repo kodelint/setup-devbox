@@ -76,6 +76,12 @@ pub struct ToolEntry {
     // If the downloaded executable has a generic name (e.g., "cli") but the user
     // wants it to be called something specific (e.g., "mycli"), this field allows renaming.
     pub rename_to: Option<String>,
+    // Additional options or flags to pass directly to the installer command.
+    // For "go", build flags like `-ldflags`. For "cargo", features like `--features`.
+    // `#[serde(default)]` ensures that if this field is missing in the YAML, it defaults to `None`
+    // instead of causing a deserialization error.
+    #[serde(default)]
+    pub options: Option<Vec<String>>,
 }
 
 /// Configuration schema for `shellac.yaml`.
@@ -206,6 +212,10 @@ pub struct ToolState {
     pub repo: Option<String>,
     // If the source is GitHub, this holds the specific tag/release downloaded.
     pub tag: Option<String>,
+    // Additional options or flags that were passed to the installer command during installation.
+    // This helps in re-installing with the same options if needed, or for debugging.
+    #[serde(default)] // Important: This allows the field to be optional in YAML without errors
+    pub options: Option<Vec<String>>,
 }
 
 /// Records the state of a single system setting that `setup-devbox` has applied.

@@ -274,5 +274,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         // for recording the most "truthful" type for diagnostics, even if we used
         // filename for extraction logic.
         package_type: actual_file_type_for_state,
+        // Pass the options from ToolEntry to ToolState.
+        options: None,
     })
 }
