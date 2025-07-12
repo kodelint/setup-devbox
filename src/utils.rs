@@ -14,7 +14,7 @@ use colored::Colorize;
 // For decompressing gzipped archives (like .tar.gz files).
 // `flate2` is a widely used Rust library for handling various compression formats,
 // and `GzDecoder` specifically deals with gzip decompression.
-use flate2::read::GzDecoder;
+pub(crate) use flate2::read::GzDecoder;
 // To get environment variables, like the temporary directory or home directory.
 // `std::env` provides functions to interact with the process's environment.
 // `std::io` contains core input/output functionalities and error types.
@@ -34,7 +34,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 // For extracting tar archives.
 // The `tar` crate provides functionality to read and write tar archives.
-use tar::Archive;
+pub(crate) use tar::Archive;
 // For extracting zip archives.
 // The `zip` crate provides functionality to read and write zip archives.
 use zip::ZipArchive;
