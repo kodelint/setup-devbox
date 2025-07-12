@@ -1,10 +1,12 @@
-// src/installers/rustup.rs
-// This module provides functionality to install Rust toolchains and components using `rustup`.
-
+// Imports necessary schema definitions for tools.
 use crate::schema::{ToolEntry, ToolState};
+// Imports custom logging macros.
 use crate::{log_debug, log_error, log_info, log_warn};
+// For adding color to terminal output.
 use colored::Colorize;
+// For executing external commands and capturing their output.
 use std::process::{Command, Output};
+// For working with file paths, specifically to construct installation paths.
 use std::path::PathBuf;
 
 /// Installs a Rust toolchain and optionally components using `rustup`.
