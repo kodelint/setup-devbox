@@ -172,7 +172,7 @@ pub struct SettingEntry {
 /// The complete structure of `state.json`, which acts as `setup-devbox`s memory.
 /// It records everything `setup-devbox` has done – what tools are installed, settings applied, etc.
 /// 'Clone' is derived here because we might need to easily duplicate this state object in memory.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct DevBoxState {
     // A `HashMap` to keep track of all installed tools.
     // The key is likely the tool's name, and the value is its `ToolState` details.
@@ -202,6 +202,10 @@ pub struct ToolState {
     pub renamed_to: Option<String>,
     // The type of package (e.g., "binary", "go-module", "brew-formula").
     pub package_type: String,
+    // If the source is GitHub, this holds the repository in "owner/repo" format.
+    pub repo: Option<String>,
+    // If the source is GitHub, this holds the specific tag/release downloaded.
+    pub tag: Option<String>,
 }
 
 /// Records the state of a single system setting that `setup-devbox` has applied.
@@ -229,6 +233,10 @@ pub struct FontState {
     // A list of the actual font files (e.g., .ttf, .otf) that were installed for this font.
     pub files: Vec<String>,
     pub version: String,
+    #[serde(default)] // This ensures that if the field is missing in old state.json, it defaults to None
+    pub repo: Option<String>,
+    #[serde(default)] // Same for tag
+    pub tag: Option<String>,
 }
 
 //  Main Application Configuration
