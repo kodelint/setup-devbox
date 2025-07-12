@@ -9,7 +9,6 @@ use crate::{
 use crate::libs::state_management::read_devbox_state;
 use clap::Args;
 use colored::Colorize;
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -89,7 +88,6 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
 
     // Prepare vectors/maps to hold the converted config structs
     let mut tools_entries: Vec<ToolEntry> = Vec::new();
-    let mut settings_entries_by_os: HashMap<String, Vec<SettingEntry>> = HashMap::new();
     let mut fonts_entries: Vec<FontEntry> = Vec::new();
 
     // 3. Convert ToolState entries to ToolEntry

@@ -70,7 +70,7 @@ tar = "0.4.44"
 
 # 'zip' is a library for working with `.zip` archives.
 # Zip files are another popular format for bundling and compressing files, especially common on Windows.
-zip = "0.6.0"
+zip = "4.3.0"
 
 # 'bzip2' provides bindings to the `bzip2` compression library.
 # This crate allows your application to handle `.bz2` compressed files and `.tar.bz2` archives.
