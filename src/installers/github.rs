@@ -263,6 +263,12 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         install_method: "github".to_string(),
         // Record if the binary was renamed during installation.
         renamed_to: tool.rename_to.clone(),
+        // Record the repository name 
+        // Help in `sync` command to sync back
+        repo: tool.repo.clone(),
+        // Record the tag name 
+        // Help in `sync` command to sync back
+        tag: tool.tag.clone(),
         // Store the type of package that was downloaded and processed.
         // We now use the `actual_file_type_for_state` which still uses the `file` command
         // for recording the most "truthful" type for diagnostics, even if we used
