@@ -35,9 +35,9 @@ By defining your desired tools, system settings, shell configurations, and fonts
     * 🐍 **Pip (`pip`)**: Install Python packages.
     * 🧡 **Rustup (`rustup`)**: Manage and install Rust toolchains and components.
 * **Highly Modular and Pluggable**: The architecture is designed for ease of extension. Adding support for new package managers or installation methods is straightforward, requiring minimal changes to the core logic and making `setup-devbox` adaptable to evolving needs.
-* **System Settings Application** (Planned): Define macOS system preferences to be applied automatically.
-* **Shell Configuration Management** (Planned): Manage shell aliases, environment variables, and dotfiles.
-* **Font Installation** (Planned): Install and manage custom fonts for your terminal and editor.
+* **System Settings Application**: Define macOS system preferences to be applied automatically.
+* **Shell Configuration Management**: Manage shell aliases, environment variables, and dotfiles.
+* **Font Installation**: Install and manage custom fonts for your terminal and editor.
 * **Idempotent Operations**: Run the tool multiple times without side effects; it only applies changes if necessary.
 * **Detailed Logging**: Provides clear feedback on installation progress and potential issues.
 
@@ -158,6 +158,7 @@ fonts:
   source: github
   repo: ryanoasis/nerd-fonts
   tag: v3.4.0
+  install_only: ['regular', 'Mono']
 ```
 
 ### `shellrc.yaml`
