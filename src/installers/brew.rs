@@ -1,130 +1,173 @@
 // This module provides the functionality to install software tools using Homebrew.
 // Homebrew is a popular package manager for macOS and Linux, simplifying the installation
-// of many open-source tools. This installer interacts directly with the `brew` command.
+// of many open-source tools. This installer interacts directly with the `brew` command
+// to install packages as specified in `devbox`'s configuration.
+//
+// The primary goal is to offer a straightforward and robust method for `devbox` to
+// manage tools available through Homebrew.
 
-// For pretty, colored output in the terminal logs.
-use colored::Colorize;
-// Our custom logging macros for different verbosity levels.
-use crate::{log_debug, log_error, log_info, log_warn};
-// Importing the necessary data structures (schemas) for defining a tool in our config
-// and storing its installation state.
+// Standard library imports:
+use std::path::PathBuf;  // For ergonomic and platform-agnostic path manipulation.
+use std::process::Command; // For executing external commands (like `brew`) and capturing their output.
+
+// External crate imports:
+use colored::Colorize; // Used for adding color to terminal output, improving log readability.
+
+// Internal module imports:
 use crate::schema::{ToolEntry, ToolState};
-// For building and manipulating file paths.
-use std::path::PathBuf;
-// For executing external commands, specifically the `brew` command.
-use std::process::Command;
+// `ToolEntry`: Defines the structure for a tool's configuration as read from `tools.yaml`,
+//              providing details specific to a Homebrew installation (e.g., formula name).
+// `ToolState`: Represents the state of an installed tool, which we persist in `state.json`
+//              to track installed tools, their versions, and paths.
+
+use crate::{log_debug, log_error, log_info, log_warn};
+// Custom logging macros. These are used throughout the module to provide informative output
+// during the installation process, aiding in debugging and user feedback.
+
 
 /// Installs a tool using the Homebrew package manager.
-/// This function executes `brew install <tool_name>` and determines the
-/// final installation path to record it in the application's state.
+///
+/// This is the core function for installing tools that are available as Homebrew formulae.
+/// It orchestrates the following steps:
+/// 1. Validates the tool name from the `ToolEntry`.
+/// 2. Executes the `brew install <tool_name>` command.
+/// 3. Checks the success of the Homebrew command and logs any errors.
+/// 4. Determines the actual installation path of the binary using `brew --prefix`.
+/// 5. Constructs and returns a `ToolState` object for persistence.
 ///
 /// # Arguments
-/// * `tool`: A reference to a `ToolEntry` struct, which contains the
-///           configuration details for the tool to be installed (e.g., `name`, `version`, `rename_to`).
+/// * `tool`: A reference to a `ToolEntry` struct. This `ToolEntry` contains all the
+///           metadata read from the `tools.yaml` configuration file that specifies
+///           how to install this particular tool using Homebrew (e.g., `name` of the formula,
+///           `rename_to` if the binary needs a different name).
 ///
 /// # Returns
 /// * `Option<ToolState>`:
-///   - `Some(ToolState)` if the tool was successfully installed, including its version
-///     and the detected installation path.
-///   - `None` if the installation failed at any point (e.g., tool name missing, `brew` command fails).
+///   - `Some(ToolState)`: Indicates a successful installation. The contained `ToolState`
+///     struct provides details like the installed version, the absolute path to the binary,
+///     and the installation method, which are then persisted in our internal `state.json`.
+///   - `None`: Signifies that the installation failed at any point (e.g., missing tool name,
+///     `brew` command not found, `brew install` failed). Detailed error logging is performed
+///     before returning `None` to provide context for the failure.
 pub fn install(tool: &ToolEntry) -> Option<ToolState> {
     log_debug!("[Brew] Starting installation process for tool: {:?}", tool.name.bold());
 
     // 1. Validate Tool Name
-    // Ensure that a tool name is provided in the configuration.
+    // Ensure that the `name` field is present in the `ToolEntry` and is not empty.
+    // The tool name is essential for the `brew install` command.
     let name = &tool.name;
     if name.is_empty() {
         log_error!("[Brew] Tool name is empty in the configuration. Cannot proceed with Homebrew installation.");
-        return None; // Cannot install a tool without a name.
+        return None; // Abort if the tool name is missing.
     }
+    log_debug!("[Brew] Tool name '{}' is validated.", name.blue());
+
 
     // 2. Prepare and Execute Homebrew Installation Command
-    // Create a new `Command` instance to run `brew`.
+    // Create a new `Command` instance to interact with the `brew` executable.
     let mut cmd = Command::new("brew");
 
-    // Add the "install" argument, followed by the tool's name.
-    // Note: Homebrew typically handles finding the latest stable version by default.
+    // Add the "install" subcommand and the tool's name (Homebrew formula).
+    // Homebrew by default installs the latest stable version of a formula.
     // If specific versioning (e.g., `brew install <formula>@<version>`) were desired,
-    // additional logic would be needed here to parse `tool.version` and potentially
-    // manage Homebrew taps. For simplicity, we assume latest stable.
+    // additional parsing of `tool.version` and logic to manage Homebrew taps would be needed.
+    // For this implementation, we assume installation of the latest stable version.
     cmd.arg("install").arg(name);
 
     log_info!("[Brew] Attempting to install {} using Homebrew...", name.bold());
+    // Log the exact command being executed for debugging purposes.
     log_debug!("[Brew] Executing command: {:?}", cmd);
 
-    // Execute the `brew install` command and wait for its output.
+    // Execute the `brew install` command and wait for it to complete, capturing its output.
     let output = match cmd.output() {
-        Ok(output) => output, // Command executed successfully, get its output (stdout, stderr, status).
+        Ok(output) => output, // Successfully executed the command (process started and finished).
         Err(err) => {
-            // If the `brew` command itself could not be executed (e.g., `brew` not in PATH).
-            log_error!("[Brew] Failed to execute `brew` command for {}: {}. Is Homebrew installed and in your system's PATH?", name.red(), err);
+            // Log an error if the `brew` command itself could not be spawned.
+            // This usually means `brew` is not installed or not in the system's PATH.
+            log_error!(
+                "[Brew] Failed to execute `brew` command for {}: {}. Is Homebrew installed and in your system's PATH?",
+                name.red(),
+                err
+            );
             return None;
         }
     };
 
-    // Check if the `brew install` command exited successfully (status code 0).
+    // Check the exit status of the `brew install` command.
     if !output.status.success() {
-        // If it failed, log the error status and the stderr output from Homebrew.
+        // If the command failed (non-zero exit code), log the error.
+        // Include Homebrew's standard error output, as it typically contains detailed reasons for failure.
         log_error!(
             "[Brew] Homebrew installation for {} failed with status: {}. stderr: \n{}",
             name.red(),
-            output.status,
-            String::from_utf8_lossy(&output.stderr).red() // Display brew's error message.
+            output.status, // Display the exit status code.
+            String::from_utf8_lossy(&output.stderr).red() // Convert stderr bytes to a string and color it red.
         );
-        return None;
+        return None; // Indicate installation failure.
     }
 
     log_info!("[Brew] Successfully installed {}!", name.green());
 
+
     // 3. Determine the Installation Path
-    // Homebrew installs binaries into a specific directory, which can vary (e.g., `/usr/local/bin`
-    // on Intel macOS or `/opt/homebrew/bin` on Apple Silicon macOS).
-    // We query `brew --prefix` to get the base installation path.
+    // Homebrew installs binaries into a specific directory, which varies based on macOS architecture
+    // (e.g., `/usr/local/bin` on Intel, `/opt/homebrew/bin` on Apple Silicon).
+    // The most reliable way to find this is by querying `brew --prefix`.
     let brew_prefix_output = Command::new("brew")
         .arg("--prefix")
         .output()
-        .expect("[Brew] Failed to execute `brew --prefix`. Is Homebrew installed?"); // This `expect` would panic if brew isn't found.
+        // If `brew --prefix` itself fails to execute, it's a critical error indicating Homebrew setup issues.
+        .expect("[Brew] Failed to execute `brew --prefix`. Is Homebrew installed?");
 
     let brew_prefix = if brew_prefix_output.status.success() {
-        // If `brew --prefix` was successful, trim whitespace and convert to string.
+        // If `brew --prefix` was successful, take its stdout, trim whitespace, and convert to a String.
         String::from_utf8_lossy(&brew_prefix_output.stdout).trim().to_string()
     } else {
-        // If `brew --prefix` failed, log a warning and default to a common path.
-        // This fallback might not be correct for all systems/architectures.
-        log_warn!("[Brew] Could not reliably determine Homebrew prefix. Defaulting to `/usr/local`. Installation path might be incorrect.");
-        "/usr/local".to_string()
+        // If `brew --prefix` failed (e.g., even if `brew` is found, `--prefix` might error for some reason),
+        // log a warning and default to a common, but potentially incorrect, path.
+        log_warn!(
+            "[Brew] Could not reliably determine Homebrew prefix. Defaulting to `/usr/local`. \
+             Installation path might be incorrect. Stderr from --prefix: {}",
+            String::from_utf8_lossy(&brew_prefix_output.stderr)
+        );
+        "/usr/local".to_string() // Fallback path.
     };
     log_debug!("[Brew] Homebrew prefix detected: {}", brew_prefix.blue());
 
     // Construct the expected full path to the installed binary.
-    // Homebrew typically symlinks binaries into a `bin` directory under its prefix.
+    // Homebrew typically creates symlinks to installed binaries in a `bin` directory
+    // located directly under its determined prefix (e.g., `/usr/local/bin/<tool_name>`).
+    // The binary name itself might be renamed if `tool.rename_to` is specified.
     let bin_name = tool.rename_to.clone().unwrap_or_else(|| name.clone());
     let install_path = PathBuf::from(format!("{}/bin/{}", brew_prefix, bin_name));
 
-    log_debug!("[Brew] Expected final binary path for {}: {:?}", name.bold(), install_path.display().to_string().cyan());
+    log_debug!(
+        "[Brew] Expected final binary path for {}: {:?}",
+        name.bold(),
+        install_path.display().to_string().cyan()
+    );
 
-    // 4. Return ToolState for Tracking
-    // Create and return a `ToolState` object to record this successful installation.
+    // 4. Return `ToolState` for Tracking
+    // Create and return a `ToolState` object to record this successful installation in `devbox`'s state file.
     Some(ToolState {
-        // Use the version from the config, or default to "latest" since Homebrew handles versioning.
+        // The version field. Homebrew handles versions, so we can either use the `tool.version`
+        // if specified (e.g., for specific formula@version syntax) or default to "latest"
+        // to signify it's managed by Homebrew.
         version: tool.version.clone().unwrap_or_else(|| "latest".to_string()),
-        // The detected installation path.
+        // The detected absolute path to the installed binary.
         install_path: install_path.display().to_string(),
-        // Mark that this tool was installed by `setup-devbox`.
+        // Flag indicating that this tool was installed by `devbox`.
         installed_by_devbox: true,
-        // The installation method used.
+        // The method of installation.
         install_method: "brew".to_string(),
-        // Any `rename_to` specified in the config.
+        // Any `rename_to` value specified in the configuration.
         renamed_to: tool.rename_to.clone(),
-        // We can denote the package type as "brew" for consistency.
+        // Denotes the package type as "brew" for consistency and potential future filtering.
         package_type: "brew".to_string(),
-        // Not required for `Homebrew` installations
-        // This is just placeholder for symmetry
-        repo: Option::from("UNKNOWN_FROM_CONFIG".to_string()),
-        // Not required for `Homebrew` installations
-        // This is just placeholder for symmetry
-        tag: Option::from("UNKNOWN_FROM_CONFIG".to_string()),
-        // Pass the options from ToolEntry to ToolState.
-        options: None,
+        // `repo` and `tag` fields are specific to GitHub releases and are not applicable for Homebrew.
+        repo: None,
+        tag: None,
+        // Pass any custom options defined in the `ToolEntry` to the `ToolState`.
+        options: tool.options.clone(),
     })
 }
