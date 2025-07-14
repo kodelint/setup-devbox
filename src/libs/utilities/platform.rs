@@ -1,8 +1,10 @@
+use std::process::Command;
 // Our custom logging macros to give us nicely formatted (and colored!) output
 // for debugging, general information, and errors.
-use crate::{log_debug, log_warn};
+use crate::{log_debug, log_error, log_warn};
 // The 'colored' crate helps us make our console output look pretty and readab
 use colored::Colorize;
+use crate::schema::InstallerError;
 
 /// Checks if a given asset filename from a GitHub release (or similar source)
 /// is likely compatible with the current operating system and architecture.
@@ -205,5 +207,43 @@ pub fn normalize_arch(arch: &str) -> String {
             log_warn!("[Utils] Unknown ARCH variant '{}', using as-is. This might cause issues with asset matching.", other.purple());
             other.to_string()
         }
+    }
+}
+
+/// Checks if a given command (installer) exists in the system's PATH and is executable.
+///
+/// This function attempts to run the command with a harmless argument like "--version"
+/// or just checks its status to determine if it's found. It's a robust way to verify
+/// the presence of external tools like `brew`, `go`, `cargo`, etc.
+///
+/// # Arguments
+/// * `command_name`: The name of the command to check (e.g., "brew", "go", "cargo").
+///
+/// # Returns
+/// `Ok(())` if the command is found and appears to be executable.
+/// `Err(InstallerError::MissingCommand)` if the command is not found in PATH.
+pub fn check_installer_command_available(command_name: &str) -> Result<(), InstallerError> {
+    log_debug!("[Utils] Checking for installer command: '{}'", command_name.cyan());
+
+    // Attempt to run the command. We use `output()` first with `--version` because
+    // many commands support it as a lightweight way to check existence and print version info.
+    // If that fails, we fall back to just `status()` to see if the command can be invoked at all.
+    let command_found = Command::new(command_name)
+        .arg("--version")
+        .output()
+        .is_ok() // Did the command execute and return an output (even if error)?
+        || Command::new(command_name)
+        .status()
+        .is_ok(); // Or did it just exit with a status code (meaning it was found)?
+
+    if command_found {
+        log_debug!("[Utils] Installer command '{}' found.", command_name.green());
+        Ok(())
+    } else {
+        log_error!(
+            "[Utils] Installer command '{}' not found in system PATH. Cannot proceed with installations requiring it.",
+            command_name.red()
+        );
+        Err(InstallerError::MissingCommand(command_name.to_string()))
     }
 }
