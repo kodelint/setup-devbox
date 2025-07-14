@@ -7,13 +7,16 @@
 // where the source of truth for distribution is a GitHub repository's "Releases" section.
 
 // Standard library imports:
-use std::env;      // For interacting with environment variables, specifically to find the HOME directory.
-use std::path::PathBuf; // For ergonomic and platform-agnostic path manipulation.
+use std::env;
+// For interacting with environment variables, specifically to find the HOME directory.
+use std::path::PathBuf;
+// For ergonomic and platform-agnostic path manipulation.
 
 // External crate imports:
-use colored::Colorize; // Used for adding color to terminal output, improving log readability.
-use ureq;              // A minimal, idiomatic HTTP client for making API requests to GitHub.
-use serde_json;        // For deserializing JSON responses from the GitHub API into Rust structs.
+// Used for adding color to terminal output, improving log readability.
+use colored::Colorize;
+// For deserializing JSON responses from the GitHub API into Rust structs.
+use ureq;
 
 // Internal module imports:
 use crate::schema::{Release, ToolEntry, ToolState};
@@ -23,8 +26,7 @@ use crate::schema::{Release, ToolEntry, ToolState};
 // `ToolState`: Represents the state of an installed tool, which we persist in `state.json`
 //              to track installed tools, their versions, and paths.
 
-use crate::utils;
-// Provides various utility functions:
+// Provides various utility functions from libs/utilities:
 // `download_file`: Handles downloading a file from a URL to a local path.
 // `extract_archive`: Decompresses and extracts various archive formats (zip, tar.gz, etc.).
 // `detect_os`, `detect_architecture`: Determine the current operating system and CPU architecture.
@@ -34,14 +36,29 @@ use crate::utils;
 // `make_executable`: Sets executable permissions on a file.
 // `find_executable`: Recursively searches for an executable within a directory.
 // `detect_file_type`, `detect_file_type_from_filename`: Utilities to infer file types.
+use crate::libs::utilities::{
+    assets::{
+        detect_file_type,
+        detect_file_type_from_filename, 
+        download_file, 
+        install_pkg
+    },
+    binary::{
+        find_executable, 
+        make_executable, 
+        move_and_rename_binary
+    },
+    compression::extract_archive,
+    path_helpers::get_temp_dir, 
+    platform::{
+        detect_os,
+        detect_architecture,
+        asset_matches_platform
+}};
 
-use crate::utils::asset_matches_platform;
-// A specialized utility function to determine if a GitHub release asset filename matches
-// the current operating system and architecture. This is crucial for selecting the correct binary.
-
-use crate::{log_debug, log_error, log_info};
 // Custom logging macros. These are used throughout the module to provide informative output
 // during the installation process, aiding in debugging and user feedback.
+use crate::{log_debug, log_error, log_info};
 
 /// Installs a software tool by fetching its release asset from GitHub.
 ///
@@ -70,7 +87,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
     // The first critical step is to determine the host's platform. GitHub releases typically
     // provide different binaries for different OS/architecture combinations (e.g., `linux-amd64`,
     // `darwin-arm64`). Without this information, we cannot select the correct asset.
-    let os = match utils::detect_os() {
+    let os = match detect_os() {
         Some(os) => os,
         None => {
             // If OS detection fails, log an error and abort. This is a fundamental requirement.
@@ -79,7 +96,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         }
     };
 
-    let arch = match utils::detect_architecture() {
+    let arch = match detect_architecture() {
         Some(arch) => arch,
         None => {
             // Similarly, if architecture detection fails, log an error and abort.
@@ -184,12 +201,12 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
     // 5. Download the Asset
     // We download the asset to a temporary directory to avoid cluttering the user's system
     // and to facilitate extraction and cleanup.
-    let temp_dir = utils::get_temp_dir();
+    let temp_dir = get_temp_dir();
     let filename = &asset.name; // Use the original filename from the asset.
     let archive_path = temp_dir.join(filename); // Construct the full path for the downloaded file.
 
     log_debug!("[GitHub] Downloading {} to temporary location: {}", tool.name.to_string().bold(), archive_path.display().to_string().cyan());
-    if let Err(err) = utils::download_file(download_url, &archive_path) {
+    if let Err(err) = download_file(download_url, &archive_path) {
         // Log specific download errors (e.g., network issues during download).
         log_error!("[GitHub] Failed to download tool {} from {}: {}", tool.name.to_string().red(), download_url.to_string().red(), err);
         return None;
@@ -202,14 +219,14 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
     // `detect_file_type_from_filename` is preferred here for archives because the filename
     // usually clearly indicates the compression format, which is more reliable than
     // `file` command output for archives.
-    let file_type_from_name = utils::detect_file_type_from_filename(&archive_path.to_string_lossy());
+    let file_type_from_name = detect_file_type_from_filename(&archive_path.to_string_lossy());
     log_debug!("[GitHub] Detected downloaded file type (from filename): {}", file_type_from_name.to_string().magenta());
 
     // `actual_file_type_for_state` uses the `file` command, which provides a deeper inspection
     // of the file's magic bytes. While `file_type_from_name` is used for deciding *how* to extract,
     // this `actual_file_type_for_state` is more accurate for recording the precise file type
     // in the `ToolState`, which can be valuable for diagnostics or future enhancements.
-    let actual_file_type_for_state = utils::detect_file_type(&archive_path);
+    let actual_file_type_for_state = detect_file_type(&archive_path);
     log_debug!("[GitHub] Detected downloaded file type (from `file` command for state): {}", actual_file_type_for_state.to_string().magenta());
 
 
@@ -240,7 +257,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         "pkg" => {
             // Handles macOS installer packages (.pkg). This often involves calling system utilities.
             log_info!("[GitHub] Installing .pkg file for {}.", tool.name.to_string().bold());
-            if let Err(err) = utils::install_pkg(&archive_path) {
+            if let Err(err) = install_pkg(&archive_path) {
                 log_error!("[GitHub] Failed to install .pkg for {}: {}", tool.name.to_string().red(), err);
                 return None;
             }
@@ -249,12 +266,12 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
             // Handles direct executable files (e.g., a single `.exe` or uncompressed binary).
             // These files don't need extraction; they just need to be moved and made executable.
             log_debug!("[GitHub] Moving standalone binary for {}.", tool.name.to_string().bold());
-            if let Err(err) = utils::move_and_rename_binary(&archive_path, &install_path) {
+            if let Err(err) = move_and_rename_binary(&archive_path, &install_path) {
                 log_error!("[GitHub] Failed to move binary for {}: {}", tool.name.to_string().red(), err);
                 return None;
             }
             log_debug!("[GitHub] Making binary executable for {}.", tool.name.to_string().bold());
-            if let Err(err) = utils::make_executable(&install_path) {
+            if let Err(err) = make_executable(&install_path) {
                 log_error!("[GitHub] Failed to make binary executable for {}: {}", tool.name.to_string().red(), err);
                 return None;
             }
@@ -266,7 +283,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
             // Extract the downloaded archive into a *new* temporary subdirectory.
             // We pass `Some(&file_type_from_name)` as a hint to `extract_archive` to ensure
             // it uses the correct decompression logic, overriding potential `file` command ambiguities.
-            let extracted_path = match utils::extract_archive(&archive_path, &temp_dir, Some(&file_type_from_name)) {
+            let extracted_path = match extract_archive(&archive_path, &temp_dir, Some(&file_type_from_name)) {
                 Ok(path) => path,
                 Err(err) => {
                     log_error!("[GitHub] Failed to extract archive for {}: {}", tool.name.to_string().red(), err);
@@ -276,7 +293,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
             log_debug!("[GitHub] Searching for executable in extracted contents for {}.", tool.name.to_string().blue());
             // Many archives contain nested directories. `find_executable` recursively searches
             // the extracted contents to locate the actual binary we need to install.
-            let executable_path = match utils::find_executable(&extracted_path) {
+            let executable_path = match find_executable(&extracted_path) {
                 Some(path) => path,
                 None => {
                     log_error!("[GitHub] No executable found in the extracted archive for {}. Manual intervention may be required.", tool.name.to_string().red());
@@ -286,13 +303,13 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
 
             log_debug!("[GitHub] Moving and renaming executable for {}.", tool.name.to_string().blue());
             // Move the located executable to its final destination and apply any `rename_to` rule.
-            if let Err(err) = utils::move_and_rename_binary(&executable_path, &install_path) {
+            if let Err(err) = move_and_rename_binary(&executable_path, &install_path) {
                 log_error!("[GitHub] Failed to move extracted binary for {}: {}", tool.name.to_string().red(), err);
                 return None;
             }
             log_debug!("[GitHub] Making extracted binary executable for {}.", tool.name.to_string().blue());
             // Ensure the final binary has executable permissions set.
-            if let Err(err) = utils::make_executable(&install_path) {
+            if let Err(err) = make_executable(&install_path) {
                 log_error!("[GitHub] Failed to make extracted binary executable for {}: {}", tool.name.to_string().red(), err);
                 return None;
             }

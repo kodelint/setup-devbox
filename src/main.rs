@@ -5,7 +5,7 @@
 // We're bringing in a few custom modules that handle specific parts of our application.
 // Think of these as specialized workshops where different tasks are performed.
 mod commands;   // This module contains the logic for each specific command (like 'now', 'generate', 'sync').
-mod utils;      // General utility functions that might be useful across different parts of the application.
+
 mod schema;     // Defines the structure of our configuration files (e.g., how a 'tool' or 'font' is described).
 mod logger;     // Handles setting up and managing our application's logging (debug, info, error messages).
 mod installers;

@@ -1,7 +1,11 @@
-use colored::Colorize; // Imports the `Colorize` trait for adding color to console output.
-use std::path::PathBuf; // Provides `PathBuf` for working with file paths.
-use crate::{log_debug, log_error, log_info}; // Custom logging macros for various log levels.
-use crate::utils::expand_tilde; // Imports a utility function to expand the `~` character in paths.
+// Imports the `Colorize` trait for adding color to console output.
+use colored::Colorize; 
+// Provides `PathBuf` for working with file paths.
+use std::path::PathBuf; 
+// Custom logging macros for various log levels.
+use crate::{log_debug, log_error, log_info}; 
+// Imports a utility function to expand the `~` character in paths.
+use crate::libs::utilities::path_helpers::expand_tilde; 
 
 /// Determines and resolves the absolute paths for the main configuration file
 /// and the application state file.
