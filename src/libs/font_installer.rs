@@ -1,6 +1,6 @@
 use std::path::PathBuf; // Provides `PathBuf` for working with file paths.
 use colored::Colorize; // Imports the `Colorize` trait for adding color to console output.
-// Adjust the import path for logging macros if they are not directly in `crate::` but, for example, in `crate::utils::logging`.
+// Adjust the import path for logging macros if they are not directly in `crate::` but, for example, in `crate::libutils::logging`.
 // Assuming they are still at the top-level crate import for now.
 use crate::{log_debug, log_error, log_info}; // Custom logging macros for various log levels.
 
@@ -26,61 +26,114 @@ use crate::libs::state_management::save_devbox_state; // Imports the function to
 /// * `state`: A mutable reference to the `DevBoxState` to update installed fonts.
 /// * `state_path_resolved`: The `PathBuf` to the `state.json` file for saving.
 pub fn install_fonts(fonts_cfg: FontConfig, state: &mut DevBoxState, state_path_resolved: &PathBuf) {
-    log_info!("[Fonts] Processing Font Installations..."); // Informative log that font installation process has started.
-    log_debug!("Entering install_fonts() function."); // Debug log for function entry.
+    log_info!("[Fonts] Processing Font Installations..."); // Informative log that the font installation process has started.
+    log_debug!("Entering install_fonts() function."); // Debug log to indicate entry into the `install_fonts` function.
 
-    let mut fonts_updated = false; // Flag to track if any fonts were newly installed or updated.
-    let mut skipped_fonts: Vec<String> = Vec::new(); // A vector to store names of fonts that were skipped because they were already installed.
+    // A boolean flag initialized to `false`. This flag will be set to `true`
+    // if any fonts are newly installed or updated during this function call.
+    let mut fonts_updated = false;
+    // A mutable vector named `skipped_fonts` to store the names of fonts
+    // that are found to be already installed and thus skipped from re-installation.
+    let mut skipped_fonts: Vec<String> = Vec::new();
 
-    // Iterate over each font definition in the `fonts_cfg`.
+    // Iterate over each `font` definition in the `fonts_cfg`.
+    // `&fonts_cfg.fonts` creates an immutable reference to the vector of font configurations,
+    // allowing iteration without consuming or moving the `fonts_cfg` data.
     for font in &fonts_cfg.fonts {
-        log_debug!("[Fonts] Considering font: {:?}", font.name.bold()); // Debug log for the current font being considered.
+        // Log at debug level the name of the current font being considered for installation.
+        // `font.name.bold()` makes the font name bold in the debug output for better readability.
+        log_debug!("[Fonts] Considering font: {:?}", font.name.bold());
         // Check if the font is already present in the `DevBoxState`.
+        // `!state.fonts.contains_key(&font.name)` evaluates to `true` if the font's name
+        // is NOT found as a key in the `state.fonts` HashMap, indicating that it needs to be installed.
         if !state.fonts.contains_key(&font.name) {
-            print!("\n"); // Print a newline for better console formatting.
-            eprintln!("{}", "==============================================================================================".bright_blue()); // Print a separator for visual clarity.
-            log_info!("[Fonts] Installing {}...", font.name.bold().cyan()); // Informative log about the font being installed.
+            // Print a newline character to the standard output for better console formatting
+            // and visual separation between log blocks.
+            print!("\n");
+            // Print a separator line to the standard error output for strong visual clarity,
+            // signaling the start of a new font installation block. The line is colored bright blue.
+            eprintln!("{}", "==============================================================================================".bright_blue());
+            // Log an informative message to the user about the specific font being installed.
+            // The font's name is displayed in bold cyan for emphasis.
+            log_info!("[Fonts] Installing {}...", font.name.bold().cyan());
             // Call the actual font installation logic from the `fonts` installer module.
+            // `fonts::install(font)` is expected to perform the system-level font installation.
+            // It returns an `Option<FontState>`: `Some(font_state)` on success with the installed font's state, or `None` on failure.
             if let Some(font_state) = fonts::install(font) {
-                state.fonts.insert(font_state.name.clone(), font_state); // Insert the new font's state into the `DevBoxState`.
-                fonts_updated = true; // Set the flag to true as a font was installed.
-                log_info!("[Fonts] Successfully installed {}.", font.name.bold().green()); // Success log for the font installation.
-                eprintln!("{}", "===============================================================================================".bright_blue()); // Print another separator.
-                print!("\n"); // Print a newline.
+                // If `install` returns `Some(font_state)`, it means the font was successfully installed.
+                // Insert the new font's state into the `DevBoxState`'s `fonts` HashMap.
+                // `font_state.name.clone()` is used as the key to store the `font_state` value.
+                state.fonts.insert(font_state.name.clone(), font_state);
+                // Set the `fonts_updated` flag to `true` to indicate that a change occurred in the state,
+                // which will trigger a state save later.
+                fonts_updated = true;
+                // Log a success message for the font installation, displaying the font's name in bold green.
+                log_info!("[Fonts] Successfully installed {}.", font.name.bold().green());
+                // Print another separator line to the standard error output, in bright blue,
+                // to visually close the font installation block.
+                eprintln!("{}", "===============================================================================================".bright_blue());
+                print!("\n"); // Print a newline for additional visual spacing.
             } else {
-                // Log an error if the font installation failed.
+                // If `fonts::install(font)` returned `None`, it indicates that the font installation failed.
+                // Log an error message, prompting the user to review earlier logs for more specific
+                // details about why the installation might have failed.
                 log_error!(
                     "Failed to install font: {}. Please review previous logs for specific errors during installation.",
-                    font.name.bold().red()
+                    font.name.bold().red() // Display the failed font's name in bold red.
                 );
             }
         } else {
-            skipped_fonts.push(font.name.clone()); // Add the font to the skipped list if already installed.
-            log_debug!("[Fonts] Font '{}' is already recorded as installed. Added to skipped list.", font.name.blue()); // Debug log for skipped font.
+            // This block is executed if `!state.fonts.contains_key(&font.name)` is `false`,
+            // meaning the font is already recorded in the `DevBoxState`.
+            // Add the current font's name to the `skipped_fonts` list.
+            skipped_fonts.push(font.name.clone());
+            // Log a debug message indicating that the font was skipped because it was already found
+            // in the state, displaying its name in blue.
+            log_debug!("[Fonts] Font '{}' is already recorded as installed. Added to skipped list.", font.name.blue());
         }
     }
 
-    // After iterating through all fonts, check if any were skipped.
+    // After iterating through all fonts in `fonts_cfg`,
+    // this block checks if any fonts were skipped.
     if !skipped_fonts.is_empty() {
-        let skipped_fonts_str = skipped_fonts.join(", "); // Join skipped font names for a single log message.
+        // If the `skipped_fonts` vector is not empty,
+        // join the font names into a comma-separated string.
+        let skipped_fonts_str = skipped_fonts.join(", ");
+        // Log an informative message to the user, listing all the fonts that were skipped.
         log_info!(
             "[Fonts] The following fonts were already recorded as installed and were skipped: {}",
-            skipped_fonts_str.blue() // Informative log about skipped fonts.
+            skipped_fonts_str.blue() // Display the list of skipped fonts in blue.
         );
     } else {
-        log_debug!("[Fonts] No fonts were skipped as they were not found in the state."); // Debug log if no fonts were skipped.
+        // If the `skipped_fonts` vector is empty, it means all fonts were either installed/updated
+        // or an attempt was made. Log a debug message to this effect.
+        log_debug!("[Fonts] No fonts were skipped as they were not found in the state.");
     }
 
-    // If any fonts were installed or updated, save the `DevBoxState`.
+    // If any fonts were installed or updated during this function call (`fonts_updated` is `true`),
+    // then the application state needs to be saved to persist these changes.
     if fonts_updated {
-        log_info!("[Fonts] Font state updated. Saving current DevBox state..."); // Informative log before saving state.
+        // Informative log before initiating the state saving process.
+        log_info!("[Fonts] Font state updated. Saving current DevBox state...");
+        // Call the `save_devbox_state` function from the `state_management` module.
+        // This function serializes the `state` (which now includes the new/updated fonts)
+        // to the `state_path_resolved` file. It returns `false` if the save operation fails.
         if !save_devbox_state(state, state_path_resolved) {
-            log_error!("Failed to save state after font installations. Data loss risk!"); // Error log if state saving fails.
+            // If `save_devbox_state` returns `false`, log a critical error,
+            // as failure to save the state can lead to loss of installed font information.
+            log_error!("Failed to save state after font installations. Data loss risk!");
+        } else {
+            // If `save_devbox_state` returns `true`, log a success message for the state saving.
+            log_info!("[StateSave] State saved successfully after font updates.");
         }
-        log_info!("[StateSave] State saved successfully after font updates."); // Success log for state saving.
     } else {
-        log_info!("[Fonts] No new fonts installed or state changes detected for fonts."); // Informative log if no state changes occurred.
+        // If `fonts_updated` is `false`, no new fonts were installed or existing ones updated.
+        // Log an informative message that no state changes related to fonts were detected,
+        // so no saving action was necessary.
+        log_info!("[Fonts] No new fonts installed or state changes detected for fonts.");
     }
-    eprintln!(); // Print a newline for final console formatting.
-    log_debug!("Exiting install_fonts() function."); // Debug log for function exit.
+    // Print a final newline for consistent console output spacing.
+    eprintln!();
+    // Debug log to indicate successful exit from the `install_fonts` function.
+    log_debug!("Exiting install_fonts() function.");
 }
