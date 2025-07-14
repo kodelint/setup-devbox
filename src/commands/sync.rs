@@ -109,10 +109,12 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
             name: tool_name, // Use the key from the HashMap as the tool's name
             version: Some(tool_state.version),   // `ToolState.version` maps to `ToolEntry.version`
             source: tool_state.install_method,   // `ToolState.install_method` maps to `ToolEntry.source`
+            url: None,                           // Todo: Fix me
             repo: tool_state.repo,               // Repo Name
             tag: tool_state.tag,                 // Git Tag usually
             rename_to: tool_state.renamed_to,    // Maps directly
             options: tool_state.options.clone(), // Pass the options if any
+            executable_path_after_extract: None, // Todo: Fix me
         });
     }
     let tool_config = ToolConfig { tools: tools_entries };

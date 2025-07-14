@@ -12,10 +12,7 @@ use serde::{Deserialize, Serialize};
 // It allows us to store data as key-value pairs, which is perfect for
 // things like looking up tools by their name, or organizing settings by OS.
 use std::collections::HashMap;
-
-// GitHub API Response Schemas
-// These two structs are specifically designed to match the JSON response we get back
-// when querying the GitHub API for release information.
+use std::fmt;
 
 /// This struct represents a single downloadable file (an "asset") attached to a GitHub release.
 /// When we ask GitHub for the details of a software release, it often lists multiple files
@@ -44,6 +41,44 @@ pub struct Release {
 // These structs define the structure for the configuration files that our users will write
 // to tell `setup-devbox` what tools, settings, and fonts they want managed.
 
+/// Represents errors specifically related to the availability of external installer commands.
+#[derive(Debug)]
+pub enum InstallerError {
+    /// Indicates that a required command-line tool (installer) was not found in the system's PATH.
+    MissingCommand(String),
+}
+
+// Custom error type for schema validation
+#[derive(Debug)]
+pub enum ToolEntryError {
+    MissingField(&'static str),
+    InvalidSource(String),
+    ConflictingFields(String),
+}
+
+/// This enum defines the possible installation methods for a tool.
+/// It mirrors the `method` field in `ToolEntry` but specifically for recording
+/// the method used during *actual* installation.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+pub enum ToolInstallMethod {
+    // Brew Installer method
+    Brew,
+    // Cargo Installer method
+    Cargo,
+    // Go Installer method
+    Go,
+    // GitHub Installer method
+    GitHub,
+    // URL Based installations method
+    Url,
+    // Rustup Installer method
+    Rustup,
+    // Pip Installer method
+    Pip,
+    // For tools that are expected to be pre-installed or managed by the system
+    System,
+}
+
 /// Configuration schema for `tools.yaml`.
 /// This is the top-level structure for the file where users list all the software tools
 /// they want `setup-devbox` to manage and install for them.
@@ -67,6 +102,8 @@ pub struct ToolEntry {
     // This crucial field tells `setup-devbox` *where* to get the tool from.
     // Examples: "github", "brew" (for Homebrew), "go" (for Go binaries), "cargo" (for Rust crates).
     pub source: String,
+    // The direct download URL for the tool. Required if source is "URL".
+    pub url: Option<String>,
     // If the `source` is "GitHub", this `Option<String>` holds the GitHub repository
     // in the "owner/repo_name" format (e.g., "hashicorp/terraform").
     pub repo: Option<String>,
@@ -82,6 +119,10 @@ pub struct ToolEntry {
     // instead of causing a deserialization error.
     #[serde(default)]
     pub options: Option<Vec<String>>,
+    // Path to the executable *inside* the extracted archive. Optional for "URL" source.
+    // E.g., if a zip file extracts to `mytool-v1.0.0/bin/mytool`, this would be "mytool-v1.0.0/bin/mytool".
+    #[serde(default)]
+    pub executable_path_after_extract: Option<String>,
 }
 
 /// Configuration schema for `shellac.yaml`.
@@ -279,4 +320,80 @@ pub struct MainConfig {
     pub shellrc: Option<String>,
     // An optional path to the `fonts.yaml` file.
     pub fonts: Option<String>,
+}
+
+impl fmt::Display for ToolEntryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ToolEntryError::MissingField(field) => write!(f, "Missing required field: {}", field),
+            ToolEntryError::InvalidSource(source) => {
+                write!(f, "Invalid tool source: '{}'", source)
+            }
+            ToolEntryError::ConflictingFields(msg) => write!(f, "Conflicting fields: {}", msg),
+        }
+    }
+}
+impl std::error::Error for ToolEntryError {}
+
+impl ToolEntry {
+    // This method validates the ToolEntry based on its source.
+    pub fn validate(&self) -> Result<(), ToolEntryError> {
+        let supported_sources = ["github", "brew", "cargo", "rustup", "pip", "go", "url"];
+        let source_lower = self.source.to_lowercase();
+
+        if !supported_sources.contains(&source_lower.as_str()) {
+            return Err(ToolEntryError::InvalidSource(self.source.clone()));
+        }
+
+        match source_lower.as_str() {
+            "github" => {
+                if self.repo.is_none() {
+                    return Err(ToolEntryError::MissingField("repo (for GitHub source)"));
+                }
+                if self.tag.is_none() {
+                    return Err(ToolEntryError::MissingField("tag (for GitHub source)"));
+                }
+                // Ensure URL-specific fields are NOT present
+                if self.url.is_some() || self.executable_path_after_extract.is_some() {
+                    return Err(ToolEntryError::ConflictingFields(
+                        "url or executable_path_after_extract should not be present for GitHub source".to_string(),
+                    ));
+                }
+            }
+            "url" => {
+                if self.url.is_none() {
+                    return Err(ToolEntryError::MissingField("url (for URL source)"));
+                }
+                // Ensure GitHub-specific fields are NOT present
+                if self.repo.is_some() || self.tag.is_some() {
+                    return Err(ToolEntryError::ConflictingFields(
+                        "repo or tag should not be present for URL source".to_string(),
+                    ));
+                }
+                // options and rename_to are general and can be present
+            }
+            // For other sources ("brew", "cargo", "rustup", "pip", "go"),
+            // ensure GitHub/URL specific fields are NOT present.
+            "brew" | "cargo" | "rustup" | "pip" | "go" => {
+                if self.repo.is_some() || self.tag.is_some() || self.url.is_some() || self.executable_path_after_extract.is_some() {
+                    return Err(ToolEntryError::ConflictingFields(format!(
+                        "repo, tag, url, or executable_path_after_extract should not be present for '{}' source",
+                        self.source
+                    )));
+                }
+            }
+            _ => { /* Already caught by supported_sources check */ }
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for InstallerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InstallerError::MissingCommand(cmd) => {
+                write!(f, "Installer command '{}' not found in your system's PATH.", cmd)
+            }
+        }
+    }
 }
