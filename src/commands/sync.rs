@@ -1,16 +1,28 @@
+// Importing schema definitions. These structs (e.g., `ToolConfig`, `FontConfig`) define
+// the expected data structure for each type of YAML configuration file, enabling `serde`
+// to correctly parse them. `MainConfig` specifically defines the structure of the primary
+// `config.yaml` file that links to other configuration files.
 use crate::schema::{FontConfig, FontEntry, MainConfig, OsSpecificSettings, SettingEntry, SettingsConfig, ToolConfig, ToolEntry};
-use crate::utils::get_devbox_dir;
-use crate::{
-    log_debug,
-    log_error,
-    log_info,
-    log_warn
-};
+// Bring in our custom logging macros.
+// These macros (`log_debug`, `log_error`, `log_info`, `log_warn`) provide
+// a standardized way to output messages to the console with different severity levels,
+// making it easier to track the application's flow and diagnose issues.
+use crate::{log_debug, log_error, log_info, log_warn};
 use crate::libs::state_management::read_devbox_state;
 use clap::Args;
+// The 'colored' crate helps us make our console output look pretty and readable.
 use colored::Colorize;
+// 'std::fs' is our toolkit for interacting with the file system – creating directories, creating files, etc.
 use std::fs;
+// For working with file paths, specifically to construct installation paths.
+// `std::path::Path` is a powerful type for working with file paths in a robust way.
+// `std::path::PathBuf` provides an OS-agnostic way to build and manipulate file paths.
 use std::path::{Path, PathBuf};
+/// Returns the canonical path to the DevBox directory, typically `~/.setup-devbox`.
+/// This is the base directory where `state.json` and the `config` folder reside.
+/// If the home directory cannot be determined, it will log an error and
+/// fall back to the current directory, which might lead to unexpected behavior.
+use crate::libs::utilities::path_helpers::get_devbox_dir;
 
 /// Arguments for the `sync config` subcommand.
 ///

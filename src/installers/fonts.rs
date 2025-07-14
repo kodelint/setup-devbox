@@ -7,36 +7,49 @@
 // to manage font installations, particularly for developer-centric fonts
 // often distributed via GitHub.
 
+
 // Standard library imports:
-use std::env;      // For interacting with environment variables, like $HOME.
-use std::fs;        // For file system operations (creating directories, copying files, reading directories).
-use std::path::PathBuf; // For ergonomic and platform-agnostic path manipulation.
+//
+// For interacting with environment variables, like $HOME.
+use std::env;
+// For ergonomic and platform-agnostic path manipulation.
+use std::path::PathBuf;
+// For file system operations (creating directories, copying files, reading directories).
+use std::fs;
 
 // External crate imports:
-use colored::Colorize; // Used for adding color to terminal output, enhancing readability of logs.
+// Used for adding color to terminal output, enhancing readability of logs.
+use colored::Colorize;
 
 // Internal module imports:
-use crate::{log_debug, log_error, log_info, log_warn};
 // Custom logging macros for different verbosity levels. These provide consistent
 // and colored output throughout the application, aiding in debugging and user feedback.
+use crate::{log_debug, log_error, log_info, log_warn};
 
-use crate::schema::FontEntry;
 // `FontEntry`: Defines the structure for how fonts are configured in our `fonts.yaml` file.
 // It contains metadata like font name, GitHub repository, release tag, and optional filters.
+use crate::schema::FontEntry;
 
-use crate::schema::FontState;
 // `FontState`: Defines the structure for how the state of successfully installed fonts
 // is recorded in our application's internal state file (`state.json`). This allows `devbox`
 // to track installed fonts, their versions, and paths.
+use crate::schema::FontState;
 
-use crate::utils;
-// Provides general utility functions reused across various installer modules:
-// `get_temp_dir`: Provides a temporary directory for downloads and extractions.
+// Provides various utility functions from libs/utilities:
 // `download_file`: Handles downloading a file from a URL to a local path.
-// `extract_archive`: Decompresses and extracts various archive formats (e.g., .zip).
-// `detect_file_type_from_filename`: Infers file types based on their filename extension,
-//                                   useful for choosing the correct extraction method.
-
+// `extract_archive`: Decompresses and extracts various archive formats (zip, tar.gz, etc.).
+// `detect_os`, `detect_architecture`: Determine the current operating system and CPU architecture.
+// `get_temp_dir`: Provides a temporary directory for downloads and extractions.
+// `detect_file_type`, `detect_file_type_from_filename`: Utilities to infer file types.
+use crate::libs::utilities::{
+    assets::{
+        detect_file_type_from_filename,
+        download_file
+    }
+    ,
+    compression::extract_archive,
+    path_helpers::get_temp_dir
+};
 
 /// Helper struct to encapsulate validated font entry details.
 /// This improves function signature readability and ensures all necessary
@@ -112,7 +125,7 @@ fn validate_font_entry(font: &FontEntry) -> Result<ValidatedFontDetails, String>
 
 /// Downloads the font archive to a temporary directory.
 ///
-/// This function utilizes the shared `utils::download_file` to fetch the font archive.
+/// This function utilizes the shared `libutils::download_file` to fetch the font archive.
 /// It also handles potential cleanup of partially downloaded files in case of errors.
 ///
 /// # Arguments
@@ -128,13 +141,13 @@ fn download_font_archive(font_name: &str, url: &str, asset_name: &str) -> Result
     log_info!("[Font:Download] Attempting to download font archive for '{}' from URL: {}", font_name.bold(), url.blue());
 
     // Obtain a path to a temporary directory for downloads.
-    let temp_dir = utils::get_temp_dir();
+    let temp_dir = get_temp_dir();
     // Construct the full path where the downloaded archive will be saved.
     let archive_path = temp_dir.join(asset_name);
     log_debug!("[Font:Download] Temporary download path for font archive: {:?}", archive_path.display().to_string().yellow());
 
     // Perform the file download.
-    if let Err(err) = utils::download_file(url, &archive_path) {
+    if let Err(err) = download_file(url, &archive_path) {
         // If download fails, attempt to remove any partially downloaded file to prevent stale data.
         let _ = fs::remove_file(&archive_path);
         return Err(format!(
@@ -150,7 +163,7 @@ fn download_font_archive(font_name: &str, url: &str, asset_name: &str) -> Result
 
 /// Extracts the contents of the font archive.
 ///
-/// This function uses the `utils::extract_archive` helper to decompress the downloaded file.
+/// This function uses the `libutils::extract_archive` helper to decompress the downloaded file.
 /// It passes the file type hint derived from the filename, which helps `extract_archive`
 /// choose the correct decompression method. It also cleans up the original archive after extraction.
 ///
@@ -169,12 +182,12 @@ fn extract_font_archive(font_name: &str, archive_path: &PathBuf, temp_dir: &Path
     log_debug!("[Font:Extract] Detecting file type from filename for extraction.");
     // Determine the file type using filename extension. This is more reliable for archives
     // than content-based detection (`file` command) when needing to pick an extractor.
-    let file_type_from_name = utils::detect_file_type_from_filename(&archive_path.to_string_lossy());
+    let file_type_from_name = detect_file_type_from_filename(&archive_path.to_string_lossy());
     log_debug!("[Font:Extract] Detected downloaded file type (from filename): {}", file_type_from_name.magenta());
 
     // Perform the archive extraction. The `Some(&file_type_from_name)` hint ensures
     // `extract_archive` knows what kind of archive it's dealing with.
-    let extracted_dir = match utils::extract_archive(archive_path, temp_dir, Some(&file_type_from_name)) {
+    let extracted_dir = match extract_archive(archive_path, temp_dir, Some(&file_type_from_name)) {
         Ok(path) => path,
         Err(err) => {
             // Clean up the original archive file if extraction fails.
@@ -404,7 +417,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
 
     // Get a dedicated temporary directory for this installation process.
     // A clone is made to ensure it can be cleaned up even if `temp_dir` is moved or consumed.
-    let temp_dir = utils::get_temp_dir();
+    let temp_dir = get_temp_dir();
     let temp_dir_clone_for_cleanup = temp_dir.clone();
 
     // Use a `defer!`-like pattern or manual call for cleanup. For Rust, `ScopeGuard` or a similar

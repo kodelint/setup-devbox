@@ -5,7 +5,7 @@
 
 // We're bringing in a helper function to correctly handle '~' (tilde) in paths,
 // which is a common way users refer to their home directory.
-use crate::utils::expand_tilde;
+use crate::libs::utilities::path_helpers::expand_tilde;
 // Our custom logging macros to give us nicely formatted (and colored!) output
 // for debugging, general information, and errors.
 use crate::{log_debug, log_error, log_info};
