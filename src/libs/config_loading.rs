@@ -13,21 +13,24 @@
 use colored::Colorize; // Imports the `Colorize` trait for adding color to console output.
 
 // Standard library module for interacting with the file system (e.g., reading files).
-use std::path::PathBuf; // Provides `PathBuf` for working with file paths.
-use std::fs; // Provides file system operations like `read_to_string`.
+// Provides `PathBuf` for working with file paths.
+use std::path::PathBuf;
+// Provides file system operations like `read_to_string`.
 // Standard library module for constructing and manipulating file paths in an OS-agnostic way.
+use std::fs;
 
 // Internal module imports:
-use crate::{log_debug, log_error, log_info, log_warn};
 // Custom logging macros for consistent, level-based output (debug, error, info, warn).
-use crate::schema::{FontConfig, MainConfig, SettingsConfig, ShellConfig, ToolConfig};
+use crate::{log_debug, log_error, log_info, log_warn};
+
 // Importing schema definitions. These structs (e.g., `ToolConfig`, `FontConfig`) define
 // the expected data structure for each type of YAML configuration file, enabling `serde`
 // to correctly parse them. `MainConfig` specifically defines the structure of the primary
 // `config.yaml` file that links to other configuration files.
-use crate::utils::expand_tilde;
-// A utility function to expand the `~` character in a path string to the user's home directory.
+use crate::schema::{FontConfig, MainConfig, SettingsConfig, ShellConfig, ToolConfig};
 
+// Imports a utility function to expand the `~` character in paths.
+use crate::libs::utilities::path_helpers::expand_tilde;
 
 /// A composite struct designed to hold all the parsed configuration data.
 ///
