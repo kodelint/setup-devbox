@@ -1,54 +1,74 @@
-use std::fs;
-use std::fs::OpenOptions;
-use std::path::{Path, PathBuf};
-use colored::Colorize;
-use crate::{log_debug, log_info, log_warn};
-use crate::installers::shellrc;
-use crate::schema::ShellConfig;
-use std::io::{BufRead, BufReader, Write};
+// This module orchestrates the application of shell-specific configurations,
+// including raw shell commands, environment variables, and aliases. It acts
+// as an intermediary, delegating the actual file modification logic to the
+// `shellrc` installer module. The functions here focus on preparing the data,
+// logging the process, and managing the overall flow of shell configuration
+// application.
+
+use std::fs; // Standard library module for file system operations.
+use std::fs::OpenOptions; // Provides options for opening files (e.g., append mode).
+use std::path::{Path, PathBuf}; // Provides `Path` and `PathBuf` for working with file paths.
+use colored::Colorize; // Imports the `Colorize` trait for adding color to console output.
+use crate::{log_debug, log_info, log_warn}; // Custom logging macros for various log levels.
+use crate::installers::shellrc; // Imports the `shellrc` module, which contains the core logic for modifying shell RC files.
+use crate::schema::ShellConfig; // Imports `ShellConfig` which defines the structure for shell configurations.
+use std::io::{BufRead, BufReader, Write}; // Imports for buffered reading, reading lines, and writing to files.
+
 
 /// Applies shell configurations (raw commands, environment variables, aliases).
 ///
-/// This function delegates the actual modification of shell RC files to the
-/// `shellrc` module. It includes logging for the shell configurations being applied.
+/// This function serves as the entry point for applying all shell-related configurations.
+/// It takes a `ShellConfig` struct, logs its contents (for debugging), and then
+/// delegates the actual modification of shell RC files to the `shellrc::apply_shellrc`
+/// function. This separation of concerns keeps this module focused on orchestration
+/// while `shellrc` handles the low-level file system interactions.
 ///
 /// # Arguments
-/// * `shell_cfg`: A `ShellConfig` struct containing shell configurations and aliases.
+/// * `shell_cfg`: A `ShellConfig` struct containing all defined shell configurations,
+///                including `shellrc` (raw commands/env vars) and `aliases`.
 pub fn apply_shell_configs(shell_cfg: ShellConfig) {
-    log_info!("[Shell Config] Applying Shell Configurations...");
-    log_debug!("Entering apply_shell_configs() function.");
+    log_info!("[Shell Config] Applying Shell Configurations..."); // Informative log that the shell config process has started.
+    log_debug!("Entering apply_shell_configs() function."); // Debug log for function entry.
 
+    // Attempt to pretty-print the `shellrc` part of the config for detailed debug logging.
     match serde_json::to_string_pretty(&shell_cfg.shellrc) {
         Ok(pretty_shellrc) => {
             log_debug!("[Shell Config] Calling shellrc::apply_shellrc with shell config:\n{}", pretty_shellrc);
         },
         Err(e) => {
+            // Log a warning if pretty-printing fails, but still proceed with debug log of raw struct.
             log_warn!("[Shell Config] Failed to pretty-print shell config for debug log: {}", e);
             log_debug!("[Shell Config] Calling shellrc::apply_shellrc with shell config: {:?}", shell_cfg.shellrc);
         }
     }
 
+    // Attempt to pretty-print the `aliases` part of the config for detailed debug logging.
     match serde_json::to_string_pretty(&shell_cfg.aliases) {
         Ok(pretty_aliases) => {
             log_debug!("[Shell Config] And aliases:\n{}", pretty_aliases);
         },
         Err(e) => {
+            // Log a warning if pretty-printing fails, but still proceed with debug log of raw struct.
             log_warn!("[Shell Config] Failed to pretty-print aliases for debug log: {}", e);
             log_debug!("[Shell Config] And aliases: {:?}", shell_cfg.aliases);
         }
     }
 
+    // Delegate the actual application of shell configurations and aliases to the `shellrc` installer.
     shellrc::apply_shellrc(&shell_cfg.shellrc, &shell_cfg.aliases);
 
-    log_debug!("[Shell Config] Shell configuration application phase completed.");
-    eprintln!();
-    log_debug!("Exiting apply_shell_configs() function.");
+    log_debug!("[Shell Config] Shell configuration application phase completed."); // Debug log for completion.
+    eprintln!(); // Print a newline for better console formatting.
+    log_debug!("Exiting apply_shell_configs() function."); // Debug log for function exit.
 }
 
 /// This function checks if a multi-line string `needle_lines` exists
 /// sequentially within a vector of `haystack_lines`. It performs a robust comparison
 /// by trimming whitespace and checking if the haystack lines *start with* the needle lines.
 /// This is useful for verifying if a block of configuration has already been added to an RC file.
+///
+/// This helps prevent duplicate entries in `.zshrc` or `.bashrc` files if the `devbox`
+/// setup is run multiple times.
 ///
 /// # Arguments
 /// * `haystack_lines`: A slice (`&[String]`) representing the lines to search within
@@ -146,6 +166,7 @@ pub fn append_to_rc_file(rc_path: &Path, lines: Vec<String>) -> std::io::Result<
 /// This function currently supports `.zshrc` for Zsh and `.bashrc` for Bash.
 /// It constructs the full path by joining the user's home directory with the
 /// specific RC file name. This is crucial for modifying shell configurations.
+/// It relies on the `dirs` crate to get the user's home directory reliably across OS.
 ///
 /// # Arguments
 /// * `shell`: A string slice (`&str`) representing the name of the shell (e.g., "zsh", "bash").
@@ -197,15 +218,17 @@ pub fn get_rc_file(shell: &str) -> Option<PathBuf> {
 /// Helper function: Reads all non-empty, non-comment lines from a given RC file.
 ///
 /// This function is designed to read the existing content of an RC file efficiently
-/// for later comparison (e.g., to check if certain configurations already exist).
-/// It gracefully handles cases where the file might not exist or be unreadable.
+/// for later comparison (e.g., to check if certain configurations already exist) or
+/// for other processing. It gracefully handles cases where the file might not exist
+/// or be unreadable, returning an empty vector instead of panicking.
 ///
 /// # Arguments
 /// * `rc_path`: A reference to a `Path` indicating the RC file to read.
 ///
 /// # Returns
 /// * `Vec<String>`: A vector containing each relevant line read from the file as a `String`.
-///                  - Relevant lines are those that are not empty and do not start with '#'.
+///                  - Relevant lines are those that are not empty after trimming whitespace
+///                    and do not start with '#'.
 ///                  - Returns an empty vector (`Vec::new()`) if the file doesn't exist,
 ///                    or if an error occurs during reading (e.g., permission issues).
 pub fn read_rc_lines(rc_path: &Path) -> Vec<String> {
