@@ -152,6 +152,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             tag: None,
             // Pass any custom options defined in the `ToolEntry` to the `ToolState`.
             options: tool_entry.options.clone(),
+            // For direct URL installations: The original URL from which the tool was downloaded.
+            url: tool_entry.url.clone(),
+            executable_path_after_extract: None,
         })
     } else {
         // 7. Handle Failed Installation
