@@ -35,7 +35,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: git-pr-${{ matrix.os }}-${{ matrix.arch }}
-          path: target/release/git-pr
+          path: target/release/setup-devbox
 
   release:
     needs: build
