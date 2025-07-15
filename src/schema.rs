@@ -1,54 +1,33 @@
-// src/schema.rs
-// This file is essentially the blueprint for all the different configuration files
-// and the internal state that our `setup-devbox` application will use.
-// Think of it as defining the "language" for how we describe tools, settings, fonts, and more!
+// Defines the data structures (schemas) for configuration files and the application's internal state.
 
-// We're bringing in 'serde' traits here.
-// 'Deserialize' means we can take data from external files (like YAML or JSON)
-// and turn it into these Rust structures.
-// 'Serialize' means we can take our Rust structures and write them out to files.
-use serde::{Deserialize, Serialize};
-// 'HashMap' is a super useful data structure from Rust's standard library.
-// It allows us to store data as key-value pairs, which is perfect for
-// things like looking up tools by their name, or organizing settings by OS.
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize}; // Serde traits for serialization and deserialization.
+use std::collections::HashMap;     // Used for key-value pair storage.
 use std::fmt;
 
-/// This struct represents a single downloadable file (an "asset") attached to a GitHub release.
-/// When we ask GitHub for the details of a software release, it often lists multiple files
-/// that you can download (like different versions for Windows, macOS, Linux, etc.).
-#[derive(Debug, Deserialize)] // We derive 'Debug' to easily print its contents for debugging,
-// and 'Deserialize' to parse it from GitHub's JSON.
+/// Represents a downloadable asset attached to a GitHub release.
+#[derive(Debug, Deserialize)]
 pub struct ReleaseAsset {
-    // The actual name of the file, e.g., "my-tool-macos-amd64.tar.gz".
-    pub(crate) name: String,
-    // This is the direct URL you'd use in your browser (or with an HTTP client!)
-    // to download this specific file. Super handy!
-    pub(crate) browser_download_url: String,
+    pub(crate) name: String,             // The asset's filename.
+    pub(crate) browser_download_url: String, // Direct download URL for the asset.
 }
 
-/// This struct captures the overall details of a single GitHub release.
-/// A release often contains a collection of assets (the actual downloadable files).
-#[derive(Debug, Deserialize)] // Again, 'Debug' for introspection and 'Deserialize' for JSON parsing.
+/// Captures details of a single GitHub release, including its assets.
+#[derive(Debug, Deserialize)]
 pub struct Release {
-    // This `Vec` (which is Rust's way of saying "vector" or dynamic array)
-    // will hold a list of all the `ReleaseAsset`s available for this particular release.
-    // It's like a shopping list of all the files bundled with this version.
-    pub(crate) assets: Vec<ReleaseAsset>,
+    pub(crate) assets: Vec<ReleaseAsset>, // List of downloadable assets for this release.
 }
 
 // User Configuration File Schemas (e.g., for YAML files)
-// These structs define the structure for the configuration files that our users will write
-// to tell `setup-devbox` what tools, settings, and fonts they want managed.
+// Defines the structure for user-defined configuration files.
 
-/// Represents errors specifically related to the availability of external installer commands.
+/// Errors related to external installer command availability.
 #[derive(Debug)]
 pub enum InstallerError {
-    /// Indicates that a required command-line tool (installer) was not found in the system's PATH.
+    /// Indicates a required command-line tool was not found in PATH.
     MissingCommand(String),
 }
 
-// Custom error type for schema validation
+/// Custom error types for schema validation during tool entry processing.
 #[derive(Debug)]
 pub enum ToolEntryError {
     MissingField(&'static str),
@@ -56,278 +35,172 @@ pub enum ToolEntryError {
     ConflictingFields(String),
 }
 
-/// This enum defines the possible installation methods for a tool.
-/// It mirrors the `method` field in `ToolEntry` but specifically for recording
-/// the method used during *actual* installation.
+/// Defines the possible installation methods for a tool.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub enum ToolInstallMethod {
-    // Brew Installer method
     Brew,
-    // Cargo Installer method
     Cargo,
-    // Go Installer method
     Go,
-    // GitHub Installer method
     GitHub,
-    // URL Based installations method
     Url,
-    // Rustup Installer method
     Rustup,
-    // Pip Installer method
     Pip,
-    // For tools that are expected to be pre-installed or managed by the system
-    System,
+    System, // For tools managed externally or expected to be pre-installed.
 }
 
 /// Configuration schema for `tools.yaml`.
-/// This is the top-level structure for the file where users list all the software tools
-/// they want `setup-devbox` to manage and install for them.
-#[derive(Debug, Serialize, Deserialize)] // We need both 'Serialize' and 'Deserialize' because
-// we'll read these from a file and potentially write them too (though less common for config).
+/// Defines the top-level structure for managing software tools.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ToolConfig {
-    // This `tools` field will hold a list of individual `ToolEntry` structs.
-    // Each `ToolEntry` describes one specific tool the user wants.
-    pub tools: Vec<ToolEntry>,
+    pub tools: Vec<ToolEntry>, // List of individual tool entries.
 }
 
-/// Represents a single tool entry as defined by the user in the `tools.yaml` file.
-/// This is where the user specifies *which* tool, *what version*, and *how* to get it.
+/// Represents a single tool entry defined by the user in `tools.yaml`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ToolEntry {
-    // The human-readable name of the tool (e.g., "terraform", "kubectl").
     pub name: String,
-    // The desired version of the tool. It's an `Option<String>` because the user
-    // might not specify a version, in which case we'd probably try to get the latest.
     pub version: Option<String>,
-    // This crucial field tells `setup-devbox` *where* to get the tool from.
-    // Examples: "github", "brew" (for Homebrew), "go" (for Go binaries), "cargo" (for Rust crates).
-    pub source: String,
-    // The direct download URL for the tool. Required if source is "URL".
-    pub url: Option<String>,
-    // If the `source` is "GitHub", this `Option<String>` holds the GitHub repository
-    // in the "owner/repo_name" format (e.g., "hashicorp/terraform").
-    pub repo: Option<String>,
-    // Sometimes, a specific release on GitHub isn't directly the version number,
-    // but rather a tag name. This field allows specifying a particular tag to download from.
-    pub tag: Option<String>,
-    // If the downloaded executable has a generic name (e.g., "cli") but the user
-    // wants it to be called something specific (e.g., "mycli"), this field allows renaming.
-    pub rename_to: Option<String>,
-    // Additional options or flags to pass directly to the installer command.
-    // For "go", build flags like `-ldflags`. For "cargo", features like `--features`.
-    // `#[serde(default)]` ensures that if this field is missing in the YAML, it defaults to `None`
-    // instead of causing a deserialization error.
+    pub source: String, // Installation source (e.g., "github", "brew").
+    pub url: Option<String>, // Direct download URL (required if source is "URL").
+    pub repo: Option<String>, // GitHub repository in "owner/repo_name" format.
+    pub tag: Option<String>,  // Specific GitHub release tag to download from.
+    pub rename_to: Option<String>, // Optional new name for the executable after installation.
     #[serde(default)]
-    pub options: Option<Vec<String>>,
-    // Path to the executable *inside* the extracted archive. Optional for "URL" source.
-    // E.g., if a zip file extracts to `mytool-v1.0.0/bin/mytool`, this would be "mytool-v1.0.0/bin/mytool".
+    pub options: Option<Vec<String>>, // Additional installer-specific options/flags.
     #[serde(default)]
-    pub executable_path_after_extract: Option<String>,
+    pub executable_path_after_extract: Option<String>, // Path to executable within extracted archive.
 }
 
 /// Configuration schema for `shellac.yaml`.
-/// This file is all about customizing the user's shell environment,
-/// including shell-specific configurations and command aliases.
+/// Defines the structure for shell environment customization (shellrc and aliases).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ShellConfig {
-    // This block describes the core shell configuration, like the shell type and raw commands.
-    pub shellrc: ShellRc,
-    // This `Vec` will contain a list of custom command aliases the user wants to set up.
-    pub aliases: Vec<AliasEntry>,
+    pub shellrc: ShellRc,       // Core shell configuration.
+    pub aliases: Vec<AliasEntry>, // List of custom command aliases.
 }
 
 /// Represents the `shellrc` block within `shellac.yaml`.
-/// This section is for fundamental shell settings that might be different for Bash, Zsh, etc.
+/// Contains fundamental shell settings.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ShellRc {
-    // The type of shell being configured (e.g., "bash", "zsh", "fish").
-    pub shell: String,
-    // A list of raw command lines that will be directly appended or sourced into the shell's
-    // configuration file (like `.bashrc` or `.zshrc`). This allows for highly custom setups.
-    pub raw_configs: Vec<String>,
+    pub shell: String,       // Type of shell (e.g., "bash", "zsh").
+    pub raw_configs: Vec<String>, // Raw commands to be appended/sourced into shell config.
 }
 
 /// Represents a single command alias entry in `shellac.yaml`.
-/// Aliases are shortcuts for longer commands, making life easier in the terminal.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AliasEntry {
-    // The short name for the alias (e.g., "gco").
-    pub name: String,
-    // The full command that the alias expands to (e.g., "git checkout").
-    pub value: String,
+    pub name: String,  // The alias name.
+    pub value: String, // The command the alias expands to.
 }
 
 /// Configuration schema for `fonts.yaml`.
-/// This file lets users specify custom fonts they want `setup-devbox` to manage and install.
+/// Defines the structure for managing and installing custom fonts.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FontConfig {
-    // This `Vec` will hold a list of individual `FontEntry` structs, each describing one font.
-    pub fonts: Vec<FontEntry>,
+    pub fonts: Vec<FontEntry>, // List of individual font entries.
 }
 
-/// Represents a single font entry as defined by the user in `fonts.yaml`.
-/// Similar to `ToolEntry`, it describes what font, what version, and where to get it.
+/// Represents a single font entry defined by the user in `fonts.yaml`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FontEntry {
-    // The name of the font (e.g., "FiraCode", "JetBrainsMono").
     pub name: String,
-    // The desired version of the font. Often fonts don't have explicit versions like software,
-    // but it's good to include for consistency or specific releases.
-    pub version: Option<String>,
-    // The source from where the font can be obtained (e.g., "github", "nerdfonts").
-    pub source: String,
-    // If the `source` is "GitHub", this is the repository (e.g., "ryanoasis/nerd-fonts").
-    pub repo: Option<String>,
-    // A specific tag or release on GitHub to download the font from.
-    pub tag: Option<String>,
-    // If 'install_only' is not in YAML, it defaults to None
+    pub version: Option<String>, // Desired font version.
+    pub source: String,          // Source for the font (e.g., "github", "nerdfonts").
+    pub repo: Option<String>,    // GitHub repository for the font.
+    pub tag: Option<String>,     // Specific GitHub tag/release.
     #[serde(default)]
-    // When serializing, skip if None
     #[serde(skip_serializing_if = "Option::is_none")]
-    // Optional list of keywords for filtering
-    pub install_only: Option<Vec<String>>,
+    pub install_only: Option<Vec<String>>, // Optional list of keywords for filtering specific font files to install.
 }
 
 /// Configuration schema for `settings.yaml`.
-/// This file allows users to define system-level settings (e.g., macOS defaults)
-/// that `setup-devbox` should apply.
+/// Defines the structure for applying system-level settings.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SettingsConfig {
-    // This is a `HashMap` where the key is the operating system (e.g., "macos", "linux")
-    // and the value is a list of `SettingEntry` structs. This allows users to
-    // specify OS-specific settings.
-    pub settings: OsSpecificSettings, // Key: OS name (e.g., "macos"), Value: List of settings for that OS
+    pub settings: OsSpecificSettings, // OS-specific settings, keyed by OS name.
 }
 
-// Container for OS-specific settings
+/// Container for operating system-specific settings.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct OsSpecificSettings {
-    #[serde(default)] // Defaults to empty vector if 'macOS' key is missing
-    pub macos: Vec<SettingEntry>,
-    // You can add fields for other operating systems here (e.g., `pub linux: Vec<LinuxSettingEntry>`)
+    #[serde(default)]
+    pub macos: Vec<SettingEntry>, // macOS specific settings.
+    // Add fields for other operating systems as needed.
 }
 
-/// Represents a single system setting to be applied, typically for macOS defaults commands.
-/// This allows for granular control over system behavior.
+/// Represents a single system setting to be applied (e.g., via macOS `defaults` command).
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SettingEntry {
-    // The domain of the setting (e.g., "com.apple.finder" for Finder settings).
-    pub domain: String,
-    // The specific key within that domain (e.g., "AppleShowAllFiles" to show hidden files).
-    pub key: String,
-    // The value to set for that key (e.g., "true", "false", "Always").
-    pub value: String,
-    // This is a special field! `#[serde(rename = "type")]` tells Serde to expect a key
-    // named "type" in the YAML/JSON, even though our Rust field is called `value_type`.
-    // This is often done when the external format uses a keyword that's reserved in Rust.
-    // This field specifies the data type of the `value` (e.g., "string", "bool", "integer").
+    pub domain: String,  // The setting's domain (e.g., "com.apple.finder").
+    pub key: String,     // The specific key within the domain.
+    pub value: String,   // The value to set for the key.
     #[serde(rename = "type")]
-    pub value_type: String, // e.g., "bool", "int", "float", "string", "array", "dict"
+    pub value_type: String, // Data type of the value (e.g., "bool", "string").
 }
 
-// Application State File Schema (state.json)
-// These structs define the structure of `setup-devbox`s internal state file (`state.json`).
-// This file is crucial for `setup-devbox` to remember what it has installed and configured,
-// so it doesn't try to re-install things or re-apply settings unnecessarily.
+// Application State File Schema (`state.json`)
+// Defines the structure of `setup-devbox`'s internal state file,
+// used to track installed tools and applied configurations.
 
-/// The complete structure of `state.json`, which acts as `setup-devbox`s memory.
-/// It records everything `setup-devbox` has done – what tools are installed, settings applied, etc.
-/// 'Clone' is derived here because we might need to easily duplicate this state object in memory.
+/// The complete structure of `state.json`, representing `setup-devbox`'s persistent memory.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct DevBoxState {
-    // A `HashMap` to keep track of all installed tools.
-    // The key is likely the tool's name, and the value is its `ToolState` details.
-    pub tools: HashMap<String, ToolState>,
-    // A `HashMap` to record which settings have been applied.
-    // The key could be a combination of domain and key, or just the domain, and the value is its `SettingState`.
-    pub settings: HashMap<String, SettingState>,
-    // A `HashMap` to store information about installed fonts.
-    // Key: font name, Value: `FontState` details.
-    pub fonts: HashMap<String, FontState>,
+    pub tools: HashMap<String, ToolState>,   // Records information about installed tools.
+    pub settings: HashMap<String, SettingState>, // Records applied system settings.
+    pub fonts: HashMap<String, FontState>,   // Stores information about installed fonts.
 }
 
-/// Stores detailed information about each tool that `setup-devbox` has successfully installed.
-/// This helps `setup-devbox` know if a tool is already there, where it is, and how it was installed.
+/// Stores detailed information about each installed tool.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ToolState {
-    // The exact version of the tool that was installed.
-    pub version: String,
-    // The file system path where the tool's executable or main directory is located.
-    pub install_path: String,
-    // A boolean flag indicating whether this tool was installed by `setup-devbox` itself.
-    // This is useful for distinguishing between tools `setup-devbox` manages and those installed manually.
-    pub installed_by_devbox: bool,
-    // The method used to install the tool (e.g., "github-release", "brew", "go-install").
-    pub install_method: String,
-    // If the tool's executable was renamed during installation, this stores the new name.
-    pub renamed_to: Option<String>,
-    // The type of package (e.g., "binary", "go-module", "brew-formula").
-    pub package_type: String,
-    // If the source is GitHub, this holds the repository in "owner/repo" format.
-    pub repo: Option<String>,
-    // If the source is GitHub, this holds the specific tag/release downloaded.
-    pub tag: Option<String>,
-    // Additional options or flags that were passed to the installer command during installation.
-    // This helps in re-installing with the same options if needed, or for debugging.
-    #[serde(default)] // Important: This allows the field to be optional in YAML without errors
-    pub options: Option<Vec<String>>,
-    // For direct URL installations: The original URL from which the tool was downloaded.
+    pub version: String,             // Exact version of the installed tool.
+    pub install_path: String,        // File system path where the tool is installed.
+    pub installed_by_devbox: bool,   // True if managed by `setup-devbox`.
+    pub install_method: String,      // Method used for installation (e.g., "github-release", "brew").
+    pub renamed_to: Option<String>,  // New name if the executable was renamed.
+    pub package_type: String,        // Type of package (e.g., "binary", "go-module").
+    pub repo: Option<String>,        // GitHub repository if applicable.
+    pub tag: Option<String>,         // Specific GitHub tag/release if applicable.
     #[serde(default)]
-    pub url: Option<String>,
-    // For extracted archives: If the main executable is within a subdirectory
-    // of the extraction path (or has a specific name), this holds its path
-    // relative to `install_path`. This is crucial for locating the binary
-    // to add to PATH or run after extraction.
-    pub executable_path_after_extract: Option<String>,
+    pub options: Option<Vec<String>>, // Options passed to the installer during installation.
+    #[serde(default)]
+    pub url: Option<String>,         // Original download URL for direct URL installations.
+    pub executable_path_after_extract: Option<String>, // Path to executable within extracted archive, relative to `install_path`.
 }
 
-/// Records the state of a single system setting that `setup-devbox` has applied.
-/// This helps `setup-devbox` avoid re-applying settings that are already in place.
+/// Records the state of an applied system setting.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SettingState {
-    // The domain of the setting (e.g., "com.apple.finder").
-    pub domain: String,
-    // The specific key of the setting (e.g., "AppleShowAllFiles").
-    pub key: String,
-    // The value that was set for this key.
-    pub value: String,
-    // Note: The `value_type` from `SettingEntry` isn't stored here.
-    // The state just records *what* was set, assuming the type was handled during application.
-    pub value_type: String,
+    pub domain: String,  // Setting's domain.
+    pub key: String,     // Setting's key.
+    pub value: String,   // Value that was set.
+    pub value_type: String, // Type of the value.
 }
 
-/// Records the state of a single font that `setup-devbox` has installed.
-/// This helps `setup-devbox` know which fonts are managed and where they came from.
+/// Records the state of an installed font.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FontState {
-    // The name of the font (e.g., "FiraCode Nerd Font").
-    pub name: String,
-    // The original URL from which the font was downloaded. Useful for re-downloads or verification.
-    pub url: String,
-    // A list of the actual font files (e.g., .ttf, .otf) that were installed for this font.
-    pub files: Vec<String>,
-    pub version: String,
-    #[serde(default)] // This ensures that if the field is missing in old state.json, it defaults to None
-    pub repo: Option<String>,
-    #[serde(default)] // Same for tag
-    pub tag: Option<String>,
+    pub name: String,         // Name of the font.
+    pub url: String,          // Original download URL.
+    pub files: Vec<String>,   // List of installed font files.
+    pub version: String,      // Installed version of the font.
+    #[serde(default)]
+    pub repo: Option<String>, // GitHub repository if applicable.
+    #[serde(default)]
+    pub tag: Option<String>,  // Specific GitHub tag/release if applicable.
 }
 
-//  Main Application Configuration
+// Main Application Configuration
 
-/// This struct defines the main configuration file for the `setup-devbox` application itself.
-/// It tells `setup-devbox` *where* to find the other detailed configuration files (tools, settings, etc.).
-/// This allows for a flexible file structure where users can organize their configs.
+/// Defines the main application configuration file,
+/// pointing to paths for other detailed configuration files.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MainConfig {
-    // An optional path to the `tools.yaml` file. If not specified, `setup-devbox` might look for a default.
-    pub tools: Option<String>,
-    // An optional path to the `settings.yaml` file.
-    pub settings: Option<String>,
-    // An optional path to the `shellac.yaml` file (for shell configs and aliases).
-    pub shellrc: Option<String>,
-    // An optional path to the `fonts.yaml` file.
-    pub fonts: Option<String>,
+    pub tools: Option<String>,    // Optional path to `tools.yaml`.
+    pub settings: Option<String>, // Optional path to `settings.yaml`.
+    pub shellrc: Option<String>,  // Optional path to `shellac.yaml`.
+    pub fonts: Option<String>,    // Optional path to `fonts.yaml`.
 }
 
 impl fmt::Display for ToolEntryError {
@@ -344,7 +217,7 @@ impl fmt::Display for ToolEntryError {
 impl std::error::Error for ToolEntryError {}
 
 impl ToolEntry {
-    // This method validates the ToolEntry based on its source.
+    // Validates the ToolEntry based on its specified source.
     pub fn validate(&self) -> Result<(), ToolEntryError> {
         let supported_sources = ["github", "brew", "cargo", "rustup", "pip", "go", "url"];
         let source_lower = self.source.to_lowercase();
@@ -361,7 +234,7 @@ impl ToolEntry {
                 if self.tag.is_none() {
                     return Err(ToolEntryError::MissingField("tag (for GitHub source)"));
                 }
-                // Ensure URL-specific fields are NOT present
+                // Ensure URL-specific fields are NOT present.
                 if self.url.is_some() || self.executable_path_after_extract.is_some() {
                     return Err(ToolEntryError::ConflictingFields(
                         "url or executable_path_after_extract should not be present for GitHub source".to_string(),
@@ -372,16 +245,15 @@ impl ToolEntry {
                 if self.url.is_none() {
                     return Err(ToolEntryError::MissingField("url (for URL source)"));
                 }
-                // Ensure GitHub-specific fields are NOT present
+                // Ensure GitHub-specific fields are NOT present.
                 if self.repo.is_some() || self.tag.is_some() {
                     return Err(ToolEntryError::ConflictingFields(
                         "repo or tag should not be present for URL source".to_string(),
                     ));
                 }
-                // options and rename_to are general and can be present
+                // options and rename_to are general and can be present.
             }
-            // For other sources ("brew", "cargo", "rustup", "pip", "go"),
-            // ensure GitHub/URL specific fields are NOT present.
+            // For other sources, ensure GitHub/URL specific fields are NOT present.
             "brew" | "cargo" | "rustup" | "pip" | "go" => {
                 if self.repo.is_some() || self.tag.is_some() || self.url.is_some() || self.executable_path_after_extract.is_some() {
                     return Err(ToolEntryError::ConflictingFields(format!(
@@ -390,15 +262,17 @@ impl ToolEntry {
                     )));
                 }
             }
-            _ => { /* Already caught by supported_sources check */ }
+            _ => { /* Handled by supported_sources check. */ }
         }
         Ok(())
     }
 }
 
 impl fmt::Display for InstallerError {
+    // Implements the `Display` trait for `InstallerError`, allowing it to be formatted for user-facing messages.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            // Formats the `MissingCommand` variant to indicate a missing command-line tool.
             InstallerError::MissingCommand(cmd) => {
                 write!(f, "Installer command '{}' not found in your system's PATH.", cmd)
             }
