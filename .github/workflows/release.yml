@@ -7,11 +7,11 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    # We now only build for macOS, so the strategy matrix is simplified.
+    runs-on: macos-latest
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-latest ]
-        arch: [ x86_64 ]
+        arch: [ x86_64 ] # Keep x86_64 for clarity, or remove if macos-latest implies it.
 
     steps:
       - name: Checkout code
@@ -24,22 +24,19 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Install updates (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y pkg-config build-essential
-
-      - name: Build release binary
+      - name: Build release binary for macOS
         run: cargo build --release
 
-      - name: Upload artifact
+      - name: Upload artifact (macOS)
         uses: actions/upload-artifact@v4
         with:
-          name: git-pr-${{ matrix.os }}-${{ matrix.arch }}
+          # Name the artifact specifically for macOS to avoid confusion
+          name: setup-devbox-macos-${{ matrix.arch }}
           path: target/release/setup-devbox
 
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # It's common to run the release step on Ubuntu for better runner availability/cost
 
     steps:
       - uses: actions/checkout@v3
@@ -47,7 +44,8 @@ jobs:
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
-          name: setup-devbox-macos-latest-x86_64
+          # Ensure the name matches the artifact name from the 'build' job
+          name: setup-devbox-macos-x86_64
           path: ./artifact/macos-x86_64
 
       - name: Create GitHub Release
