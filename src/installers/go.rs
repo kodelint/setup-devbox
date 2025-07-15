@@ -166,6 +166,8 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             tag: None,
             // Pass the additional `options` that were used during the `go install` command.
             options: tool_entry.options.clone(),
+            url: tool_entry.url.clone(),
+            executable_path_after_extract: None,
         })
     } else {
         // Handle failed installation.
