@@ -19,13 +19,12 @@ use colored::Colorize;
 use ureq;
 
 // Internal module imports:
-use crate::schema::{Release, ToolEntry, ToolState};
 // `Release`: Defines the structure for deserializing GitHub Release API responses.
 // `ToolEntry`: Represents a single tool's configuration as defined in our `tools.yaml`,
 //              providing necessary details like repository name, tag, and desired tool name.
 // `ToolState`: Represents the state of an installed tool, which we persist in `state.json`
 //              to track installed tools, their versions, and paths.
-
+use crate::schema::{Release, ToolEntry, ToolState};
 // Provides various utility functions from libs/utilities:
 // `download_file`: Handles downloading a file from a URL to a local path.
 // `extract_archive`: Decompresses and extracts various archive formats (zip, tar.gz, etc.).
@@ -79,9 +78,9 @@ use crate::{log_debug, log_error, log_info};
 ///     and the installation method, which are then persisted in our internal `state.json`.
 ///   - `None`: Signifies that the installation failed at some step. Detailed error logging
 ///     is performed before returning `None` to provide context for the failure.
-pub fn install(tool: &ToolEntry) -> Option<ToolState> {
+pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Start the installation process with a debug log, clearly indicating which tool is being processed.
-    log_debug!("[GitHub] Initiating installation process for tool: {:?}", tool.name.to_string().bold());
+    log_debug!("[GitHub] Initiating installation process for tool: {:?}", tool_entry.name.to_string().bold());
 
     // 1. Detect Current Operating System and Architecture
     // The first critical step is to determine the host's platform. GitHub releases typically
@@ -91,7 +90,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         Some(os) => os,
         None => {
             // If OS detection fails, log an error and abort. This is a fundamental requirement.
-            log_error!("[GitHub] Unable to detect the current operating system. Aborting installation for {}.", tool.name.to_string().red());
+            log_error!("[GitHub] Unable to detect the current operating system. Aborting installation for {}.", tool_entry.name.to_string().red());
             return None;
         }
     };
@@ -100,29 +99,29 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         Some(arch) => arch,
         None => {
             // Similarly, if architecture detection fails, log an error and abort.
-            log_error!("[GitHub] Unable to detect the current machine architecture. Aborting installation for {}.", tool.name.to_string().red());
+            log_error!("[GitHub] Unable to detect the current machine architecture. Aborting installation for {}.", tool_entry.name.to_string().red());
             return None;
         }
     };
 
-    log_info!("[GitHub] Detected platform for {}: {}{}{}", tool.name.bold(), os.green(),"-".green(), arch.green());
+    log_info!("[GitHub] Detected platform for {}: {}{}{}", tool_entry.name.bold(), os.green(),"-".green(), arch.green());
 
     // 2. Validate Tool Configuration for GitHub Source
     // For a GitHub release installation, both `tag` (the release version) and `repo` (the GitHub
     // repository slug, e.g., "owner/repo_name") are absolutely essential. Without them, we can't
     // even form the API request to fetch release information.
-    let tag = match tool.tag.as_ref() {
+    let tag = match tool_entry.tag.as_ref() {
         Some(t) => t,
         None => {
-            log_error!("[GitHub] Configuration error: 'tag' field is missing for tool {}. Cannot download from GitHub.", tool.name.to_string().red());
+            log_error!("[GitHub] Configuration error: 'tag' field is missing for tool {}. Cannot download from GitHub.", tool_entry.name.to_string().red());
             return None;
         }
     };
 
-    let repo = match tool.repo.as_ref() {
+    let repo = match tool_entry.repo.as_ref() {
         Some(r) => r,
         None => {
-            log_error!("[GitHub] Configuration error: 'repo' field is missing for tool {}. Cannot download from GitHub.", tool.name.to_string().red());
+            log_error!("[GitHub] Configuration error: 'repo' field is missing for tool {}. Cannot download from GitHub.", tool_entry.name.to_string().red());
             return None;
         }
     };
@@ -143,7 +142,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         Ok(resp) => resp, // Successfully received an HTTP response.
         Err(e) => {
             // Log any network or ureq-specific error during the API call.
-            log_error!("[GitHub] Failed to fetch GitHub release for {} ({}): {}", tool.name.to_string().red(), repo.to_string().red(), e);
+            log_error!("[GitHub] Failed to fetch GitHub release for {} ({}): {}", tool_entry.name.to_string().red(), repo.to_string().red(), e);
             return None;
         }
     };
@@ -162,7 +161,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         Ok(json) => json,
         Err(err) => {
             // Log if JSON parsing fails, indicating an unexpected API response format.
-            log_error!("[GitHub] Failed to parse GitHub release JSON for {}: {}", tool.name.to_string().red(), err);
+            log_error!("[GitHub] Failed to parse GitHub release JSON for {}: {}", tool_entry.name.to_string().red(), err);
             return None;
         }
     };
@@ -205,13 +204,13 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
     let filename = &asset.name; // Use the original filename from the asset.
     let archive_path = temp_dir.join(filename); // Construct the full path for the downloaded file.
 
-    log_debug!("[GitHub] Downloading {} to temporary location: {}", tool.name.to_string().bold(), archive_path.display().to_string().cyan());
+    log_debug!("[GitHub] Downloading {} to temporary location: {}", tool_entry.name.to_string().bold(), archive_path.display().to_string().cyan());
     if let Err(err) = download_file(download_url, &archive_path) {
         // Log specific download errors (e.g., network issues during download).
-        log_error!("[GitHub] Failed to download tool {} from {}: {}", tool.name.to_string().red(), download_url.to_string().red(), err);
+        log_error!("[GitHub] Failed to download tool {} from {}: {}", tool_entry.name.to_string().red(), download_url.to_string().red(), err);
         return None;
     }
-    log_info!("[GitHub] Download completed for {}.", tool.name.to_string().bright_blue());
+    log_info!("[GitHub] Download completed for {}.", tool_entry.name.to_string().bright_blue());
 
     // 6. Detect Downloaded File Type
     // We need to know the file type (e.g., "zip", "tar.gz", "binary", "pkg") to determine
@@ -237,17 +236,17 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         Ok(h) => h,
         Err(_) => {
             // The `$HOME` variable is fundamental for user-specific installations.
-            log_error!("[GitHub] The $HOME environment variable is not set. Cannot determine installation path for {}.", tool.name.to_string().red());
+            log_error!("[GitHub] The $HOME environment variable is not set. Cannot determine installation path for {}.", tool_entry.name.to_string().red());
             return None;
         }
     };
 
     // The final executable name can be explicitly specified in `tools.yaml` via `rename_to`.
     // If not specified, we default to the tool's original `name`.
-    let bin_name = tool.rename_to.clone().unwrap_or_else(|| tool.name.clone());
+    let bin_name = tool_entry.rename_to.clone().unwrap_or_else(|| tool_entry.name.clone());
     // Construct the full absolute path where the tool's executable will be placed.
     let install_path = PathBuf::from(format!("{}/bin/{}", home_dir, bin_name));
-    log_debug!("[GitHub] Target installation path for {}: {}", tool.name.to_string().bright_blue(), install_path.display().to_string().cyan());
+    log_debug!("[GitHub] Target installation path for {}: {}", tool_entry.name.to_string().bright_blue(), install_path.display().to_string().cyan());
 
     // 8. Install Based on File Type
     // This `match` statement serves as the primary dispatcher for installation logic,
@@ -256,73 +255,73 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
     match file_type_from_name.as_str() {
         "pkg" => {
             // Handles macOS installer packages (.pkg). This often involves calling system utilities.
-            log_info!("[GitHub] Installing .pkg file for {}.", tool.name.to_string().bold());
+            log_info!("[GitHub] Installing .pkg file for {}.", tool_entry.name.to_string().bold());
             if let Err(err) = install_pkg(&archive_path) {
-                log_error!("[GitHub] Failed to install .pkg for {}: {}", tool.name.to_string().red(), err);
+                log_error!("[GitHub] Failed to install .pkg for {}: {}", tool_entry.name.to_string().red(), err);
                 return None;
             }
         }
         "binary" => {
             // Handles direct executable files (e.g., a single `.exe` or uncompressed binary).
             // These files don't need extraction; they just need to be moved and made executable.
-            log_debug!("[GitHub] Moving standalone binary for {}.", tool.name.to_string().bold());
+            log_debug!("[GitHub] Moving standalone binary for {}.", tool_entry.name.to_string().bold());
             if let Err(err) = move_and_rename_binary(&archive_path, &install_path) {
-                log_error!("[GitHub] Failed to move binary for {}: {}", tool.name.to_string().red(), err);
+                log_error!("[GitHub] Failed to move binary for {}: {}", tool_entry.name.to_string().red(), err);
                 return None;
             }
-            log_debug!("[GitHub] Making binary executable for {}.", tool.name.to_string().bold());
+            log_debug!("[GitHub] Making binary executable for {}.", tool_entry.name.to_string().bold());
             if let Err(err) = make_executable(&install_path) {
-                log_error!("[GitHub] Failed to make binary executable for {}: {}", tool.name.to_string().red(), err);
+                log_error!("[GitHub] Failed to make binary executable for {}: {}", tool_entry.name.to_string().red(), err);
                 return None;
             }
         }
         // Handles common archive formats. For these, extraction is required, followed by
         // finding the actual executable within the extracted contents.
         "zip" | "tar.gz" | "gz" | "tar.bz2" | "tar" => {
-            log_debug!("[GitHub] Extracting archive for {}.", tool.name.to_string().blue());
+            log_debug!("[GitHub] Extracting archive for {}.", tool_entry.name.to_string().blue());
             // Extract the downloaded archive into a *new* temporary subdirectory.
             // We pass `Some(&file_type_from_name)` as a hint to `extract_archive` to ensure
             // it uses the correct decompression logic, overriding potential `file` command ambiguities.
             let extracted_path = match extract_archive(&archive_path, &temp_dir, Some(&file_type_from_name)) {
                 Ok(path) => path,
                 Err(err) => {
-                    log_error!("[GitHub] Failed to extract archive for {}: {}", tool.name.to_string().red(), err);
+                    log_error!("[GitHub] Failed to extract archive for {}: {}", tool_entry.name.to_string().red(), err);
                     return None;
                 }
             };
-            log_debug!("[GitHub] Searching for executable in extracted contents for {}.", tool.name.to_string().blue());
+            log_debug!("[GitHub] Searching for executable in extracted contents for {}.", tool_entry.name.to_string().blue());
             // Many archives contain nested directories. `find_executable` recursively searches
             // the extracted contents to locate the actual binary we need to install.
             let executable_path = match find_executable(&extracted_path) {
                 Some(path) => path,
                 None => {
-                    log_error!("[GitHub] No executable found in the extracted archive for {}. Manual intervention may be required.", tool.name.to_string().red());
+                    log_error!("[GitHub] No executable found in the extracted archive for {}. Manual intervention may be required.", tool_entry.name.to_string().red());
                     return None;
                 }
             };
 
-            log_debug!("[GitHub] Moving and renaming executable for {}.", tool.name.to_string().blue());
+            log_debug!("[GitHub] Moving and renaming executable for {}.", tool_entry.name.to_string().blue());
             // Move the located executable to its final destination and apply any `rename_to` rule.
             if let Err(err) = move_and_rename_binary(&executable_path, &install_path) {
-                log_error!("[GitHub] Failed to move extracted binary for {}: {}", tool.name.to_string().red(), err);
+                log_error!("[GitHub] Failed to move extracted binary for {}: {}", tool_entry.name.to_string().red(), err);
                 return None;
             }
-            log_debug!("[GitHub] Making extracted binary executable for {}.", tool.name.to_string().blue());
+            log_debug!("[GitHub] Making extracted binary executable for {}.", tool_entry.name.to_string().blue());
             // Ensure the final binary has executable permissions set.
             if let Err(err) = make_executable(&install_path) {
-                log_error!("[GitHub] Failed to make extracted binary executable for {}: {}", tool.name.to_string().red(), err);
+                log_error!("[GitHub] Failed to make extracted binary executable for {}: {}", tool_entry.name.to_string().red(), err);
                 return None;
             }
         }
         unknown => {
             // Catch-all for unsupported or unrecognized file types.
-            log_error!("[GitHub] Unsupported or unknown file type '{}' for tool {}. Cannot install.", unknown.to_string().red(), tool.name.to_string().red());
+            log_error!("[GitHub] Unsupported or unknown file type '{}' for tool {}. Cannot install.", unknown.to_string().red(), tool_entry.name.to_string().red());
             return None;
         }
     }
 
     // If execution reaches this point, the installation was successful.
-    log_info!("[GitHub] Installation of {} completed successfully at {}!", tool.name.to_string().bold(), install_path.display().to_string().green());
+    log_info!("[GitHub] Installation of {} completed successfully at {}!", tool_entry.name.to_string().bold(), install_path.display().to_string().green());
 
     // 9. Return ToolState for Tracking
     // Construct a `ToolState` object to record the details of this successful installation.
@@ -331,7 +330,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
     // for future operations like uninstallation, updates, or syncing.
     Some(ToolState {
         // The version field for tracking. Defaults to "latest" if not explicitly set in `tools.yaml`.
-        version: tool.version.clone().unwrap_or_else(|| "latest".to_string()),
+        version: tool_entry.version.clone().unwrap_or_else(|| "latest".to_string()),
         // The canonical path where the tool's executable was installed.
         install_path: install_path.display().to_string(),
         // Flag indicating that this tool was installed by `devbox`.
@@ -339,16 +338,19 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         // The method of installation, useful for future diagnostics or differing update logic.
         install_method: "github".to_string(),
         // Records if the binary was renamed during installation.
-        renamed_to: tool.rename_to.clone(),
+        renamed_to: tool_entry.rename_to.clone(),
         // Persist the GitHub repository slug, important for future sync/update checks.
-        repo: tool.repo.clone(),
+        repo: tool_entry.repo.clone(),
         // Persist the GitHub tag (release version), important for future sync/update checks.
-        tag: tool.tag.clone(),
+        tag: tool_entry.tag.clone(),
         // The actual package type detected by the `file` command. This is for diagnostic
         // purposes, providing the most accurate type even if the installation logic
         // used a filename-based guess.
         package_type: actual_file_type_for_state,
         // Placeholder for future options that might be stored with the tool's state.
-        options: None,
+        options: tool_entry.options.clone(),
+        // For direct URL installations: The original URL from which the tool was downloaded.
+        url: tool_entry.url.clone(),
+        executable_path_after_extract: None,
     })
 }
