@@ -7,7 +7,7 @@ use colored::Colorize;
 use crate::{log_debug, log_error, log_info, log_warn};
 // Imports individual installer modules. Each module is expected to provide
 // functions for installing a specific type of tool (e.g., Homebrew packages, Cargo crates).
-use crate::installers::{brew, cargo, github, go, pip, rustup};
+use crate::installers::{brew, cargo, github, go, pip, rustup, url};
 // Imports schema definitions for application state (`DevBoxState`) and tool configurations (`ToolConfig`).
 // `DevBoxState` holds the persistent record of installed items, and `ToolConfig` defines
 // the structure of the `tools.yaml` file.
@@ -101,7 +101,7 @@ pub fn install_tools(tools_cfg: ToolConfig, state: &mut DevBoxState, state_path_
         let installer_name_for_check = tool.source.to_string().to_lowercase();
 
         // Determine if the current tool's source requires a system-level installer command check.
-        // Sources like "github" are handled internally (e.g., via `git` or `curl`), so they don't
+        // Sources like "GitHub" are handled internally (e.g., via `git` or `curl`), so they don't
         // require a separate pre-check for an installer executable in the PATH.
         let needs_installer_check = matches!(
             installer_name_for_check.as_str(),
@@ -161,16 +161,16 @@ pub fn install_tools(tools_cfg: ToolConfig, state: &mut DevBoxState, state_path_
                 "cargo" => cargo::install(tool),   // Call the Cargo installer for tools with "cargo" source.
                 "rustup" => rustup::install(tool), // Call the Rustup installer for tools with "rustup" source.
                 "pip" => pip::install(tool),       // Call the PIP installer for tools with "pip" source.
-                // "url" => direct_url_installer::install(tool), // ToDo: need to create this module for direct URL installations
+                "url" => url::install(tool),       // Call the URL installer for tools with "URL" source.
                 other => {
                     // If the tool's source is not recognized or supported, log a warning
                     // message and skip the installation of this particular tool.
                     log_warn!(
-                "[Tools] Installer for source type '{}' not yet implemented (or \
-                unrecognized for this context) for tool '{}'. Skipping this tool's installation.",
-                other.yellow(),
-                tool.name.bold()
-            );
+                        "[Tools] Installer for source type '{}' not yet implemented (or \
+                        unrecognized for this context) for tool '{}'. Skipping this tool's installation.",
+                        other.yellow(),
+                        tool.name.bold()
+                    );
                     None // Return `None` to indicate that no tool state was generated due to skipping.
                 }
             };
