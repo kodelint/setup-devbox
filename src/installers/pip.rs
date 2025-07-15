@@ -183,6 +183,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             tag: None,  // Set to None as pip doesn't track Git tags.
             // Store the additional options that were used during the `pip install` command.
             options: tool_entry.options.clone(),
+            // For direct URL installations: The original URL from which the tool was downloaded.
+            url: tool_entry.url.clone(),
+            executable_path_after_extract: None,
         })
     } else {
         // 5. Handle Installation Failure.
