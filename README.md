@@ -12,7 +12,7 @@
 [![Last commit](https://img.shields.io/github/last-commit/kodelint/setup-devbox.svg)](https://github.com/kodelint/setup-devbox/commits/main)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/kodelint/setup-devbox/pulls)
 
-![setup-devbox Image](https://github.com/kodelint/kodelint.github.io/blob/594a8f7311a2355c83327e9765c6a5ee4d2afa23/assets/uploads/01-setup-devbox.png)
+<img src="https://github.com/kodelint/kodelint.github.io/blob/594a8f7311a2355c83327e9765c6a5ee4d2afa23/assets/uploads/01-setup-devbox.png" alt="setup-devbox Image" width="600" height="400">
 
 ## 🚀 Accelerate Your Development Environment Setup
 
