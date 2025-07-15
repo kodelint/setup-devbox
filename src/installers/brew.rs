@@ -49,13 +49,13 @@ use crate::{log_debug, log_error, log_info, log_warn};
 ///   - `None`: Signifies that the installation failed at any point (e.g., missing tool name,
 ///     `brew` command not found, `brew install` failed). Detailed error logging is performed
 ///     before returning `None` to provide context for the failure.
-pub fn install(tool: &ToolEntry) -> Option<ToolState> {
-    log_debug!("[Brew] Starting installation process for tool: {:?}", tool.name.bold());
+pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
+    log_debug!("[Brew] Starting installation process for tool: {:?}", tool_entry.name.bold());
 
     // 1. Validate Tool Name
     // Ensure that the `name` field is present in the `ToolEntry` and is not empty.
     // The tool name is essential for the `brew install` command.
-    let name = &tool.name;
+    let name = &tool_entry.name;
     if name.is_empty() {
         log_error!("[Brew] Tool name is empty in the configuration. Cannot proceed with Homebrew installation.");
         return None; // Abort if the tool name is missing.
@@ -138,7 +138,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
     // Homebrew typically creates symlinks to installed binaries in a `bin` directory
     // located directly under its determined prefix (e.g., `/usr/local/bin/<tool_name>`).
     // The binary name itself might be renamed if `tool.rename_to` is specified.
-    let bin_name = tool.rename_to.clone().unwrap_or_else(|| name.clone());
+    let bin_name = tool_entry.rename_to.clone().unwrap_or_else(|| name.clone());
     let install_path = PathBuf::from(format!("{}/bin/{}", brew_prefix, bin_name));
 
     log_debug!(
@@ -153,7 +153,7 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         // The version field. Homebrew handles versions, so we can either use the `tool.version`
         // if specified (e.g., for specific formula@version syntax) or default to "latest"
         // to signify it's managed by Homebrew.
-        version: tool.version.clone().unwrap_or_else(|| "latest".to_string()),
+        version: tool_entry.version.clone().unwrap_or_else(|| "latest".to_string()),
         // The detected absolute path to the installed binary.
         install_path: install_path.display().to_string(),
         // Flag indicating that this tool was installed by `devbox`.
@@ -161,13 +161,16 @@ pub fn install(tool: &ToolEntry) -> Option<ToolState> {
         // The method of installation.
         install_method: "brew".to_string(),
         // Any `rename_to` value specified in the configuration.
-        renamed_to: tool.rename_to.clone(),
+        renamed_to: tool_entry.rename_to.clone(),
         // Denotes the package type as "brew" for consistency and potential future filtering.
         package_type: "brew".to_string(),
         // `repo` and `tag` fields are specific to GitHub releases and are not applicable for Homebrew.
         repo: None,
         tag: None,
         // Pass any custom options defined in the `ToolEntry` to the `ToolState`.
-        options: tool.options.clone(),
+        options: tool_entry.options.clone(),
+        // For direct URL installations: The original URL from which the tool was downloaded.
+        url: tool_entry.url.clone(),
+        executable_path_after_extract: None,
     })
 }

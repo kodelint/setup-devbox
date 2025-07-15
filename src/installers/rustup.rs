@@ -207,5 +207,8 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         repo: None, // Not applicable for rustup (no direct Git repo tracking).
         tag: None,  // Not applicable for rustup (no direct Git tag tracking).
         options: tool_entry.options.clone(), // Store the components that were attempted to be added.
+        // For direct URL installations: The original URL from which the tool was downloaded.
+        url: tool_entry.url.clone(),
+        executable_path_after_extract: None,
     })
 }

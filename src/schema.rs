@@ -271,6 +271,14 @@ pub struct ToolState {
     // This helps in re-installing with the same options if needed, or for debugging.
     #[serde(default)] // Important: This allows the field to be optional in YAML without errors
     pub options: Option<Vec<String>>,
+    // For direct URL installations: The original URL from which the tool was downloaded.
+    #[serde(default)]
+    pub url: Option<String>,
+    // For extracted archives: If the main executable is within a subdirectory
+    // of the extraction path (or has a specific name), this holds its path
+    // relative to `install_path`. This is crucial for locating the binary
+    // to add to PATH or run after extraction.
+    pub executable_path_after_extract: Option<String>,
 }
 
 /// Records the state of a single system setting that `setup-devbox` has applied.

@@ -50,3 +50,7 @@ pub(crate) mod rustup;
 /// using the `pip` package installer. It would manage Python dependencies
 /// and script installations.
 pub(crate) mod pip;
+/// Declares the `url` module, which handles the installation of tools
+/// by directly downloading files from a specified URL. This is used for
+/// binaries or installers not managed by other package managers or GitHub releases.
+pub(crate) mod url;
