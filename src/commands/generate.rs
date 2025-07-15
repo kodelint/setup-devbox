@@ -1,4 +1,3 @@
-// src/commands/generate.rs
 // This file is all about setting up our initial configuration files.
 // Think of it as the "kickstarter" for a new `setup-devbox` user, providing them with
 // sensible default configuration files so they can hit the ground running.
@@ -33,17 +32,97 @@ const CONFIG_FILE: &str = "config.yaml";    // The main configuration file that 
 // how to structure their configurations and give them immediate working examples.
 
 /// The default content for `tools.yaml`.
-/// It includes examples for installing a GitHub CLI tool ('gh') and `rustup` via Homebrew.
 /// This template is a great starting point for users to understand how to declare tools.
 const TOOLS_TEMPLATE: &str = r#"tools:
-  - name: cli            # The common name of the tool (e.g., 'gh' for GitHub CLI)
-    version: "2.74.0"    # The specific version we recommend as a starting point
-    source: github       # Where to get it from: GitHub releases
-    repo: cli/cli        # The GitHub repository: owner/repo_name
-    tag: v2.74.0         # The specific release tag to download
-    rename_to: gh        # Rename the downloaded executable from 'cli' to 'gh' for convenience
-  - name: rustup         # A popular tool for managing Rust toolchains
-    source: brew         # Get it using the Homebrew package manager (macOS/Linux)
+  ############################################################
+  # Generate command assume that the base system is vanilla  #
+  # Based on that assumption it, generate the bare minimun   #
+  # Which can be extended as you please                      #
+  ############################################################
+
+  # Install Brew: Brew Installer (using github)
+  - name: brew
+    version: 4.5.10
+    source: github
+    # This is look at the GitHub repository `Homebrew/brew` Release page
+    # And it will download the `Homebrew-4.5.10.pkg`
+    repo: Homebrew/brew
+    tag: 4.5.10
+
+  # Core Development Tools (Common for most setups)
+  # Usually it is not available in the GitHub
+  # Uncomment and configure the tools you need.
+  - name: git
+    source: brew # Install git using Homebrew
+    version: latest # Or a specific version, e.g., "2.45.2"
+
+  # Example: Rust Toolchain Installer
+  # Uncomment if you develop in Rust.
+  # This will install rustup
+  # - name: rustup
+  #   source: brew # Install rustup via Homebrew
+
+  # Example: Install pyenv
+  # Uncomment if you develop in in python and want `pyenv`.
+  # - name: pyenv
+  #   source: brew
+  #   options:
+  #     - --head
+
+  # Example: Install pyenv-virtualenv
+  # Uncomment if you develop in in python and want `pyenv-virtualenv`.
+  # - name: pyenv-virtualenv
+  #   source: brew
+  #   options:
+  #     - --head
+
+  # Install rust and other rust tools
+  # - name: rust
+    # Specifies that 'rustup' should be used for installation
+    # source: rustup
+    # Targets your existing 'stable' toolchain. rustup will update it if needed.
+    # version: stable
+    # List of components to install with the 'stable' toolchain
+    # options:
+      # Source code for the Rust standard library, useful for IDEs
+      # - rust-src
+      # A linter to catch common mistakes and improve your Rust code
+      # - clippy
+      # A formatter for Rust code, ensuring consistent style
+      # - rustfmt
+      # The language server for Rust, providing IDE features
+      # - rust-analyzer
+      # You can add any other rustup components you need here.
+
+  # Example: Go Installer (via direct URL)
+  # Uncomment if you develop with Go.
+    # - name: go
+    #   source: url
+    ##  Update to latest desired version for macOS Intel
+    ##  For Apple Silicon (ARM64), use: https://go.dev/dl/go1.24.5.darwin-arm64.pkg
+    #   url: https://go.dev/dl/go1.24.5.darwin-amd64.pkg
+
+  # Example: GitHub CLI (gh)
+  # Uncomment if you use GitHub heavily from the command line.
+  # - name: cli
+  #   version: "2.74.0"
+  #   source: github
+  #   repo: cli/cli
+  #   tag: v2.74.0
+  #   rename_to: gh
+
+  # - name: git-spellcheck
+  #   version: 0.0.1
+  #   source: github
+  #   repo: kodelint/git-spellcheck
+  #   tag: v0.0.1
+  #   rename_to: git-spellcheck
+  # - name: git-pr
+  #   version: 0.1.0
+  #   source: github
+  #   repo: kodelint/git-pr
+  #   tag: v0.1.0
+  #   rename_to: git-pr
 "#;
 
 /// The default content for `settings.yaml`.
@@ -69,13 +148,18 @@ const SHELLRC_TEMPLATE: &str = r#"shellrc:
   raw_configs: # A list of lines that will be directly added to the shell's config file (e.g., ~/.zshrc)
     - export PATH=$HOME/bin:$PATH        # Add a custom 'bin' directory to the system PATH
     - export PATH=$HOME/.cargo/bin:$PATH # Add Rust's cargo binaries to the PATH
-    - export PATH=$HOME/go/bin:$PATH     # Add Go binaries to the PATH
+    # Uncomment the following if you install Go manually (e.g., via direct URL installer)
+    # - export PATH=/usr/local/go/bin:$PATH # Add Go binaries to the PATH
     - eval "$(starship init zsh)"        # Initialize Starship prompt for a fancy shell prompt
+    - export PYENV_ROOT="$HOME/.pyenv"   # Export pyenv root
+    - [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH" # map it to the $PATH
+    - eval "$(pyenv init - zsh)"         # Initialize pyenv
+    - eval "$(pyenv virtualenv-init -)"  # enable pyenv-virtualenv in environment
 aliases: # Custom command aliases for user convenience
-  - name: code                           # The short alias name
-    value: cd $HOME/Documents/github/    # The command it expands to: change directory to a common dev folder
-  - name: gocode                         # Another alias for Go development
-    value: cd $HOME/go/src/              # Change directory to the Go source workspace
+  - name: cat                           # Replace `cat with `bat`
+    value: bat                          # The command it expands to: change directory to a common dev folder
+  - name: gocode                        # Another alias for Go development
+    value: cd $HOME/go/src/             # Change directory to the Go source workspace
 "#;
 
 /// The default content for `fonts.yaml`.
@@ -93,10 +177,10 @@ const FONTS_TEMPLATE: &str = r#"fonts:
 /// It acts as an index, pointing 'devbox' to the locations of all the other
 /// specialized configuration files. This provides flexibility for users to
 /// organize their config files as they see fit.
-const CONFIG_TEMPLATE: &str = r#"tools: tools.yaml     # Tells devbox where to find the tools configuration
-settings: settings.yaml # Tells devbox where to find the settings configuration
-shellrc: shellac.yaml   # Tells devbox where to find the shell configuration
-fonts: fonts.yaml     # Tells devbox where to find the fonts configuration
+const CONFIG_TEMPLATE: &str = r#"tools: $HOME/.setup-devbox/configs/tools.yaml  # Tells devbox where to find the tools configuration
+settings: $HOME/.setup-devbox/configs/settings.yaml # Tells devbox where to find the settings configuration
+shellrc: $HOME/.setup-devbox/configs/shellac.yaml   # Tells devbox where to find the shell configuration
+fonts: $HOME/.setup-devbox/configs/fonts.yaml       # Tells devbox where to find the fonts configuration
 "#;
 
 /// The main entry point for the `generate` command.
