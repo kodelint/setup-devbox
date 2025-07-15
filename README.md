@@ -12,6 +12,8 @@
 [![Last commit](https://img.shields.io/github/last-commit/kodelint/setup-devbox.svg)](https://github.com/kodelint/setup-devbox/commits/main)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/kodelint/setup-devbox/pulls)
 
+![setup-devbox Image](https://github.com/kodelint/kodelint.github.io/blob/594a8f7311a2355c83327e9765c6a5ee4d2afa23/assets/uploads/01-setup-devbox.png)
+
 ## 🚀 Accelerate Your Development Environment Setup
 
 `setup-devbox` is a powerful, opinionated, and highly configurable command-line tool designed to streamline the provisioning of your development environment. Say goodbye to manual installations and inconsistent setups across your machines!
