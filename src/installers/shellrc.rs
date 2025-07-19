@@ -74,7 +74,7 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
         Err(e) => {
             // Fallback to debug print if pretty-printing fails, and log a warning.
             log_warn!("[Shell Config] Failed to pretty-print ShellRc for debug log: {}", e);
-            log_debug!("[Shell Config] Received ShellRc configuration details: {:?}", shellrc);
+            log_debug!("[Shell Config] Received ShellRc configuration details: {:#?}", shellrc);
         }
     }
 
@@ -86,7 +86,7 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
         Err(e) => {
             // Fallback to debug print if pretty-printing fails.
             log_warn!("[Shell Config] Failed to pretty-print aliases for debug log: {}", e);
-            log_debug!("[Shell Config] Received aliases to consider: {:?}", aliases);
+            log_debug!("[Shell Config] Received aliases to consider: {:#?}", aliases);
         }
     }
 
@@ -122,8 +122,6 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
     // For extreme debugging situations, you could uncomment the line below to see
     // a snippet of the existing content. Be careful with large files as this could
     // print a lot of data to the logs!
-    // log_debug!("[ShellRC] Existing RC file content (first 10 lines): {:?}", existing_lines.iter().take(10).collect::<Vec<_>>());
-
     // This is where we'll collect all the brand-new lines that need to be added to the RC file.
     // It starts empty and gets populated as we compare the desired configurations against the existing ones.
     let mut new_lines_to_add: Vec<String> = vec![];

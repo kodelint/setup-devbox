@@ -190,8 +190,8 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // If a known archive type is detected:
     if known_file_type.is_some() {
         log_info!(
-            "Attempting to extract archive using `extract_archive` (type: {:?})...",
-            known_file_type // Log the detected archive type.
+            "Attempting to extract archive using `extract_archive` (type: {})...",
+            known_file_type.as_deref().unwrap_or("None") // Log the detected archive type.
         );
         // Update `package_type` to reflect that it was an archive.
         package_type = format!("{}-archive", known_file_type.unwrap_or("unknown"));
