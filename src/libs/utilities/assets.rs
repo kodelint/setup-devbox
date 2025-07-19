@@ -1,7 +1,7 @@
 // For working with file paths, specifically to construct installation paths.
 // `std::path::Path` is a powerful type for working with file paths in a robust way.
 // `std::path::PathBuf` provides an OS-agnostic way to build and manipulate file paths.
-use std::path::Path;
+use std::path::{Path, PathBuf};
 // The 'colored' crate helps us make our console output look pretty and readab
 use colored::Colorize;
 // Our custom logging macros to give us nicely formatted (and colored!) output
@@ -14,7 +14,7 @@ use std::fs::File;
 // `std::process::Command` allows the application to spawn and control external processes.
 use std::process::Command;
 // `std::io` contains core input/output functionalities and error types.
-use std::io;
+use std::{fs, io};
 
 /// Downloads a file from a given URL and saves it to a specified destination on the local file system.
 /// This is crucial for fetching tools and resources from the internet (e.g., GitHub releases).
@@ -59,7 +59,7 @@ pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
     std::io::copy(&mut reader, &mut file)?;
 
     // Log a debug message upon successful download, coloring the destination path.
-    log_debug!("[Utils] File downloaded successfully to {:?}", dest.to_string_lossy().green());
+    log_debug!("[Utils] File downloaded successfully to {}", dest.to_string_lossy().green());
     Ok(()) // Indicate success by returning `Ok(())`.
 }
 
@@ -74,58 +74,100 @@ pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
 /// # Returns
 /// * `String`: A normalized string representing the detected file type (e.g., "zip", "tar.gz", "binary", "unknown").
 ///             It will never return an empty string.
+/// Determines the type of file based on its extension and, more robustly,
+/// by using the `file` command on Unix-like systems.
+/// This helps in deciding how to process the file (e.g., extract, move, or skip).
 pub fn detect_file_type(path: &Path) -> String {
-    // Log a debug message indicating which file's type is being detected.
-    log_debug!("[Utils] Detecting file type for: {:?}", path.to_string_lossy().yellow());
+    log_debug!("[Utils] Entering detect_file_type for: {}", path.display().to_string().yellow());
 
-    // Execute the `file --brief <path>` command.
-    // - `Command::new("file")`: Creates a new command instance for the `file` utility.
-    // - `.arg("--brief")`: Adds the `--brief` argument, which tells `file` to output
-    //                      only the file type description, without the filename prefix.
-    // - `.arg(path)`: Adds the path of the file to be inspected.
-    // - `.output()`: Executes the command and waits for it to complete, capturing its
-    //                stdout, stderr, and exit status.
-    // - `.expect(...)`: If the command itself fails to execute (e.g., `file` not found
-    //                   in PATH), this will panic with the provided message.
-    let output = Command::new("file")
-        .arg("--brief")
-        .arg(path)
-        .output()
-        .expect("Failed to execute 'file' command. Is it installed and in your PATH?");
+    let file_name_str = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+    let extension = path.extension().and_then(|ext| ext.to_str()).unwrap_or("").to_lowercase();
 
-    // Convert the command's standard output (which is `Vec<u8>`) into a `String`.
-    // `String::from_utf8_lossy()` converts bytes to a string, replacing invalid UTF-8 sequences.
-    // `.to_lowercase()` converts the entire string to lowercase for case-insensitive matching.
-    let out = String::from_utf8_lossy(&output.stdout).to_lowercase();
-    log_debug!("[Utils] 'file' command raw output for {:?}: '{}'", path, out.blue()); // Added for debugging
+    log_debug!("[Utils] (Debug) file_name_str: '{}'", file_name_str);
+    log_debug!("[Utils] (Debug) extension: '{}'", extension);
 
-    // Now, we check the output string for various keywords to determine the file type.
-    // The order of `if-else if` statements is important to prioritize more specific matches.
-    if out.contains("zip") {
-        "zip".into() // If it contains "zip", it's a zip archive.
-    } else if out.contains("gzip compressed") && out.contains("tar") {
-        "tar.gz".into() // If it's gzipped AND a tar archive, it's a tar.gz.
-    } else if out.contains("gzip compressed") {
-        "gz".into() // If just gzipped (not necessarily tarred), it's a plain .gz.
-    } else if out.contains("bzip2 compressed") && out.contains("tar") {
-        "tar.bz2".into() // Bzip2 + tar = tar.bz2.
-    } else if out.contains("bzip2") {
-        "bz2".into() // Just bzip2 compressed data.
-    } else if out.contains("xar archive") && out.contains(".pkg") {
-        "pkg".into() // Specifically for macOS installer packages (XAR archives with .pkg extension).
-    } else if out.contains("executable") || out.contains("binary") || out.contains("mach-o") || out.contains("elf") {
-        // Broaden detection for executables.
-        // - "executable" or "binary" are general indicators.
-        // - "mach-o" is a specific executable format for macOS/iOS.
-        // - "elf" is a specific executable format for Linux/Unix.
-        "binary".into() // It's a standalone executable file.
-    } else if out.contains("tar archive") {
-        "tar".into() // A plain tar archive (uncompressed).
-    } else {
-        // If none of the above keywords are found, we don't know the type.
-        log_warn!("[Utils] Unrecognized file type for {:?}: '{}'. Treating as unknown.", path, out.purple());
-        "unknown".into() // Return "unknown".
+    // 1. Check by common *compound* extensions first (most specific match)
+    if file_name_str.ends_with(".tar.xz") {
+        log_debug!("[Utils] (Debug) Matched .tar.xz via file_name_str.ends_with. Returning 'tar.xz'.");
+        return "tar.xz".to_string();
     }
+    if file_name_str.ends_with(".txz") { // txz is a common alias for tar.xz
+        log_debug!("[Utils] (Debug) Matched .txz via file_name_str.ends_with. Returning 'tar.xz'.");
+        return "tar.xz".to_string();
+    }
+    if file_name_str.ends_with(".tar.gz") {
+        log_debug!("[Utils] (Debug) Matched .tar.gz via file_name_str.ends_with. Returning 'tar.gz'.");
+        return "tar.gz".to_string();
+    }
+    if file_name_str.ends_with(".tgz") { // tgz is a common alias for tar.gz
+        log_debug!("[Utils] (Debug) Matched .tgz via file_name_str.ends_with. Returning 'tar.gz'.");
+        return "tar.gz".to_string();
+    }
+    if file_name_str.ends_with(".tar.bz2") || file_name_str.ends_with(".tbz2") || file_name_str.ends_with(".tar.bz") {
+        log_debug!("[Utils] (Debug) Matched .tar.bz2/.tbz2/.tar.bz via file_name_str.ends_with. Returning 'tar.bz2'.");
+        return "tar.bz2".to_string();
+    }
+    if file_name_str.ends_with(".7z") {
+        log_debug!("[Utils] (Debug) Matched .7z via file_name_str.ends_with. Returning '7zip'.");
+        return "7zip".to_string();
+    }
+
+    // 2. Then check by single common extensions.
+    log_debug!("[Utils] (Debug) Proceeding to check single extension match for: '{}'", extension);
+    match extension.as_str() {
+        "zip" => { log_debug!("[Utils] (Debug) Matched 'zip' extension. Returning 'zip'."); return "zip".to_string(); },
+        "tar" => { log_debug!("[Utils] (Debug) Matched 'tar' extension. Returning 'tar'."); return "tar".to_string(); },
+        "gz" => { log_debug!("[Utils] (Debug) Matched 'gz' extension. Returning 'gzip'."); return "gzip".to_string(); },
+        "bz2" => { log_debug!("[Utils] (Debug) Matched 'bz2' extension. Returning 'bzip2'."); return "bzip2".to_string(); },
+        "xz" => { log_debug!("[Utils] (Debug) Matched 'xz' extension. Returning 'xz'."); return "xz".to_string(); },
+        "pkg" => { log_debug!("[Utils] (Debug) Matched 'pkg' extension. Returning 'macos-pkg-installer'."); return "macos-pkg-installer".to_string(); },
+        "dmg" => { log_debug!("[Utils] (Debug) Matched 'dmg' extension. Returning 'macos-dmg-installer'."); return "macos-dmg-installer".to_string(); },
+        _ => { log_debug!("[Utils] (Debug) No single extension matched. Falling through."); }
+    }
+
+    // 3. Use `file --brief` command for more accurate detection on Unix-like systems
+    #[cfg(unix)]
+    {
+        log_debug!("[Utils] (Debug) Attempting 'file --brief' command for deeper analysis.");
+        if let Ok(output) = Command::new("file").arg("--brief").arg(path).output() {
+            if output.status.success() {
+                let file_type_output = String::from_utf8_lossy(&output.stdout).to_lowercase();
+                log_debug!("[Utils] 'file' command raw output for {:?}: '{}'", path.display(), file_type_output.trim());
+
+                if file_type_output.contains("zip archive") { log_debug!("[Utils] (Debug) File command matched zip archive. Returning 'zip'."); return "zip".to_string(); }
+                if file_type_output.contains("gzip compressed data") { log_debug!("[Utils] (Debug) File command matched gzip. Returning 'gzip'."); return "gzip".to_string(); }
+                if file_type_output.contains("bzip2 compressed data") { log_debug!("[Utils] (Debug) File command matched bzip2. Returning 'bzip2'."); return "bzip2".to_string(); }
+                if file_type_output.contains("xz compressed data") { log_debug!("[Utils] (Debug) File command matched xz. Returning 'xz'."); return "xz".to_string(); }
+                if file_type_output.contains("posix tar archive") || file_type_output.contains("tar archive") { log_debug!("[Utils] (Debug) File command matched tar. Returning 'tar'."); return "tar".to_string(); }
+                if file_type_output.contains("7-zip archive") { log_debug!("[Utils] (Debug) File command matched 7zip. Returning '7zip'."); return "7zip".to_string(); }
+                if file_type_output.contains("xar archive") { log_debug!("[Utils] (Debug) File command matched xar archive. Returning 'macos-pkg-installer'."); return "macos-pkg-installer".to_string(); }
+                if file_type_output.contains("apple binary property list") || file_type_output.contains("disk image") || file_type_output.contains("apple hfs") { log_debug!("[Utils] (Debug) File command matched dmg. Returning 'macos-dmg-installer'."); return "macos-dmg-installer".to_string(); }
+                if file_type_output.contains("mach-o") && file_type_output.contains("executable") { log_debug!("[Utils] (Debug) File command matched Mach-O executable. Returning 'binary'."); return "binary".to_string(); }
+
+                log_warn!("[Utils] Unrecognized file type by 'file' command for {:?}: '{}'. Treating as unknown.", path.display(), file_type_output.trim());
+                return "unknown".to_string();
+            } else {
+                log_warn!("[Utils] 'file' command failed for {:?}: {}. Falling back to filename heuristics.", path.display(), String::from_utf8_lossy(&output.stderr).trim());
+            }
+        } else {
+            log_warn!("[Utils] Could not execute 'file' command for {:?}. Falling back to filename heuristics.", path.display());
+        }
+    }
+
+    // 4. Fallback to filename heuristics (less reliable, used if previous methods fail)
+    log_debug!("[Utils] (Debug) Falling back to filename heuristics for direct binary detection.");
+    if file_name_str.contains("linux") || file_name_str.contains("windows") ||
+        file_name_str.contains("darwin") || file_name_str.contains("macos") ||
+        file_name_str.contains("amd64") || file_name_str.contains("aarch64") ||
+        file_name_str.contains("x86_64") || file_name_str.contains("arm64") {
+        log_debug!("[Utils] Filename '{}' suggests a direct binary (no standard archive/installer extension). Returning 'binary'.", file_name_str);
+        return "binary".to_string();
+    }
+
+
+    // If all else fails
+    log_warn!("[Utils] Could not determine file type for {:?} based on any method. Defaulting to 'unknown'.", path.display());
+    "unknown".to_string()
 }
 
 /// Detects file type based purely on its filename extension(s) or common naming patterns.
@@ -149,6 +191,8 @@ pub fn detect_file_type_from_filename(filename: &str) -> String {
         "tar.gz".to_string()
     } else if filename_lower.ends_with(".tar.bz2") || filename_lower.ends_with(".tbz") {
         "tar.bz2".to_string()
+    } else if filename_lower.ends_with(".tar.xz") || filename_lower.ends_with(".txz") {
+        "tar.xz".to_string()
     } else if filename_lower.ends_with(".zip") {
         "zip".to_string()
     } else if filename_lower.ends_with(".tar") {
@@ -161,6 +205,8 @@ pub fn detect_file_type_from_filename(filename: &str) -> String {
         "rpm".to_string()
     } else if filename_lower.ends_with(".dmg") { // macOS Disk Image
         "dmg".to_string()
+    } else if filename_lower.ends_with(".pkg") { // macOS package type
+        "pkg".to_string()
     }
     // Added logic for direct binaries without explicit extensions, but containing platform info.
     // This heuristic tries to identify raw executables often named without extensions
@@ -223,6 +269,152 @@ pub fn install_pkg(path: &Path) -> io::Result<()> {
 
     log_info!("[Utils] .pkg file installed successfully!");
     Ok(()) // Indicate success.
+}
+
+/// Installs a software from a .dmg (Disk Image) file on macOS.
+///
+/// This function attempts to:
+/// 1. Mount the .dmg file.
+/// 2. Search for either a .app bundle or a .pkg installer within the mounted volume.
+/// 3. If a .app is found, it's copied to the /Applications directory (requires sudo).
+/// 4. If a .pkg is found, it calls `install_pkg` to install it (requires sudo).
+/// 5. Unmount the .dmg file, regardless of installation success or failure.
+///
+/// # Arguments
+/// * `dmg_path`: The path to the .dmg file.
+///
+/// # Returns
+/// * `io::Result<()>`: `Ok(())` if the DMG was processed successfully,
+///   `Err(io::Error)` otherwise.
+pub fn install_dmg(dmg_path: &Path) -> io::Result<()> {
+    log_info!("[macOS Installer] Initiating .dmg installation for: {:?}", dmg_path.to_string_lossy().bold());
+
+    // Mount the DMG
+    log_debug!("[macOS Installer] Mounting DMG: {:?}", dmg_path.display());
+    let mount_output = Command::new("sudo") // `sudo` might be needed for some DMGs or in certain environments
+        .arg("hdiutil")
+        .arg("attach")
+        .arg("-nobrowse") // Don't open a Finder window
+        .arg("-readonly") // Mount read-only to be safe
+        .arg("-noverify") // Skip verification (can speed up, but less safe)
+        .arg("-noautofsck") // Skip filesystem check
+        .arg(dmg_path)
+        .output()?;
+
+    if !mount_output.status.success() {
+        let stderr = str::from_utf8(&mount_output.stderr).unwrap_or("Failed to read stderr");
+        log_error!("[macOS Installer] Failed to mount DMG: {}", stderr.red());
+        return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to mount DMG: {}", stderr)));
+    }
+
+    let stdout = str::from_utf8(&mount_output.stdout)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Invalid UTF-8 in mount output: {}", e)))?;
+
+    // Parse mount path from hdiutil output. Output typically looks like:
+    // /dev/diskXsY             /Volumes/VolumeName
+    // We're looking for the last path, which is the mount point.
+    let mount_path_str = stdout.lines()
+        .last() // Get the last line
+        .and_then(|line| line.split('\t').last()) // Split by tab, get last part
+        .map(|s| s.trim()) // Trim whitespace
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Could not parse DMG mount path from hdiutil output"))?;
+
+    let mount_path = PathBuf::from(mount_path_str);
+    log_info!("[macOS Installer] DMG mounted successfully at: {}", mount_path.display().to_string().green());
+
+    // Ensure the DMG is unmounted when the function exits (success or error)
+    // Using a scopeguard or similar deferred execution would be more robust,
+    // but for this example, we'll ensure it's called before any returns.
+    let _unmount_result = unmount_dmg(&mount_path); // Call unmount at the end
+
+    // Search for Contents (.app or .pkg)
+    let mut pkg_found = None;
+    let mut app_found = None;
+
+    if mount_path.exists() && mount_path.is_dir() {
+        for entry in fs::read_dir(&mount_path)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().map_or(false, |ext| ext == "pkg") {
+                pkg_found = Some(path);
+                break; // Prioritize .pkg installers
+            } else if path.extension().map_or(false, |ext| ext == "app") {
+                app_found = Some(path);
+                // Don't break yet, in case there's a .pkg after an .app
+            }
+        }
+    } else {
+        log_error!("[macOS Installer] Mounted path does not exist or is not a directory: {:?}", mount_path.display());
+        return Err(io::Error::new(io::ErrorKind::NotFound, "Mounted DMG path not found"));
+    }
+
+    // Install Contents
+    if let Some(pkg_path) = pkg_found {
+        log_info!("[macOS Installer] Found .pkg installer: {:?}", pkg_path.display());
+        // Call the existing install_pkg function
+        match install_pkg(&pkg_path) {
+            Ok(_) => {
+                log_info!("[macOS Installer] .pkg installed successfully from DMG.");
+                unmount_dmg(&mount_path)?; // Explicit unmount on success
+                return Ok(());
+            },
+            Err(e) => {
+                log_error!("[macOS Installer] Failed to install .pkg from DMG: {}", e);
+                unmount_dmg(&mount_path)?; // Explicit unmount on failure
+                return Err(e);
+            }
+        }
+    } else if let Some(app_path) = app_found {
+        log_info!("[macS Installer] Found .app bundle: {:?}", app_path.display());
+        let target_app_path = PathBuf::from("/Applications").join(app_path.file_name().unwrap());
+
+        log_debug!("[macOS Installer] Copying .app to: {:?}", target_app_path.display());
+        let cp_status = Command::new("sudo")
+            .arg("cp")
+            .arg("-R") // Recursive copy for directories (like .app bundles)
+            .arg(&app_path)
+            .arg(&target_app_path)
+            .status()?;
+
+        if !cp_status.success() {
+            log_error!("[macOS Installer] Failed to copy .app to /Applications. Status: {:?}", cp_status);
+            unmount_dmg(&mount_path)?; // Explicit unmount on failure
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to copy .app"));
+        }
+        log_info!("[macOS Installer] .app copied successfully to {}", target_app_path.display().to_string().green());
+    } else {
+        log_warn!("[macOS Installer] No .pkg or .app found in DMG: {:?}. Manual intervention may be required.", mount_path.display());
+        unmount_dmg(&mount_path)?; // Explicit unmount, nothing to install but cleanup is needed
+        return Err(io::Error::new(io::ErrorKind::NotFound, "No installable .app or .pkg found in DMG"));
+    }
+
+    // Unmount the DMG (handled by explicit calls or the deferred function call)
+    unmount_dmg(&mount_path)?; // Final unmount in case previous paths didn't return early
+
+    log_info!("[macOS Installer] .dmg installation process completed for: {}", dmg_path.display().to_string().green());
+    Ok(())
+}
+
+/// Helper function to unmount a DMG.
+fn unmount_dmg(mount_path: &Path) -> io::Result<()> {
+    log_debug!("[macOS Installer] Unmounting DMG from: {:?}", mount_path.display());
+    let detach_status = Command::new("sudo")
+        .arg("hdiutil")
+        .arg("detach")
+        .arg("-force") // Force detach in case of busy errors
+        .arg(mount_path)
+        .status()?;
+
+    if !detach_status.success() {
+        log_error!("[macOS Installer] Failed to unmount DMG: {:?}", detach_status);
+        // This is a cleanup step, so don't necessarily return an error
+        // that halts the main installation flow if the installation itself succeeded.
+        // However, for strict error handling, you might want to return an error here.
+        // For this example, we will return an error to signal the unmount issue.
+        return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to unmount DMG: {:?}", detach_status)));
+    }
+    log_debug!("[macOS Installer] DMG unmounted successfully.");
+    Ok(())
 }
 
 // Provide a dummy implementation for `install_pkg` on non-macOS systems to avoid compilation errors.
