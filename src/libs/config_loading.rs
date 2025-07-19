@@ -82,7 +82,7 @@ where
         // Expand the `~` character in the path to the actual home directory path.
         let path = expand_tilde(path_str);
         // Log the attempt to load the configuration, including the resolved path.
-        log_debug!("Attempting to load {} config from: {:?}", config_name, path.display());
+        log_debug!("Attempting to load {} config from: {}", config_name, path.display());
 
         // Attempt to read the file content into a string.
         match fs::read_to_string(&path) {
@@ -96,7 +96,7 @@ where
                     },
                     Err(e) => {
                         // Log a detailed error message if YAML parsing fails (e.g., syntax errors).
-                        log_error!("Failed to parse {}.yaml at {:?}: {}. Please check its YAML syntax.", config_name, path.display().to_string().red(), e);
+                        log_error!("Failed to parse {}.yaml at {}: {}. Please check its YAML syntax.", config_name, path.display().to_string().red(), e);
                         None // Return None on parsing failure.
                     }
                 }
@@ -160,14 +160,25 @@ pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
             // If parsing fails (e.g., invalid YAML syntax in main config),
             // this is also a critical error, so log and exit.
             log_error!(
-                "Failed to parse main config.yaml at {:?}: {}. Please check your YAML syntax for errors.",
+                "Failed to parse main config.yaml at {}: {}. Please check your YAML syntax for errors.",
                 config_path_resolved.display().to_string().red(),
                 e
             );
             std::process::exit(1); // Exit with a non-zero status code.
         }
     };
-    log_debug!("MainConfig loaded: {:?}", main_cfg); // Log the loaded MainConfig for debugging.
+    // log_debug!("MainConfig loaded: Tools: {}, Fonts: {}, Shell: {} and Settings: {}", main_cfg.fonts.as_deref()); // Log the loaded MainConfig for debugging.
+    log_debug!(
+        "MainConfig loaded:
+        Tools config: {},
+        Settings config: {},
+        Shell config: {},
+        Fonts config: {}",
+        main_cfg.tools.as_deref().unwrap_or("N/A"),
+        main_cfg.settings.as_deref().unwrap_or("N/A"),
+        main_cfg.shellrc.as_deref().unwrap_or("N/A"),
+        main_cfg.fonts.as_deref().unwrap_or("N/A")
+    );
 
     // Use the `load_individual_config` helper function for each linked configuration file.
     // The `as_ref()` is used to convert `Option<String>` into `Option<&String>`,
@@ -212,7 +223,7 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
     log_debug!("Entering load_single_config() function.");
     // Inform the user that a single config file is being loaded.
     log_info!("Loading configuration from single file: {}", config_path_resolved.display().to_string().blue());
-    log_debug!("Attempting to load configuration directly from: {:?}", config_path_resolved.display());
+    log_debug!("Attempting to load configuration directly from: {}", config_path_resolved.display());
 
     // Attempt to read the content of the single configuration file.
     let contents = match fs::read_to_string(config_path_resolved) {
@@ -220,7 +231,7 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
         Err(e) => {
             // If the file cannot be read, it's a critical error for single config mode.
             log_error!(
-                "Failed to read single config file {:?}: {}. Please check its existence and permissions.",
+                "Failed to read single config file {}: {}. Please check its existence and permissions.",
                 config_path_resolved.display().to_string().red(),
                 e
             );
