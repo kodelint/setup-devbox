@@ -165,7 +165,7 @@ fonts: $HOME/.setup-devbox/configs/fonts.yaml       # Tells devbox where to find
 /// * `config_dir`: Optional custom directory for config files. Defaults to `~/.setup-devbox/configs/`.
 /// * `_state_path`: Unused parameter for future state file path specification.
 pub fn run(config_dir: Option<String>, _state_path: Option<String>) {
-    log_debug!("[Generate] Starting generation with config_dir: {:?}", config_dir);
+    log_debug!("[Generate] Starting generation with config_dir: {}", config_dir.as_deref().unwrap_or("None"));
 
     // Resolve the base directory for config generation.
     let base_dir = config_dir
@@ -173,12 +173,12 @@ pub fn run(config_dir: Option<String>, _state_path: Option<String>) {
         .unwrap_or("~/.setup-devbox/configs/");
     let base_dir = expand_tilde(base_dir);
 
-    log_info!("[Generate] Using config directory: {:?}", base_dir);
+    log_info!("[Generate] Using config directory: {}", base_dir.to_string_lossy().green());
 
     // Create the base configuration directory if it does not exist.
     if !base_dir.exists() {
         match fs::create_dir_all(&base_dir) {
-            Ok(_) => log_info!("[Generate] Created config directory {:?}", base_dir),
+            Ok(_) => log_info!("[Generate] Created config directory {}", base_dir.to_string_lossy().green()),
             Err(e) => {
                 log_error!("[Generate] Failed to create config directory: {}", e);
                 return;
@@ -210,23 +210,23 @@ fn generate_file(base_dir: &Path, filename: &str, content: &str) {
 
     // Skip file creation if it already exists to preserve user modifications.
     if file_path.exists() {
-        log_info!("[Generate] Skipping existing file {:?}. We don't want to overwrite your changes!", file_path);
+        log_info!("[Generate] Skipping existing file {}. We don't want to overwrite your changes!", file_path.to_string_lossy().bright_yellow());
         return;
     }
 
-    log_info!("[Generate] Creating new file {:?}", file_path);
+    log_info!("[Generate] Creating new file {}", file_path.to_string_lossy().bright_green());
 
     // Attempt to create and write content to the file.
     match fs::File::create(&file_path) {
         Ok(mut file) => {
             if let Err(e) = file.write_all(content.as_bytes()) {
-                log_error!("[Generate] Failed to write to {:?}: {}", file_path, e);
+                log_error!("[Generate] Failed to write to {}: {}", file_path.to_string_lossy().red(), e);
             } else {
-                log_info!("[Generate] Successfully wrote default content to {:?}", file_path);
+                log_info!("[Generate] Successfully wrote default content to {}", file_path.to_string_lossy().bright_green());
             }
         }
         Err(e) => {
-            log_error!("[Generate] Couldn't create file {:?}: {}", file_path, e);
+            log_error!("[Generate] Couldn't create file {}: {}", file_path.to_string_lossy().red(), e);
         }
     }
 }
