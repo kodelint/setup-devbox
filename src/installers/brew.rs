@@ -50,7 +50,7 @@ use crate::{log_debug, log_error, log_info, log_warn};
 ///     `brew` command not found, `brew install` failed). Detailed error logging is performed
 ///     before returning `None` to provide context for the failure.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_debug!("[Brew] Starting installation process for tool: {:?}", tool_entry.name.bold());
+    log_debug!("[Brew] Starting installation process for tool: {}", tool_entry.name.bold());
 
     // 1. Validate Tool Name
     // Ensure that the `name` field is present in the `ToolEntry` and is not empty.
@@ -76,7 +76,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     log_info!("[Brew] Attempting to install {} using Homebrew...", name.bold());
     // Log the exact command being executed for debugging purposes.
-    log_debug!("[Brew] Executing command: {:?}", cmd);
+    log_debug!("[Brew] Executing command: {:#?}", cmd);
 
     // Execute the `brew install` command and wait for it to complete, capturing its output.
     let output = match cmd.output() {
@@ -142,7 +142,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     let install_path = PathBuf::from(format!("{}/bin/{}", brew_prefix, bin_name));
 
     log_debug!(
-        "[Brew] Expected final binary path for {}: {:?}",
+        "[Brew] Expected final binary path for {}: {}",
         name.bold(),
         install_path.display().to_string().cyan()
     );
