@@ -75,7 +75,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Add any additional options from `tool_entry.options`.
     // This allows users to pass arbitrary flags to `cargo install`, such as `--features`, `--locked`, etc.
     if let Some(options) = &tool_entry.options {
-        log_debug!("[Cargo Installer] Adding custom options: {:?}", options);
+        log_debug!("[Cargo Installer] Adding custom options: {:#?}", options);
         for opt in options {
             command_args.push(opt);
         }
