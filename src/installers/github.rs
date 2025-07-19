@@ -7,7 +7,7 @@
 // where the source of truth for distribution is a GitHub repository's "Releases" section.
 
 // Standard library imports:
-use std::env;
+use std::{env, fs};
 // For interacting with environment variables, specifically to find the HOME directory.
 use std::path::PathBuf;
 // For ergonomic and platform-agnostic path manipulation.
@@ -35,29 +35,26 @@ use crate::schema::{Release, ToolEntry, ToolState};
 // `make_executable`: Sets executable permissions on a file.
 // `find_executable`: Recursively searches for an executable within a directory.
 // `detect_file_type`, `detect_file_type_from_filename`: Utilities to infer file types.
-use crate::libs::utilities::{
-    assets::{
-        detect_file_type,
-        detect_file_type_from_filename, 
-        download_file, 
-        install_pkg
-    },
-    binary::{
-        find_executable, 
-        make_executable, 
-        move_and_rename_binary
-    },
-    compression::extract_archive,
-    path_helpers::get_temp_dir, 
-    platform::{
-        detect_os,
-        detect_architecture,
-        asset_matches_platform
+use crate::libs::utilities::{assets::{
+    detect_file_type,
+    detect_file_type_from_filename,
+    download_file,
+    install_pkg
+}, binary::{
+    find_executable,
+    make_executable,
+    move_and_rename_binary
+}, compression, platform::{
+    detect_os,
+    detect_architecture,
+    asset_matches_platform
 }};
 
 // Custom logging macros. These are used throughout the module to provide informative output
 // during the installation process, aiding in debugging and user feedback.
 use crate::{log_debug, log_error, log_info};
+use tempfile::Builder as TempFileBuilder;
+use crate::libs::utilities::assets::install_dmg;
 
 /// Installs a software tool by fetching its release asset from GitHub.
 ///
@@ -80,7 +77,7 @@ use crate::{log_debug, log_error, log_info};
 ///     is performed before returning `None` to provide context for the failure.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Start the installation process with a debug log, clearly indicating which tool is being processed.
-    log_debug!("[GitHub] Initiating installation process for tool: {:?}", tool_entry.name.to_string().bold());
+    log_debug!("[GitHub] Initiating installation process for tool: {}", tool_entry.name.to_string().bold());
 
     // 1. Detect Current Operating System and Architecture
     // The first critical step is to determine the host's platform. GitHub releases typically
@@ -186,7 +183,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             let available_assets = release.assets.iter().map(|a| a.name.clone()).collect::<Vec<_>>();
             log_error!(
                 "[GitHub] No suitable release asset found for platform {}-{} in repo {} tag {}. \
-                 Please check the release assets on GitHub. Available assets: {:?}",
+                 Please check the release assets on GitHub. Available assets: {}",
                 os.to_string().red(), arch.to_string().red(), repo.to_string().red(), tag.to_string().red(), available_assets.join(", ").to_string().yellow()
             );
             return None;
@@ -200,12 +197,26 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // 5. Download the Asset
     // We download the asset to a temporary directory to avoid cluttering the user's system
     // and to facilitate extraction and cleanup.
-    let temp_dir = get_temp_dir();
-    let filename = &asset.name; // Use the original filename from the asset.
-    let archive_path = temp_dir.join(filename); // Construct the full path for the downloaded file.
+    // let temp_dir = get_temp_dir();
 
-    log_debug!("[GitHub] Downloading {} to temporary location: {}", tool_entry.name.to_string().bold(), archive_path.display().to_string().cyan());
-    if let Err(err) = download_file(download_url, &archive_path) {
+    // Create a single, unique temporary directory for this entire installation run.
+    // This ensures isolation between different tool installations.
+    let install_temp_root = match TempFileBuilder::new()
+        .prefix(&format!("setup-devbox-install-{}-", tool_entry.name))
+        .tempdir()
+    {
+        Ok(dir) => dir,
+        Err(e) => {
+            log_error!("[GitHub] Failed to create temporary directory for installation: {}. Aborting for {}.", e, tool_entry.name.to_string().red());
+            return None;
+        }
+    };
+
+    let filename = &asset.name; // Use the original filename from the asset.
+    let downloaded_asset_path = install_temp_root.path().join(filename); // Construct the full path for the downloaded file.
+
+    log_debug!("[GitHub] Downloading {} to temporary location: {}", tool_entry.name.to_string().bold(), downloaded_asset_path.display().to_string().cyan());
+    if let Err(err) = download_file(download_url, &downloaded_asset_path) {
         // Log specific download errors (e.g., network issues during download).
         log_error!("[GitHub] Failed to download tool {} from {}: {}", tool_entry.name.to_string().red(), download_url.to_string().red(), err);
         return None;
@@ -218,14 +229,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // `detect_file_type_from_filename` is preferred here for archives because the filename
     // usually clearly indicates the compression format, which is more reliable than
     // `file` command output for archives.
-    let file_type_from_name = detect_file_type_from_filename(&archive_path.to_string_lossy());
+    let file_type_from_name = detect_file_type_from_filename(&downloaded_asset_path.to_string_lossy());
     log_debug!("[GitHub] Detected downloaded file type (from filename): {}", file_type_from_name.to_string().magenta());
 
     // `actual_file_type_for_state` uses the `file` command, which provides a deeper inspection
     // of the file's magic bytes. While `file_type_from_name` is used for deciding *how* to extract,
     // this `actual_file_type_for_state` is more accurate for recording the precise file type
     // in the `ToolState`, which can be valuable for diagnostics or future enhancements.
-    let actual_file_type_for_state = detect_file_type(&archive_path);
+    let actual_file_type_for_state = detect_file_type(&downloaded_asset_path);
     log_debug!("[GitHub] Detected downloaded file type (from `file` command for state): {}", actual_file_type_for_state.to_string().magenta());
 
 
@@ -256,7 +267,15 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         "pkg" => {
             // Handles macOS installer packages (.pkg). This often involves calling system utilities.
             log_info!("[GitHub] Installing .pkg file for {}.", tool_entry.name.to_string().bold());
-            if let Err(err) = install_pkg(&archive_path) {
+            if let Err(err) = install_pkg(&downloaded_asset_path) {
+                log_error!("[GitHub] Failed to install .pkg for {}: {}", tool_entry.name.to_string().red(), err);
+                return None;
+            }
+        }
+        "dmg" => {
+            // Handles macOS installer packages (.dmg). This often involves calling system utilities.
+            log_info!("[GitHub] Installing .dmg file for {}.", tool_entry.name.to_string().bold());
+            if let Err(err) = install_dmg(&downloaded_asset_path) {
                 log_error!("[GitHub] Failed to install .pkg for {}: {}", tool_entry.name.to_string().red(), err);
                 return None;
             }
@@ -265,7 +284,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // Handles direct executable files (e.g., a single `.exe` or uncompressed binary).
             // These files don't need extraction; they just need to be moved and made executable.
             log_debug!("[GitHub] Moving standalone binary for {}.", tool_entry.name.to_string().bold());
-            if let Err(err) = move_and_rename_binary(&archive_path, &install_path) {
+            if let Err(err) = move_and_rename_binary(&downloaded_asset_path, &install_path) {
                 log_error!("[GitHub] Failed to move binary for {}: {}", tool_entry.name.to_string().red(), err);
                 return None;
             }
@@ -277,29 +296,26 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         }
         // Handles common archive formats. For these, extraction is required, followed by
         // finding the actual executable within the extracted contents.
-        "zip" | "tar.gz" | "gz" | "tar.bz2" | "tar" => {
+        "zip" | "tar.gz" | "gz" | "tar.bz2" | "tar" | "tar.xz" | "tar.bz" | "txz" | "tbz2" => {
             log_debug!("[GitHub] Extracting archive for {}.", tool_entry.name.to_string().blue());
-            // Extract the downloaded archive into a *new* temporary subdirectory.
-            // We pass `Some(&file_type_from_name)` as a hint to `extract_archive` to ensure
-            // it uses the correct decompression logic, overriding potential `file` command ambiguities.
-            let extracted_path = match extract_archive(&archive_path, &temp_dir, Some(&file_type_from_name)) {
+            let extracted_path = match compression::extract_archive(&downloaded_asset_path, &install_temp_root.path(), Some(&file_type_from_name)) {
                 Ok(path) => path,
                 Err(err) => {
                     log_error!("[GitHub] Failed to extract archive for {}: {}", tool_entry.name.to_string().red(), err);
                     return None;
                 }
             };
-            log_debug!("[GitHub] Searching for executable in extracted contents for {}.", tool_entry.name.to_string().blue());
+
+            log_debug!("[GitHub] Searching for executable in extracted contents for {} in {}", tool_entry.name.to_string().blue(), extracted_path.display().to_string().cyan());
             // Many archives contain nested directories. `find_executable` recursively searches
             // the extracted contents to locate the actual binary we need to install.
-            let executable_path = match find_executable(&extracted_path) {
+            let executable_path = match find_executable(&extracted_path, &tool_entry.name, tool_entry.rename_to.as_deref()) {
                 Some(path) => path,
                 None => {
                     log_error!("[GitHub] No executable found in the extracted archive for {}. Manual intervention may be required.", tool_entry.name.to_string().red());
                     return None;
                 }
             };
-
             log_debug!("[GitHub] Moving and renaming executable for {}.", tool_entry.name.to_string().blue());
             // Move the located executable to its final destination and apply any `rename_to` rule.
             if let Err(err) = move_and_rename_binary(&executable_path, &install_path) {
