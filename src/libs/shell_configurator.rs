@@ -38,7 +38,7 @@ pub fn apply_shell_configs(shell_cfg: ShellConfig) {
         Err(e) => {
             // Log a warning if pretty-printing fails, but still proceed with debug log of raw struct.
             log_warn!("[Shell Config] Failed to pretty-print shell config for debug log: {}", e);
-            log_debug!("[Shell Config] Calling shellrc::apply_shellrc with shell config: {:?}", shell_cfg.shellrc);
+            log_debug!("[Shell Config] Calling shellrc::apply_shellrc with shell config: {:#?}", shell_cfg.shellrc);
         }
     }
 
@@ -50,7 +50,7 @@ pub fn apply_shell_configs(shell_cfg: ShellConfig) {
         Err(e) => {
             // Log a warning if pretty-printing fails, but still proceed with debug log of raw struct.
             log_warn!("[Shell Config] Failed to pretty-print aliases for debug log: {}", e);
-            log_debug!("[Shell Config] And aliases: {:?}", shell_cfg.aliases);
+            log_debug!("[Shell Config] And aliases: {:#?}", shell_cfg.aliases);
         }
     }
 
@@ -132,7 +132,7 @@ pub fn contains_multiline_block(haystack_lines: &[String], needle_lines: &[Strin
 ///   - `Ok(())` on successful write of all lines.
 ///   - An `Err` if any I/O error occurs during file opening or writing.
 pub fn append_to_rc_file(rc_path: &Path, lines: Vec<String>) -> std::io::Result<()> {
-    log_debug!("[ShellRC:append_to_rc_file] Preparing to append {} new lines to RC file: {:?}", lines.len().to_string().bold(), rc_path.display().to_string().yellow());
+    log_debug!("[ShellRC:append_to_rc_file] Preparing to append {} new lines to RC file: {}", lines.len().to_string().bold(), rc_path.display().to_string().yellow());
 
     // Open the file with specific options using `OpenOptions::new()`:
     // - `create(true)`: If the file does not exist, create it.
@@ -142,7 +142,7 @@ pub fn append_to_rc_file(rc_path: &Path, lines: Vec<String>) -> std::io::Result<
         .append(true) // Open in append mode.
         .open(rc_path)?; // Attempt to open the file. The `?` operator will propagate any `io::Error`.
 
-    log_debug!("[ShellRC:append_to_rc_file] RC file {:?} opened in append mode.", rc_path.display());
+    log_debug!("[ShellRC:append_to_rc_file] RC file {} opened in append mode.", rc_path.display());
 
     // Add a clear comment header before appending new configurations.
     // This makes it easy for users to identify entries added by 'setup-devbox' in their RC file.
@@ -232,8 +232,7 @@ pub fn get_rc_file(shell: &str) -> Option<PathBuf> {
 ///                  - Returns an empty vector (`Vec::new()`) if the file doesn't exist,
 ///                    or if an error occurs during reading (e.g., permission issues).
 pub fn read_rc_lines(rc_path: &Path) -> Vec<String> {
-    log_debug!("[ShellRC:read_rc_lines] Attempting to read lines from RC file: {:?}", rc_path.display().to_string().dimmed());
-
+    log_debug!("[ShellRC:read_rc_lines] Attempting to read lines from RC file: {}", rc_path.display().to_string().dimmed());
     // First, check if the file actually exists. If not, there are no lines to read,
     // and we can return an empty vector immediately without attempting to open it.
     if !rc_path.exists() {

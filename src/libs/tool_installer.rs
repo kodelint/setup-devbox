@@ -45,7 +45,6 @@ pub fn install_tools(tools_cfg: ToolConfig, state: &mut DevBoxState, state_path_
     // `skipped_tools` vector: Stores the names of tools that were found to be already installed
     // and up-to-date, so their installation was skipped.
     let mut skipped_tools: Vec<String> = Vec::new();
-
     // Iterate over each `tool` entry provided in the `tools_cfg`.
     // The `&tools_cfg.tools` takes a reference to the vector of tools to avoid moving it,
     // allowing `tools_cfg` to be used later if needed.
@@ -55,7 +54,7 @@ pub fn install_tools(tools_cfg: ToolConfig, state: &mut DevBoxState, state_path_
         // Construct a unique key for the tool based on its name.
         // This key is used to store and retrieve the tool's state in the `DevBoxState` HashMap.
         // In this specific snippet, `tool.name` is used directly as the key.
-        log_debug!("[Tools] Considering tool: {:?}", tool.name.bold());
+        log_debug!("[Tools] Considering tool: {}", tool.name.bright_green());
 
         // Schema Validation Step
         // Before attempting any installation, validate the `ToolEntry` against its defined schema.
@@ -64,7 +63,7 @@ pub fn install_tools(tools_cfg: ToolConfig, state: &mut DevBoxState, state_path_
             Ok(_) => {
                 // If validation passes, log a debug message. This indicates the tool's configuration
                 // adheres to the expected structure.
-                log_debug!("[Tools] Tool '{}' passed schema validation.", tool.name.bold());
+                log_debug!("[Tools] Tool {} passed schema validation.", tool.name.bright_green());
             }
             Err(e) => {
                 // If validation fails, handle the specific error.
@@ -145,7 +144,14 @@ pub fn install_tools(tools_cfg: ToolConfig, state: &mut DevBoxState, state_path_
             log_info!("[Tools] Installing new tool from {}: {}", tool.source.to_string().bright_yellow(), tool.name.to_string().bright_blue().bold());
             // Log the full configuration details of the tool at debug level. This is helpful
             // for understanding exactly what parameters are being used for the installation.
-            log_debug!("[Tools] Full configuration details for tool '{}': {:?}", tool.name, tool);
+            log_debug!("[Tools] Full configuration details for tool '{}': name='{}', version='{}', source='{}', repo='{}', tag='{}', rename_to='{}'",
+                tool.name.green(), // Use .green() as per your output style
+                tool.name,
+                tool.version.as_deref().unwrap_or("N/A"), // .as_deref() to get &str from Option<String>, unwrap_or for "N/A"
+                tool.source,
+                tool.repo.as_deref().unwrap_or("N/A"),
+                tool.tag.as_deref().unwrap_or("N/A"),
+                tool.rename_to.as_deref().unwrap_or("N/A"));
 
             // Dispatch the installation to the appropriate installer function based on the tool's `source`.
             // The `match` statement checks the string value of `tool.source` (e.g., "GitHub", "brew").

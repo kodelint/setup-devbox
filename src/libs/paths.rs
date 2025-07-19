@@ -25,8 +25,8 @@ pub fn resolve_paths(
     state_path: Option<String>,   // User-provided path for the application state file.
 ) -> Option<(PathBuf, String, PathBuf)> {
     log_debug!("Entering resolve_paths() function."); // Debug log for function entry.
-    log_debug!("Initial config_path parameter: {:?}", config_path); // Log the initial `config_path` argument.
-    log_debug!("Initial state_path parameter: {:?}", state_path);   // Log the initial `state_path` argument.
+    log_debug!("Initial config_path parameter: {}", config_path.as_deref().unwrap_or("None")); // Log the initial `config_path` argument.
+    log_debug!("Initial state_path parameter: {}", state_path.as_deref().unwrap_or("None"));   // Log the initial `state_path` argument.
 
     // Define the default location for our main configuration file (`config.yaml`).
     let default_main_config = "~/.setup-devbox/configs/config.yaml";
@@ -45,8 +45,8 @@ pub fn resolve_paths(
     // Log the final, resolved paths. Vital for confirming correct file system locations.
     log_info!("Using configuration file: {}", config_path_resolved.display().to_string().cyan()); // Informative log for the config file path.
     log_debug!("Managing application state in: {}", state_path_resolved.display().to_string().yellow()); // Debug log for the state file path.
-    log_debug!("Resolved config_path: {:?}", config_path_resolved); // Debug log of the resolved config `PathBuf`.
-    log_debug!("Resolved state_path: {:?}", state_path_resolved);     // Debug log of the resolved state `PathBuf`.
+    log_debug!("Resolved config_path: {}", config_path_resolved.to_string_lossy()); // Debug log of the resolved config `PathBuf`.
+    log_debug!("Resolved state_path: {}", state_path_resolved.to_string_lossy());     // Debug log of the resolved state `PathBuf`.
     log_debug!("Detected config filename: '{}'", config_filename.blue()); // Debug log for the extracted filename.
 
     // Basic check to ensure paths are not empty or invalid. `as_os_str().is_empty()` checks if the underlying OS string is empty.
