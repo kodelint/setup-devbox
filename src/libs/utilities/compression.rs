@@ -32,6 +32,7 @@ pub(crate) use tar::Archive;
 // For extracting zip archives.
 // The `zip` crate provides functionality to read and write zip archives.
 use zip::ZipArchive;
+use xz2::read::XzDecoder;
 
 /// Extracts the contents of a compressed archive (zip, tar.gz, etc.) into a new subdirectory
 /// within the specified destination path. This is a core utility for unpacking downloaded tools.
@@ -51,7 +52,7 @@ use zip::ZipArchive;
 ///   - `Ok(PathBuf)` with the path to the newly created "extracted" directory if extraction was successful.
 ///   - An `io::Error` if extraction fails, the archive type is unsupported, or any I/O operation fails.
 pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -> io::Result<PathBuf> {
-    log_debug!("[Utils] Extracting archive {:?} into {:?}", src.to_string_lossy().blue(), dest.to_string_lossy().cyan());
+    log_debug!("[Utils] Extracting archive {} into {}", src.to_string_lossy().blue(), dest.to_string_lossy().cyan());
 
     // Determine the file type to guide the extraction process.
     // If `known_file_type` is provided (i.e., `Some(ft)`), use that.
@@ -104,7 +105,7 @@ pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -
             io::copy(&mut decompressor, &mut output_file)?;
             log_debug!("[Utils] GZ file decompressed successfully to {:?}", output_file_path.display());
         }
-        "tar.bz2" => {
+        "tar.bz2" | "tar.bz" => {
             // Open the bzipped tar file.
             let tar_bz2 = File::open(src)?;
             // Create a `BzDecoder` to decompress the bzip2 stream.
@@ -123,6 +124,14 @@ pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -
             // Unpack all contents of the tar archive into the `extracted_path`.
             archive.unpack(&extracted_path)?;
             log_debug!("[Utils] Tar archive extracted successfully.");
+        }
+        "tar.xz" | "xz" | "txz" => { // Added support for tar.xz and xz/txz aliases
+            log_debug!("[Utils] Decompressing Tar.xz/XZ file.");
+            let tar_xz = File::open(src)?;
+            let decompressor = XzDecoder::new(tar_xz);
+            let mut archive = Archive::new(decompressor);
+            archive.unpack(&extracted_path)?;
+            log_debug!("[Utils] Tar.xz archive extracted successfully.");
         }
         "binary" => { // For standalone binaries like a .exe or uncompressed Mac binary.
             // In this case, "extraction" means simply copying the binary to the `extracted_path`.
@@ -158,6 +167,6 @@ pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -
     }
 
     // Log a success message with the path to the extracted contents.
-    log_debug!("[Utils] ✨ Archive contents available at: {:?}", extracted_path.to_string_lossy().green());
+    log_debug!("[Utils] Archive contents available at: {}", extracted_path.to_string_lossy().green());
     Ok(extracted_path) // Return the path to the directory where contents were extracted.
 }
