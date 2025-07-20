@@ -6,10 +6,10 @@
 // Our primary goal here is to provide a robust and extensible mechanism for installing tools
 // where the source of truth for distribution is a GitHub repository's "Releases" section.
 
-// Standard library imports:
-use std::{env, fs};
 // For interacting with environment variables, specifically to find the HOME directory.
 use std::path::PathBuf;
+// Standard library imports:
+use std::env;
 // For ergonomic and platform-agnostic path manipulation.
 
 // External crate imports:
@@ -18,13 +18,6 @@ use colored::Colorize;
 // For deserializing JSON responses from the GitHub API into Rust structs.
 use ureq;
 
-// Internal module imports:
-// `Release`: Defines the structure for deserializing GitHub Release API responses.
-// `ToolEntry`: Represents a single tool's configuration as defined in our `tools.yaml`,
-//              providing necessary details like repository name, tag, and desired tool name.
-// `ToolState`: Represents the state of an installed tool, which we persist in `state.json`
-//              to track installed tools, their versions, and paths.
-use crate::schema::{Release, ToolEntry, ToolState};
 // Provides various utility functions from libs/utilities:
 // `download_file`: Handles downloading a file from a URL to a local path.
 // `extract_archive`: Decompresses and extracts various archive formats (zip, tar.gz, etc.).
@@ -37,7 +30,6 @@ use crate::schema::{Release, ToolEntry, ToolState};
 // `detect_file_type`, `detect_file_type_from_filename`: Utilities to infer file types.
 use crate::libs::utilities::{assets::{
     detect_file_type,
-    detect_file_type_from_filename,
     download_file,
     install_pkg
 }, binary::{
@@ -45,16 +37,23 @@ use crate::libs::utilities::{assets::{
     make_executable,
     move_and_rename_binary
 }, compression, platform::{
-    detect_os,
+    asset_matches_platform,
     detect_architecture,
-    asset_matches_platform
+    detect_os
 }};
+// Internal module imports:
+// `Release`: Defines the structure for deserializing GitHub Release API responses.
+// `ToolEntry`: Represents a single tool's configuration as defined in our `tools.yaml`,
+//              providing necessary details like repository name, tag, and desired tool name.
+// `ToolState`: Represents the state of an installed tool, which we persist in `state.json`
+//              to track installed tools, their versions, and paths.
+use crate::schema::{Release, ReleaseAsset, ToolEntry, ToolState};
 
+use crate::libs::utilities::assets::install_dmg;
 // Custom logging macros. These are used throughout the module to provide informative output
 // during the installation process, aiding in debugging and user feedback.
 use crate::{log_debug, log_error, log_info};
 use tempfile::Builder as TempFileBuilder;
-use crate::libs::utilities::assets::install_dmg;
 
 /// Installs a software tool by fetching its release asset from GitHub.
 ///
@@ -151,9 +150,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         return None;
     }
 
-    // Parse the successful JSON response body into our `Release` struct.
-    // This deserialization uses `serde_json` and requires the `Release` struct
-    // to correctly mirror the expected GitHub API JSON structure.
+    // // Parse the successful JSON response body into our `Release` struct.
+    // // This deserialization uses `serde_json` and requires the `Release` struct
+    // // to correctly mirror the expected GitHub API JSON structure.
     let release: Release = match response.into_json() {
         Ok(json) => json,
         Err(err) => {
@@ -162,33 +161,49 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             return None;
         }
     };
-
     // 4. Find the Correct Asset for the Current Platform
     // A GitHub release can have multiple assets (downloadable files). We need to identify
-    // the specific asset that is compatible with the detected OS and architecture.
-    // The `asset_matches_platform` utility function contains the logic for this, typically
-    // by pattern matching on asset filenames (e.g., checking for "linux-amd64" in the name).
-    let asset_opt = release.assets.iter()
-        .find(|asset| asset_matches_platform(&asset.name, &os, &arch));
+    // all specific assets that are compatible with the detected OS and architecture.
+    // The `asset_matches_platform` utility function contains the logic for this.
+    let mut platform_matching_assets: Vec<&ReleaseAsset> = release.assets.iter()
+        .filter(|asset| asset_matches_platform(&asset.name, &os, &arch))
+        .collect();
 
-    let asset = match asset_opt {
-        Some(a) => {
-            log_debug!("[GitHub] Found matching asset: {}", a.name.bold());
-            a
-        },
-        None => {
-            // If no matching asset is found, this is a critical failure. Provide informative
-            // error messages, including a list of available assets to help with debugging
-            // or adjusting the `tools.yaml` configuration.
-            let available_assets = release.assets.iter().map(|a| a.name.clone()).collect::<Vec<_>>();
-            log_error!(
-                "[GitHub] No suitable release asset found for platform {}-{} in repo {} tag {}. \
-                 Please check the release assets on GitHub. Available assets: {}",
-                os.to_string().red(), arch.to_string().red(), repo.to_string().red(), tag.to_string().red(), available_assets.join(", ").to_string().yellow()
-            );
-            return None;
-        }
+    let asset = if platform_matching_assets.is_empty() {
+        // If no matching asset is found after filtering, this is a critical failure.
+        // Provide informative error messages, including a list of available assets to help with debugging.
+        let available_assets = release.assets.iter().map(|a| a.name.clone()).collect::<Vec<_>>();
+        log_error!(
+        "[GitHub] No suitable release asset found for platform {}-{} in repo {} tag {}. \
+         Please check the release assets on GitHub. Available assets: {}",
+        os.to_string().red(), arch.to_string().red(), repo.to_string().red(), tag.to_string().red(), available_assets.join(", ").to_string().yellow()
+    );
+        return None;
+    } else {
+        // Prioritization Logic `dmg` or `pkg` for macOS
+        // Sort the platform-matching assets. We want .pkg or .dmg files to come first.
+        platform_matching_assets.sort_by(|a, b| {
+            let a_is_pkg_dmg = a.name.ends_with(".pkg") || a.name.ends_with(".dmg");
+            let b_is_pkg_dmg = b.name.ends_with(".pkg") || b.name.ends_with(".dmg");
+
+            match (a_is_pkg_dmg, b_is_pkg_dmg) {
+                (true, false) => std::cmp::Ordering::Less,    // 'a' is pkg/dmg, 'b' is not -> 'a' comes first
+                (false, true) => std::cmp::Ordering::Greater, // 'b' is pkg/dmg, 'a' is not -> 'b' comes first
+                _ => std::cmp::Ordering::Equal,               // Both or neither are pkg/dmg -> maintain original order (or add another tie-breaker like size/name)
+            }
+        });
+
+        // After sorting, the most preferred asset (pkg/dmg if present) will be at the front.
+        // We can safely unwrap here because we checked `is_empty()` above.
+        let selected_asset = platform_matching_assets.first().unwrap(); // Get the first (highest priority) asset
+
+        log_debug!("[GitHub] Found matching asset: {}", selected_asset.name.bold());
+        selected_asset
     };
+
+    // Once the correct asset is identified, extract its download URL.
+    let download_url = &asset.browser_download_url;
+    log_debug!("[GitHub] Download URL for selected asset: {}", download_url.dimmed());
 
     // Once the correct asset is identified, extract its download URL.
     let download_url = &asset.browser_download_url;
@@ -196,9 +211,6 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     // 5. Download the Asset
     // We download the asset to a temporary directory to avoid cluttering the user's system
-    // and to facilitate extraction and cleanup.
-    // let temp_dir = get_temp_dir();
-
     // Create a single, unique temporary directory for this entire installation run.
     // This ensures isolation between different tool installations.
     let install_temp_root = match TempFileBuilder::new()
@@ -226,19 +238,11 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // 6. Detect Downloaded File Type
     // We need to know the file type (e.g., "zip", "tar.gz", "binary", "pkg") to determine
     // the appropriate installation strategy (extraction, direct move, package installation).
-    // `detect_file_type_from_filename` is preferred here for archives because the filename
+    // `detect_file_type` is preferred here for archives because the filename
     // usually clearly indicates the compression format, which is more reliable than
     // `file` command output for archives.
-    let file_type_from_name = detect_file_type_from_filename(&downloaded_asset_path.to_string_lossy());
-    log_debug!("[GitHub] Detected downloaded file type (from filename): {}", file_type_from_name.to_string().magenta());
-
-    // `actual_file_type_for_state` uses the `file` command, which provides a deeper inspection
-    // of the file's magic bytes. While `file_type_from_name` is used for deciding *how* to extract,
-    // this `actual_file_type_for_state` is more accurate for recording the precise file type
-    // in the `ToolState`, which can be valuable for diagnostics or future enhancements.
-    let actual_file_type_for_state = detect_file_type(&downloaded_asset_path);
-    log_debug!("[GitHub] Detected downloaded file type (from `file` command for state): {}", actual_file_type_for_state.to_string().magenta());
-
+    let file_type = detect_file_type(&downloaded_asset_path);
+    log_debug!("[GitHub] Detected downloaded file type (from filename): {}", file_type.to_string().magenta());
 
     // 7. Determine Final Installation Path
     // Tools are typically installed into a `bin/` directory within the user's home directory
@@ -258,26 +262,48 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Construct the full absolute path where the tool's executable will be placed.
     let install_path = PathBuf::from(format!("{}/bin/{}", home_dir, bin_name));
     log_debug!("[GitHub] Target installation path for {}: {}", tool_entry.name.to_string().bright_blue(), install_path.display().to_string().cyan());
+    // Introduce a mutable variable to store the actual final install path for the state.
+    // Initialize it with the default binary path, then update for pkg/dmg.
+    let mut final_install_path_for_state = install_path.clone();
+    // This variable will hold the determined package type for the ToolState
+    let package_type_for_state: String;
 
     // 8. Install Based on File Type
     // This `match` statement serves as the primary dispatcher for installation logic,
-    // branching based on the detected `file_type_from_name`. Each branch handles a
+    // branching based on the detected `file_type`. Each branch handles a
     // specific type of asset:
-    match file_type_from_name.as_str() {
+    match file_type.as_str() {
         "pkg" => {
-            // Handles macOS installer packages (.pkg). This often involves calling system utilities.
             log_info!("[GitHub] Installing .pkg file for {}.", tool_entry.name.to_string().bold());
-            if let Err(err) = install_pkg(&downloaded_asset_path) {
-                log_error!("[GitHub] Failed to install .pkg for {}: {}", tool_entry.name.to_string().red(), err);
-                return None;
+            // Call install_pkg and capture its returned installation path
+            match install_pkg(&downloaded_asset_path, &tool_entry.name) {
+                Ok(path) => {
+                    // Store the actual install path for ToolState
+                    final_install_path_for_state = path;
+                    // Set package_type to "pkg" as the direct installation type
+                    package_type_for_state = "macos-pkg-installer".to_string();
+
+                }
+                Err(err) => {
+                    log_error!("[GitHub] Failed to install .pkg for {}: {}", tool_entry.name.to_string().red(), err);
+                    return None;
+                }
             }
         }
         "dmg" => {
-            // Handles macOS installer packages (.dmg). This often involves calling system utilities.
             log_info!("[GitHub] Installing .dmg file for {}.", tool_entry.name.to_string().bold());
-            if let Err(err) = install_dmg(&downloaded_asset_path) {
-                log_error!("[GitHub] Failed to install .pkg for {}: {}", tool_entry.name.to_string().red(), err);
-                return None;
+            // Call install_dmg and capture its returned installation path
+            match install_dmg(&downloaded_asset_path, &tool_entry.name) {
+                Ok(path) => {
+                    // Store the actual install path for ToolState
+                    final_install_path_for_state = path;
+                    // Set package_type to "pkg" as the direct installation type
+                    package_type_for_state = "macos-dmg-installer".to_string();
+                }
+                Err(err) => {
+                    log_error!("[GitHub] Failed to install .dmg for {}: {}", tool_entry.name.to_string().red(), err); // Note: Corrected log from .pkg to .dmg
+                    return None;
+                }
             }
         }
         "binary" => {
@@ -293,12 +319,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 log_error!("[GitHub] Failed to make binary executable for {}: {}", tool_entry.name.to_string().red(), err);
                 return None;
             }
+            // Set package_type to "binary" as it's a direct binary installation
+            package_type_for_state = "binary".to_string();
         }
         // Handles common archive formats. For these, extraction is required, followed by
         // finding the actual executable within the extracted contents.
         "zip" | "tar.gz" | "gz" | "tar.bz2" | "tar" | "tar.xz" | "tar.bz" | "txz" | "tbz2" => {
             log_debug!("[GitHub] Extracting archive for {}.", tool_entry.name.to_string().blue());
-            let extracted_path = match compression::extract_archive(&downloaded_asset_path, &install_temp_root.path(), Some(&file_type_from_name)) {
+            let extracted_path = match compression::extract_archive(&downloaded_asset_path, &install_temp_root.path(), Some(&file_type)) {
                 Ok(path) => path,
                 Err(err) => {
                     log_error!("[GitHub] Failed to extract archive for {}: {}", tool_entry.name.to_string().red(), err);
@@ -328,6 +356,8 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 log_error!("[GitHub] Failed to make extracted binary executable for {}: {}", tool_entry.name.to_string().red(), err);
                 return None;
             }
+            // Set package_type to "binary" as it's a direct binary installation
+            package_type_for_state = "binary".to_string();
         }
         unknown => {
             // Catch-all for unsupported or unrecognized file types.
@@ -348,8 +378,8 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // The version field for tracking. Defaults to "latest" if not explicitly set in `tools.yaml`.
         version: tool_entry.version.clone().unwrap_or_else(|| "latest".to_string()),
         // The canonical path where the tool's executable was installed.
-        install_path: install_path.display().to_string(),
-        // Flag indicating that this tool was installed by `devbox`.
+        install_path: final_install_path_for_state.display().to_string(),
+        // Flag indicating that this tool was installed by `setup-devbox`.
         installed_by_devbox: true,
         // The method of installation, useful for future diagnostics or differing update logic.
         install_method: "github".to_string(),
@@ -362,11 +392,11 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // The actual package type detected by the `file` command. This is for diagnostic
         // purposes, providing the most accurate type even if the installation logic
         // used a filename-based guess.
-        package_type: actual_file_type_for_state,
+        package_type: package_type_for_state,
         // Placeholder for future options that might be stored with the tool's state.
         options: tool_entry.options.clone(),
         // For direct URL installations: The original URL from which the tool was downloaded.
-        url: tool_entry.url.clone(),
+        url: Some(download_url.clone()),
         executable_path_after_extract: None,
     })
 }
