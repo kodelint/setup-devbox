@@ -112,7 +112,7 @@ fn arch_aliases(arch: &str) -> Vec<String> {
 /// * `Vec<String>`: A vector of strings containing the input OS name and its known aliases.
 fn os_aliases(os: &str) -> Vec<String> {
     match os.to_lowercase().as_str() {
-        "macos" => vec!["macos", "darwin", "apple-darwin", "macosx"] // Aliases for macOS.
+        "macos" => vec!["macos", "darwin", "apple-darwin", "macosx", "pkg", "dmg"] // Aliases for macOS.
             .into_iter()
             .map(|s| s.to_string())
             .collect(),
