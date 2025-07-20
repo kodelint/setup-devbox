@@ -51,7 +51,7 @@ use std::env;
 ///   or if any `rustup` command (toolchain install or component add) fails.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_info!("[Rustup Installer] Attempting to install Rust-related tools based on entry: {}", tool_entry.name.bold());
-    log_debug!("[Rustup Installer] ToolEntry details: {:?}", tool_entry);
+    log_debug!("[Rustup Installer] ToolEntry details: {:#?}", tool_entry);
 
     // 1. Basic validation: Ensure 'rustup' command is available on the system.
     // We check for its existence by attempting to run `rustup --version`.

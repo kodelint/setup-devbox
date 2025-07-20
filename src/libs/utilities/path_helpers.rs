@@ -1,3 +1,8 @@
+// Our custom logging macros to give us nicely formatted (and colored!) output
+// for debugging, general information, and errors.
+use crate::{log_debug, log_error, log_warn};
+// The 'colored' crate helps us make our console output look pretty and readab
+use colored::Colorize;
 // For getting environment variables, like HOME.
 // `std::env` is used to find the user's home directory to determine rustup's installation path.
 use std::env;
@@ -5,14 +10,6 @@ use std::env;
 // `std::path::Path` is a powerful type for working with file paths in a robust way.
 // `std::path::PathBuf` provides an OS-agnostic way to build and manipulate file paths.
 use std::path::PathBuf;
-// The 'colored' crate helps us make our console output look pretty and readab
-use colored::Colorize;
-// Our custom logging macros to give us nicely formatted (and colored!) output
-// for debugging, general information, and errors.
-use crate::{log_debug, log_error, log_warn};
-// For file system operations: creating directories, reading files, etc.
-// `std::fs` provides functions for interacting with the file system.
-use std::fs;
 
 /// A super useful function to resolve paths that start with a tilde `~`.
 /// On Unix-like systems, `~` is a shortcut for the user's home directory.
@@ -72,25 +69,4 @@ pub fn get_devbox_dir() -> PathBuf {
         log_warn!("[Utils] Fallback DevBox directory: {}", fallback_dir.display().to_string().yellow());
         fallback_dir
     }
-}
-
-/// Returns a path to a dedicated temporary directory for `setup-devbox` operations.
-/// This ensures that temporary files are kept separate from other system temporary files
-/// and can be easily identified and cleaned up. The directory is created if it doesn't exist.
-///
-/// # Returns
-/// * `PathBuf`: The absolute path to the `setup-devbox` specific temporary directory.
-pub fn get_temp_dir() -> PathBuf {
-    // Start with the system's standard temporary directory (e.g., `/tmp` on Unix, `%TEMP%` on Windows).
-    let path = env::temp_dir()
-        // Append a subdirectory specific to our application (`setup-devbox`).
-        .join("setup-devbox");
-    // Attempt to create this directory (and any necessary parent directories).
-    // `let _ =` is used to ignore the `Result` returned by `fs::create_dir_all`.
-    // It's acceptable if the directory already exists, and if creation fails due to
-    // other reasons (e.g., permissions), we proceed with the path anyway, and subsequent
-    // file operations will fail, which is the correct behavior.
-    let _ = fs::create_dir_all(&path);
-    // Return the full path to our specific temporary directory.
-    path
 }

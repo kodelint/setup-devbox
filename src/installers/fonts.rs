@@ -51,7 +51,7 @@ struct ValidatedFontDetails {
 /// * `None` if validation fails (e.g., missing required fields, unsupported source),
 ///   with an error message logged.
 fn validate_font_entry(font: &FontEntry) -> Option<ValidatedFontDetails> {
-    log_debug!("[Font Validation] Validating font entry: {:?}", font.name);
+    log_debug!("[Font Validation] Validating font entry: {}", font.name);
 
     if font.source.to_lowercase() != "github" {
         log_error!(
@@ -283,7 +283,7 @@ fn copy_non_hidden_font_files(
         if let Some(filters) = install_only {
             if !filters.iter().any(|filter| filename.contains(filter)) {
                 log_debug!(
-                    "[Font Copy] Skipping font file '{}' as it does not match 'install_only' filters ({:?}).",
+                    "[Font Copy] Skipping font file '{}' as it does not match 'install_only' filters ({:#?}).",
                     filename.blue(), filters
                 );
                 continue;

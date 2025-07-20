@@ -62,7 +62,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
                     Err(err) => {
                         // If JSON deserialization fails (e.g., corrupted file, schema mismatch).
                         log_error!(
-                            "Invalid state.json format at {:?}: {}. Please check the file's content or delete it to start fresh.",
+                            "Invalid state.json format at {}: {}. Please check the file's content or delete it to start fresh.",
                             state_path_resolved.display().to_string().red(),
                             err
                         );
@@ -73,7 +73,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
             Err(err) => {
                 // If the file cannot be read (e.g., permissions error).
                 log_error!(
-                    "Failed to read state file {:?}: {}. Please verify file permissions.",
+                    "Failed to read state file {}: {}. Please verify file permissions.",
                     state_path_resolved.display().to_string().red(),
                     err
                 );

@@ -70,7 +70,7 @@ tar = "0.4.44"
 
 # 'zip' is a library for working with `.zip` archives.
 # Zip files are another popular format for bundling and compressing files, especially common on Windows.
-zip = "4.3.0"
+zip = "0.6.2"
 
 # 'bzip2' provides bindings to the `bzip2` compression library.
 # This crate allows your application to handle `.bz2` compressed files and `.tar.bz2` archives.
@@ -81,3 +81,18 @@ bzip2 = "0.6.0"
 # This is useful for tasks like finding all files within a directory,
 # or cleaning up temporary directories after installations.
 walkdir = "2.5.0"
+
+# 'tempfile' is a crate for creating temporary files and directories.
+# This is useful for safely handling temporary data without worrying about cleanup,
+# as the temporary files/directories are automatically deleted when they go out of scope.
+tempfile = "3.20.0"
+
+# 'xz2' provides bindings to the `liblzma` (XZ) compression library.
+# This crate allows your application to handle `.xz` compressed files and `.tar.xz` archives,
+# which are known for high compression ratios.
+xz2 = "0.1.7"
+
+# 'goblin' is a crate for parsing various binary executable formats (ELF, Mach-O, PE).
+# This can be useful for inspecting executable files, understanding their structure,
+# or potentially for dynamic loading or analysis tasks within the setup process.
+goblin = "0.10.0"

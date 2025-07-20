@@ -42,7 +42,7 @@ pub fn install_fonts(fonts_cfg: FontConfig, state: &mut DevBoxState, state_path_
     for font in &fonts_cfg.fonts {
         // Log at debug level the name of the current font being considered for installation.
         // `font.name.bold()` makes the font name bold in the debug output for better readability.
-        log_debug!("[Fonts] Considering font: {:?}", font.name.bold());
+        log_debug!("[Fonts] Considering font: {}", font.name.bold());
         // Check if the font is already present in the `DevBoxState`.
         // `!state.fonts.contains_key(&font.name)` evaluates to `true` if the font's name
         // is NOT found as a key in the `state.fonts` HashMap, indicating that it needs to be installed.
