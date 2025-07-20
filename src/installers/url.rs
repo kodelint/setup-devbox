@@ -120,14 +120,23 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     let detected_file_type = detect_file_type(&temp_download_path);
     log_debug!("[URL] Detected file type for {} is: {}", temp_download_path.display(), detected_file_type.yellow());
 
+    // This match block dispatches to specific installation logic based on the detected file type.
+    // Each arm handles a different type of asset (archives, macOS packages, direct binaries)
+    // to ensure proper extraction, copying, or execution.
     match detected_file_type.as_str() {
+        // Handles various archive formats.
         "zip" | "tar.gz" | "tar.bz2" | "tar.xz" | "tar" | "gz" | "bz2" | "xz" | "7zip" => {
             log_info!("[URL] Extracting archive from URL: {}", download_url_str.cyan());
+            // Call the `extract_archive` utility function to decompress and extract the contents
+            // of the downloaded archive into the tool's designated installation directory.
             match extract_archive(&temp_download_path, &tool_install_dir, Some(&detected_file_type)) {
                 Ok(path) => {
-                    final_install_path_for_state = path.clone(); // path points to extracted dir, e.g., ~/.setup-devbox/tools/zed/extracted/
-                    // Set package_type to "pkg" as the direct installation type
-                    package_type = "binary".to_string(); // More specific type
+                    // `path` here refers to the directory where the archive was extracted (e.g., ~/.setup-devbox/tools/zed/extracted/).
+                    final_install_path_for_state = path.clone();
+                    // Set the package type to "binary" as the extracted contents will typically contain the binary.
+                    package_type = "binary".to_string();
+                    // If the tool entry specifies a path to the executable within the extracted archive,
+                    // we clone it for persistence in `ToolState`.
                     executable_path_after_extract_for_state = tool_entry.executable_path_after_extract.clone();
                 },
                 Err(e) => {
@@ -137,13 +146,20 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             }
         },
         "pkg" => {
-            // macOS-specific .pkg installer handling
+            // macOS-specific .pkg installer handling.
             log_info!("[URL] Detected .pkg installer for {}. Initiating macOS package installation...", tool_entry.name.green());
+            // Call `install_pkg` to execute the macOS package installer. This function handles
+            // the complexities of running `.pkg` files, which often install to system-wide locations
+            // (e.g., `/Applications` or `/usr/local/bin`).
             match install_pkg(&temp_download_path, &tool_entry.name) {
                 Ok(path) => {
-                    final_install_path_for_state = path; // Path is /Applications/AppName.app or /usr/local/bin/tool_name
-                    package_type = "macos-pkg-installer".to_string(); // More specific type
-                    executable_path_after_extract_for_state = None; // For .pkg installs, the install_path is usually the executable
+                    // The `path` returned by `install_pkg` is the actual location where the application/tool was installed.
+                    final_install_path_for_state = path;
+                    // Mark the package type as a macOS PKG installer.
+                    package_type = "macos-pkg-installer".to_string();
+                    // For .pkg installs, the `install_path` typically points directly to the installed application
+                    // or binary, so `executable_path_after_extract` is not applicable.
+                    executable_path_after_extract_for_state = None;
                 },
                 Err(e) => {
                     log_error!("[URL] Failed to install .pkg for {}: {}", tool_entry.name.red(), e.to_string().red());
@@ -152,13 +168,18 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             }
         },
         "dmg" => {
-            // macOS-specific .dmg installer handling
+            // macOS-specific .dmg installer handling.
             log_info!("[URL] Detected .dmg installer for {}. Initiating macOS disk image installation...", tool_entry.name.green());
+            // Call `install_dmg` to handle mounting the disk image and copying its contents.
+            // This function specifically deals with macOS disk images, which are common distribution formats.
             match install_dmg(&temp_download_path, &tool_entry.name) {
                 Ok(path) => {
-                    final_install_path_for_state = path; // Path is /Applications/AppName.app
-                    package_type = "macos-dmg-installer".to_string(); // More specific type
-                    executable_path_after_extract_for_state = None; // For .dmg installs, the install_path is usually the .app bundle
+                    // The `path` here refers to the location where the application from the DMG was copied (e.g., `/Applications/AppName.app`).
+                    final_install_path_for_state = path;
+                    // Mark the package type as a macOS DMG installer.
+                    package_type = "macos-dmg-installer".to_string();
+                    // Similar to .pkg, the `install_path` directly points to the installed app, so this is `None`.
+                    executable_path_after_extract_for_state = None;
                 },
                 Err(e) => {
                     log_error!("[URL] Failed to install .dmg for {}: {}", tool_entry.name.red(), e.to_string().red());
@@ -167,12 +188,17 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             }
         },
         "binary" => {
+            // Handles cases where the downloaded file is a standalone executable binary.
             log_info!("[URL] Detected direct binary for {}. Copying to install directory...", tool_entry.name.green());
+            // Construct the target path for the binary within the tool's installation directory.
             let target_path = tool_install_dir.join(&tool_entry.name);
+            // Copy the downloaded binary directly to its final installation path.
             match fs::copy(&temp_download_path, &target_path) {
                 Ok(_) => {
                     log_info!("[URL] Binary copied to: {}", target_path.display().to_string().green());
-                    // Ensure executable permissions on Unix-like systems
+                    // Ensure executable permissions on Unix-like systems.
+                    // This `cfg(unix)` attribute ensures this code only compiles on Unix-like OSes
+                    // where file permissions are relevant for executables.
                     #[cfg(unix)]
                     {
                         use std::os::unix::fs::PermissionsExt;
@@ -184,16 +210,20 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                             }
                         };
                         let mut permissions = metadata.permissions();
-                        permissions.set_mode(0o755); // rwx for owner, rx for group and others
+                        // Set permissions to 0o755 (rwx for owner, rx for group and others).
+                        permissions.set_mode(0o755);
                         if let Err(e) = fs::set_permissions(&target_path, permissions) {
                             log_error!("[URL] Failed to set permissions for binary {}: {}", target_path.display().to_string().red(), e.to_string().red());
                             return None;
                         }
                         log_debug!("[URL] Executable permissions set for: {}", target_path.display());
                     }
-                    final_install_path_for_state = target_path; // Binary is directly at this path
+                    // The final install path is the path to the copied binary itself.
+                    final_install_path_for_state = target_path;
+                    // Mark the package type as a direct binary.
                     package_type = "binary".to_string();
-                    executable_path_after_extract_for_state = None; // Binary is the executable
+                    // No extraction occurred, so this field is `None`.
+                    executable_path_after_extract_for_state = None;
                 },
                 Err(e) => {
                     log_error!("[URL] Failed to copy binary for {}: {}", tool_entry.name.red(), e.to_string().red());
@@ -202,6 +232,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             }
         },
         _ => {
+            // Fallback for any unsupported or unrecognized file types.
             log_error!("[URL] Unsupported file type detected for {}: '{}'.", tool_entry.name.red(), detected_file_type.red());
             return None;
         }

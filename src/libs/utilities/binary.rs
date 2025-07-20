@@ -56,45 +56,59 @@ use walkdir::WalkDir;
 
 
 pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> Option<PathBuf> {
+    // Convert tool name and target (renamed) name to lowercase for case-insensitive comparisons.
     let tool_name_lower = tool_name.to_lowercase();
     let target_name_lower = rename_to.map_or(tool_name_lower.clone(), |s| s.to_lowercase());
+    // Vector to store potential executable candidates, along with their file sizes for sorting.
     let mut candidates: Vec<(PathBuf, u64)> = Vec::new();
 
-    // Read entries in the extracted directory (non-recursive)
+    // Special handling for directories containing a single entry.
+    // This optimization attempts to quickly identify the executable if it's the only file/directory.
     let entries: Vec<_> = fs::read_dir(dir)
-        .ok()?
-        .filter_map(Result::ok)
+        .ok()? // Return None if the directory cannot be read.
+        .filter_map(Result::ok) // Filter out any entries that caused an error.
         .collect();
 
+    // If there's exactly one entry in the directory:
     if entries.len() == 1 {
         let sole_path = entries[0].path();
+        // If that single entry is a file:
         if sole_path.is_file() {
             log_debug!("Single file found, inspecting as potential binary: {}", sole_path.display());
 
+            // Attempt to read the file's content for header inspection.
             match fs::read(&sole_path) {
                 Ok(data) => {
                     log_debug!("Read {} bytes from file for header inspection.", data.len());
+                    // Use `goblin` to parse the file's header and detect known executable formats.
                     match Object::parse(&data) {
                         Ok(obj) => {
                             match obj {
+                                // If it's an ELF (Linux) or Mach-O (macOS) executable:
                                 Object::Elf(_) | Object::Mach(_) => {
                                     log_debug!("Detected native binary (ELF/Mach-O) in single file: {}", sole_path.display());
+                                    // On Unix-like systems, ensure it's executable.
                                     #[cfg(unix)]
                                     {
                                         if !is_executable(&sole_path) {
                                             if let Ok(metadata) = fs::metadata(&sole_path) {
                                                 let mut perms = metadata.permissions();
+                                                // Add executable permissions (0o755) to existing ones.
                                                 perms.set_mode(perms.mode() | 0o755);
                                                 let _ = fs::set_permissions(&sole_path, perms);
                                                 log_debug!("Updated permissions for single file binary: {}", sole_path.display());
                                             }
                                         }
                                     }
+                                    // If it's a confirmed native binary, return it immediately as the most likely candidate.
                                     return Some(sole_path);
                                 }
+                                // For other object types (e.g., PE for Windows, or unknown):
                                 _ => {
+                                    // Check if the file starts with `#!` (shebang), indicating a script.
                                     if data.starts_with(b"#!") {
                                         log_debug!("Detected shebang script in single file: {}", sole_path.display());
+                                        // On Unix-like systems, ensure it's executable.
                                         #[cfg(unix)]
                                         {
                                             if !is_executable(&sole_path) {
@@ -106,6 +120,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                                 }
                                             }
                                         }
+                                        // If it's a script, return it immediately.
                                         return Some(sole_path);
                                     }
                                 }
@@ -123,24 +138,28 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
         }
     }
 
-    // Walk recursively for multiple files
+    // If the single-file optimization didn't yield a result, or there are multiple files,
+    // walk the directory recursively to find all potential executables.
     for entry in WalkDir::new(dir)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.path().is_file())
+        .into_iter() // Convert to an iterator.
+        .filter_map(Result::ok) // Filter out any errors during directory traversal.
+        .filter(|e| e.path().is_file()) // Only process actual files, skip directories.
     {
         let path = entry.path();
+        // Get the lowercase filename for comparison.
         let file_name = path
             .file_name()
             .and_then(|s| s.to_str())
             .unwrap_or("")
             .to_lowercase();
 
+        // Skip files with common non-executable extensions or names.
+        // This is an optimization to avoid processing irrelevant files.
         if file_name.ends_with(".md")
             || file_name.ends_with(".txt")
             || file_name.ends_with(".json")
-            || file_name.ends_with(".1")
-            || file_name.ends_with(".ps1")
+            || file_name.ends_with(".1") // Man pages often have `.1` extension
+            || file_name.ends_with(".ps1") // PowerShell scripts
             || file_name.ends_with(".fish")
             || file_name.ends_with(".zsh")
             || file_name.ends_with(".bash")
@@ -150,24 +169,27 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
             || file_name.contains("readme")
         {
             log_debug!("Skipping known non-executable file by extension/name: {}", file_name);
-            continue;
+            continue; // Move to the next file.
         }
 
-        let mut add_candidate = false;
+        let mut add_candidate = false; // Flag to determine if the current file should be a candidate.
 
+        // Attempt to read file data for `goblin` and shebang checks.
         if let Ok(data) = fs::read(path) {
             log_debug!("Read {} bytes from file for header inspection: {}", data.len(), path.display());
             if let Ok(obj) = Object::parse(&data) {
                 match obj {
+                    // If it's an ELF or Mach-O executable:
                     Object::Elf(_) | Object::Mach(_) => {
                         if is_executable(path) {
                             log_debug!("Found executable binary (ELF/Mach-O): {}", path.display());
                             add_candidate = true;
                         } else {
+                            // On Unix, try to set executable permissions if not already set.
                             #[cfg(unix)]
                             if let Ok(metadata) = fs::metadata(path) {
                                 let mut perms = metadata.permissions();
-                                perms.set_mode(perms.mode() | 0o755);
+                                perms.set_mode(perms.mode() | 0o755); // Add executable bits
                                 if fs::set_permissions(path, perms).is_ok() {
                                     log_debug!("Set executable bit and added ELF/Mach-O binary: {}", path.display());
                                     add_candidate = true;
@@ -175,6 +197,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                     log_warn!("Failed to set executable permissions for {}.", path.display());
                                 }
                             }
+                            // On non-Unix, assume it's executable if recognized as ELF/Mach-O (e.g., Windows Subsystem for Linux scenario)
                             #[cfg(not(unix))]
                             {
                                 log_debug!("Found executable binary (ELF/Mach-O) on non-Unix: {}", path.display());
@@ -183,11 +206,13 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                         }
                     }
                     _ => {
+                        // If not a native binary, check for shebang.
                         if data.starts_with(b"#!") {
                             if is_executable(path) {
                                 log_debug!("Found executable script (shebang): {}", path.display());
                                 add_candidate = true;
                             } else {
+                                // On Unix, try to set executable permissions for scripts.
                                 #[cfg(unix)]
                                 if let Ok(metadata) = fs::metadata(path) {
                                     let mut perms = metadata.permissions();
@@ -199,6 +224,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                         log_warn!("Failed to set executable permissions for script {}.", path.display());
                                     }
                                 }
+                                // On non-Unix, assume executable.
                                 #[cfg(not(unix))]
                                 {
                                     log_debug!("Found executable script (shebang) on non-Unix: {}", path.display());
@@ -215,24 +241,31 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
             log_warn!("Failed to read file {} for parsing", path.display());
         }
 
+        // Fallback: If no executable format was confirmed, check for an exact filename match.
+        // This is important for tools that might not have standard executable headers or shebangs
+        // but are still meant to be executed (e.g., custom scripts without shebangs, or certain Windows executables).
         if !add_candidate && file_name == target_name_lower {
             log_debug!("Fallback: Forcing executable candidate for {} (exact name match).", path.display());
+            // On Unix, attempt to set executable permissions for this fallback candidate.
             #[cfg(unix)]
             if let Ok(metadata) = fs::metadata(path) {
                 let mut perms = metadata.permissions();
                 perms.set_mode(perms.mode() | 0o755);
                 if fs::set_permissions(path, perms).is_ok() {
+                    // Only add as candidate if permissions were successfully set and it's now executable.
                     if is_executable(path) {
                         add_candidate = true;
                     }
                 }
             }
+            // On non-Unix, simply add it as a candidate based on name match.
             #[cfg(not(unix))]
             {
                 add_candidate = true;
             }
         }
 
+        // If the file is deemed a candidate, add its path and size to the `candidates` vector.
         if add_candidate {
             let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
             log_debug!("Adding candidate: {} ({} bytes)", path.display(), size);
@@ -240,19 +273,27 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
         }
     }
 
+    // Sort the collected candidates to prioritize the most likely executable.
     candidates.sort_by(|(a_path, a_size), (b_path, b_size)| {
         let a = a_path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
         let b = b_path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
 
+        // Primary sort criterion: exact match with the `target_name_lower`.
+        // A file whose name exactly matches the expected (renamed) binary name is highly prioritized.
         if a == target_name_lower && b != target_name_lower {
-            std::cmp::Ordering::Less
+            std::cmp::Ordering::Less // 'a' comes before 'b'
         } else if a != target_name_lower && b == target_name_lower {
-            std::cmp::Ordering::Greater
+            std::cmp::Ordering::Greater // 'b' comes before 'a'
         } else {
+            // Secondary sort criterion (if neither or both match the target name):
+            // Sort by file size in descending order (larger files first), as main executables are often the largest.
             b_size.cmp(a_size)
         }
     });
 
+    // Return the path of the highest-priority candidate.
+    // `into_iter().map(|(p, _)| p).next()` takes the first element (highest priority)
+    // and discards the size, returning only the PathBuf.
     candidates.into_iter().map(|(p, _)| p).next()
 }
 
@@ -267,9 +308,12 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
 ///           by file extension (`.exe`, `.bat`, etc.) rather than permission bits.
 ///           Returns `false` if metadata cannot be retrieved or it's not executable.
 fn is_executable(path: &Path) -> bool {
+    // Get file metadata, specifically permissions.
     fs::metadata(path)
         // If metadata is retrieved successfully, check the permissions.
-        // `mode() & 0o111` checks if any of the execute bits (user, group, other) are set.
+        // `mode()` returns the file type and permissions as an integer.
+        // `0o111` is an octal mask representing the executable bits for owner, group, and others.
+        // `& 0o111 != 0` checks if *any* of these executable bits are set.
         .map(|m| m.permissions().mode() & 0o111 != 0)
         // If `fs::metadata` fails (e.g., file not found, permission denied), default to `false`.
         .unwrap_or(false)

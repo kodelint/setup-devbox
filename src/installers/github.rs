@@ -182,6 +182,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     } else {
         // Prioritization Logic `dmg` or `pkg` for macOS
         // Sort the platform-matching assets. We want .pkg or .dmg files to come first.
+        // This is a common heuristic for macOS installations, as these formats often
+        // provide a more complete and guided installation experience compared to raw binaries
+        // or archives that require manual placement.
         platform_matching_assets.sort_by(|a, b| {
             let a_is_pkg_dmg = a.name.ends_with(".pkg") || a.name.ends_with(".dmg");
             let b_is_pkg_dmg = b.name.ends_with(".pkg") || b.name.ends_with(".dmg");
@@ -211,6 +214,8 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     // 5. Download the Asset
     // We download the asset to a temporary directory to avoid cluttering the user's system
+    // with intermediate files. This temporary directory is managed by the `tempfile` crate,
+    // ensuring it's cleaned up automatically when it goes out of scope.
     // Create a single, unique temporary directory for this entire installation run.
     // This ensures isolation between different tool installations.
     let install_temp_root = match TempFileBuilder::new()
@@ -263,10 +268,11 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     let install_path = PathBuf::from(format!("{}/bin/{}", home_dir, bin_name));
     log_debug!("[GitHub] Target installation path for {}: {}", tool_entry.name.to_string().bright_blue(), install_path.display().to_string().cyan());
     // Introduce a mutable variable to store the actual final install path for the state.
-    // Initialize it with the default binary path, then update for pkg/dmg.
+    // Initialize it with the default binary path, then update for pkg/dmg if they install elsewhere.
     let mut final_install_path_for_state = install_path.clone();
-    // This variable will hold the determined package type for the ToolState
-    let package_type_for_state: String;
+    // This variable will hold the determined package type for the ToolState, allowing us to
+    // record how the tool was installed (e.g., "binary", "macos-pkg-installer").
+    let mut package_type_for_state: String;
 
     // 8. Install Based on File Type
     // This `match` statement serves as the primary dispatcher for installation logic,
@@ -275,12 +281,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     match file_type.as_str() {
         "pkg" => {
             log_info!("[GitHub] Installing .pkg file for {}.", tool_entry.name.to_string().bold());
-            // Call install_pkg and capture its returned installation path
+            // Call install_pkg and capture its returned installation path.
+            // .pkg installers typically install to predefined system locations (e.g., /Applications),
+            // so we need to get the actual path from the installation function.
             match install_pkg(&downloaded_asset_path, &tool_entry.name) {
                 Ok(path) => {
-                    // Store the actual install path for ToolState
+                    // Store the actual install path for ToolState, which might differ from `install_path`.
                     final_install_path_for_state = path;
-                    // Set package_type to "pkg" as the direct installation type
+                    // Set package_type to "macos-pkg-installer" to reflect the installation method.
                     package_type_for_state = "macos-pkg-installer".to_string();
 
                 }
@@ -292,12 +300,13 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         }
         "dmg" => {
             log_info!("[GitHub] Installing .dmg file for {}.", tool_entry.name.to_string().bold());
-            // Call install_dmg and capture its returned installation path
+            // Call install_dmg and capture its returned installation path.
+            // .dmg installers also install to specific locations (often /Applications or /Volumes).
             match install_dmg(&downloaded_asset_path, &tool_entry.name) {
                 Ok(path) => {
-                    // Store the actual install path for ToolState
+                    // Store the actual install path for ToolState.
                     final_install_path_for_state = path;
-                    // Set package_type to "pkg" as the direct installation type
+                    // Set package_type to "macos-dmg-installer" to reflect the installation method.
                     package_type_for_state = "macos-dmg-installer".to_string();
                 }
                 Err(err) => {
@@ -319,13 +328,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 log_error!("[GitHub] Failed to make binary executable for {}: {}", tool_entry.name.to_string().red(), err);
                 return None;
             }
-            // Set package_type to "binary" as it's a direct binary installation
+            // Set package_type to "binary" as it's a direct binary installation.
             package_type_for_state = "binary".to_string();
         }
         // Handles common archive formats. For these, extraction is required, followed by
         // finding the actual executable within the extracted contents.
         "zip" | "tar.gz" | "gz" | "tar.bz2" | "tar" | "tar.xz" | "tar.bz" | "txz" | "tbz2" => {
             log_debug!("[GitHub] Extracting archive for {}.", tool_entry.name.to_string().blue());
+            // Extract the downloaded archive to the temporary installation root.
             let extracted_path = match compression::extract_archive(&downloaded_asset_path, &install_temp_root.path(), Some(&file_type)) {
                 Ok(path) => path,
                 Err(err) => {
@@ -335,8 +345,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             };
 
             log_debug!("[GitHub] Searching for executable in extracted contents for {} in {}", tool_entry.name.to_string().blue(), extracted_path.display().to_string().cyan());
-            // Many archives contain nested directories. `find_executable` recursively searches
-            // the extracted contents to locate the actual binary we need to install.
+            // Many archives contain nested directories (e.g., `tool-v1.0.0/bin/tool_executable`).
+            // `find_executable` recursively searches the extracted contents to locate the actual binary
+            // we need to install. It handles cases where the binary might be in a subdirectory.
             let executable_path = match find_executable(&extracted_path, &tool_entry.name, tool_entry.rename_to.as_deref()) {
                 Some(path) => path,
                 None => {
@@ -351,16 +362,18 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 return None;
             }
             log_debug!("[GitHub] Making extracted binary executable for {}.", tool_entry.name.to_string().blue());
-            // Ensure the final binary has executable permissions set.
+            // Ensure the final binary has executable permissions set. This is crucial for Unix-like
+            // systems to allow the user to run the installed tool directly.
             if let Err(err) = make_executable(&install_path) {
                 log_error!("[GitHub] Failed to make extracted binary executable for {}: {}", tool_entry.name.to_string().red(), err);
                 return None;
             }
-            // Set package_type to "binary" as it's a direct binary installation
+            // Set package_type to "binary" as it's a direct binary installation after extraction.
             package_type_for_state = "binary".to_string();
         }
         unknown => {
-            // Catch-all for unsupported or unrecognized file types.
+            // Catch-all for unsupported or unrecognized file types. If we download something
+            // we don't know how to handle, we log an error and abort.
             log_error!("[GitHub] Unsupported or unknown file type '{}' for tool {}. Cannot install.", unknown.to_string().red(), tool_entry.name.to_string().red());
             return None;
         }
@@ -377,26 +390,32 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     Some(ToolState {
         // The version field for tracking. Defaults to "latest" if not explicitly set in `tools.yaml`.
         version: tool_entry.version.clone().unwrap_or_else(|| "latest".to_string()),
-        // The canonical path where the tool's executable was installed.
+        // The canonical path where the tool's executable was installed. This is the path
+        // that will be recorded in the `state.json` file.
         install_path: final_install_path_for_state.display().to_string(),
-        // Flag indicating that this tool was installed by `setup-devbox`.
+        // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
+        // between tools managed by our system and those installed manually.
         installed_by_devbox: true,
         // The method of installation, useful for future diagnostics or differing update logic.
+        // In this module, it's always "GitHub".
         install_method: "github".to_string(),
-        // Records if the binary was renamed during installation.
+        // Records if the binary was renamed during installation, storing the new name.
         renamed_to: tool_entry.rename_to.clone(),
         // Persist the GitHub repository slug, important for future sync/update checks.
         repo: tool_entry.repo.clone(),
         // Persist the GitHub tag (release version), important for future sync/update checks.
         tag: tool_entry.tag.clone(),
-        // The actual package type detected by the `file` command. This is for diagnostic
+        // The actual package type detected by the `file` command or inferred. This is for diagnostic
         // purposes, providing the most accurate type even if the installation logic
-        // used a filename-based guess.
+        // used a filename-based guess (e.g., "binary", "macos-pkg-installer").
         package_type: package_type_for_state,
         // Placeholder for future options that might be stored with the tool's state.
         options: tool_entry.options.clone(),
         // For direct URL installations: The original URL from which the tool was downloaded.
+        // This is important for re-downloading or verifying in the future.
         url: Some(download_url.clone()),
+        // This field is currently `None` but could be used to store the path to an executable
+        // *within* an extracted archive if `install_path` points to the archive's root.
         executable_path_after_extract: None,
     })
 }
