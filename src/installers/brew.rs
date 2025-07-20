@@ -163,7 +163,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // Any `rename_to` value specified in the configuration.
         renamed_to: tool_entry.rename_to.clone(),
         // Denotes the package type as "brew" for consistency and potential future filtering.
-        package_type: "brew".to_string(),
+        package_type: "binary-by-brew".to_string(),
         // `repo` and `tag` fields are specific to GitHub releases and are not applicable for Homebrew.
         repo: None,
         tag: None,
