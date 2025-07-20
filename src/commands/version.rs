@@ -11,10 +11,6 @@ use colored::Colorize;
 // Serde for deserializing structured data: Used to parse TOML (for `Cargo.toml`)
 // and JSON (for GitHub API responses) into Rust structs.
 use serde::Deserialize;
-// Standard library for file system operations: Needed to read the `Cargo.toml` file.
-use std::fs;
-// Standard I/O operations and error handling: Used for file operations and general error types.
-use std::io;
 // HTTP client for making web requests: Essential for communicating with the GitHub API.
 use ureq;
 
@@ -39,41 +35,33 @@ struct Package {
     version: String,
 }
 
-/// Reads the version string from the local `Cargo.toml` file.
+/// Retrieves the local tool version at **compile time** directly from the `Cargo.toml` file.
 ///
-/// This function performs the following steps:
-/// 1. Reads the entire content of the `Cargo.toml` file into a string.
-/// 2. Parses the TOML string into the `CargoToml` struct using `toml::from_str`.
-/// 3. Extracts and returns the `version` field from the parsed structure.
+/// This function leverages Rust's `env!` macro, which expands to the value of the
+/// environment variable at the time the crate is compiled. `CARGO_PKG_VERSION`
+/// is an environment variable automatically set by Cargo to the `version` field
+/// specified in the `[package]` section of the project's `Cargo.toml`.
+///
+/// This approach is highly efficient because:
+/// - The version string is embedded directly into the compiled binary.
+/// - It avoids runtime file I/O operations (reading `Cargo.toml`).
+/// - It ensures the version reported by the binary is always the version it was built with.
 ///
 /// # Returns
-/// * `Ok(String)`: A `String` containing the version number (e.g., "0.1.0") if the file is read and parsed successfully.
-/// * `Err(io::Error)`: An `io::Error` if:
-///   - The `Cargo.toml` file cannot be found or read (e.g., file system permissions).
-///   - The content of `Cargo.toml` is malformed or cannot be deserialized into the expected `CargoToml` structure.
-fn get_local_version() -> io::Result<String> {
-    log_debug!("Attempting to read local Cargo.toml...");
-    // `fs::read_to_string("Cargo.toml")?` attempts to read the file.
-    // The `?` operator propagates any `io::Error` directly from this call.
-    let cargo_toml = fs::read_to_string("Cargo.toml")?;
-    log_debug!("Successfully read Cargo.toml content.");
-
-    // `toml::from_str(&cargo_toml)` parses the TOML string.
-    // `.map_err(...)` is used to convert the `toml::de::Error` (if parsing fails)
-    // into an `io::Error`, ensuring a consistent error return type for the function.
-    let cargo: CargoToml = toml::from_str(&cargo_toml).map_err(|e| {
-        log_error!("Failed to parse Cargo.toml: {}", e);
-        io::Error::new(
-            io::ErrorKind::Other, // Use `ErrorKind::Other` for parsing errors.
-            format!("Failed to parse Cargo.toml: {}", e), // Detailed error message.
-        )
-    })?;
-
-    log_debug!(
-        "Successfully parsed Cargo.toml. Local version: {}",
-        cargo.package.version
-    );
-    Ok(cargo.package.version) // Return the extracted version string.
+/// * `Ok(String)`: A `String` containing the version number (e.g., "0.1.0").
+///                  This function is unlikely to fail unless the `CARGO_PKG_VERSION`
+///                  environment variable is somehow missing during compilation,
+///                  which is an anomalous build environment issue.
+/// * `Err(Box<dyn std::error::Error>)`: Although this specific implementation
+///   is practically infallible (as `env!` is a compile-time assertion),
+///   the `Result` return type is maintained for consistency with other
+///   version retrieval methods that might involve runtime operations
+///   (e.g., network requests, file parsing) that *can* fail.
+pub fn get_local_version() -> Result<String, Box<dyn std::error::Error>> {
+    // `env!("CARGO_PKG_VERSION")` reads the version from Cargo.toml during compilation.
+    // It returns a `&'static str`.
+    // `.to_string()` converts this static string slice into an owned `String`.
+    Ok(env!("CARGO_PKG_VERSION").to_string())
 }
 
 /// Represents a simplified structure for a GitHub Release API response.
