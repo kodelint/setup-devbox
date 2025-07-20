@@ -2,14 +2,14 @@
 // It parses command-line arguments and dispatches to the appropriate subcommand logic.
 
 // Import necessary internal modules.
-mod commands;   // Handles individual subcommand logic (e.g., 'now', 'generate', 'sync').
-mod schema;     // Defines configuration file structures.
-mod logger;     // Manages application logging.
+mod commands; // Handles individual subcommand logic (e.g., 'now', 'generate', 'sync').
 mod installers; // Contains logic for software installation.
-mod libs;       // General utility functions/libraries.
+mod libs;
+mod logger; // Manages application logging.
+mod schema; // Defines configuration file structures. // General utility functions/libraries.
 
-use std::path::PathBuf;
-use colored::Colorize; // Used for colored terminal output in logs.
+use colored::Colorize;
+use std::path::PathBuf; // Used for colored terminal output in logs.
 // Standard library module for interacting with environment variables. (This comment was already good)
 
 // Use 'clap' for command-line argument parsing.
@@ -71,12 +71,10 @@ enum Commands {
 fn main() {
     // Parse command-line arguments into the `Cli` structure.
     let cli = Cli::parse();
-    log_debug!("[main] Command line arguments successfully parsed.");
-    log_debug!("[main] Debug mode requested: {}", cli.debug);
-
     // Initialize the logger based on the debug flag.
     logger::init(cli.debug);
-    log_debug!("[main] Logger initialized. Debug output is now active if enabled.");
+    log_debug!("[main] Command line arguments successfully parsed.");
+    log_debug!("[main] Debug mode requested: {}", cli.debug);
 
     // Dispatch control based on the detected subcommand.
     match cli.command {
@@ -92,16 +90,19 @@ fn main() {
         }
         Commands::Generate { config, state } => {
             log_debug!("[main] 'Generate' subcommand detected.");
-            log_debug!("[main] 'Generate' subcommand received config path: {:?}", config);
-            log_debug!("[main] 'Generate' subcommand received state path: {:?}", state);
+            log_debug!(
+                "[main] 'Generate' subcommand received config path: {:?}",
+                config
+            );
+            log_debug!(
+                "[main] 'Generate' subcommand received state path: {:?}",
+                state
+            );
             generate::run(config, state);
         }
         Commands::SyncConfig { state, output_dir } => {
             log_debug!("[main] 'SyncConfig' subcommand detected.");
-            let args = sync::SyncConfigArgs {
-                state,
-                output_dir,
-            };
+            let args = sync::SyncConfigArgs { state, output_dir };
             sync::run(args);
         }
     }
