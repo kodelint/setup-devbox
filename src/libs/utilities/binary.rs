@@ -1,28 +1,25 @@
-// The 'colored' crate helps us make our console output look pretty and readab
-use colored::Colorize;
 // Our custom logging macros to give us nicely formatted (and colored!) output
 // for debugging, general information, and errors.
 use crate::{log_debug, log_error, log_info, log_warn};
-// For working with file paths, specifically to construct installation paths.
-// `std::path::Path` is a powerful type for working with file paths in a robust way.
-// `std::path::PathBuf` provides an OS-agnostic way to build and manipulate file paths.
-use std::path::{Path, PathBuf};
+// The 'colored' crate helps us make our console output look pretty and readab
+use colored::Colorize;
+// A powerful library for parsing executable file formats (ELF, Mach-O, PE)
+use goblin::Object;
 // For file system operations: creating directories, reading files, etc.
 // `std::fs` provides functions for interacting with the file system.
 use std::fs;
-use std::fs::File;
-// This line is conditional: it's only compiled when targeting Unix-like systems (macOS, Linux).
-// It's used to set file permissions, specifically making files executable, which is a Unix-specific concept.
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 // To get environment variables, like the temporary directory or home directory.
 // `std::env` provides functions to interact with the process's environment.
 // `std::io` contains core input/output functionalities and error types.
 use std::io;
-// For input/output operations, specifically reading file content
-use std::io::Read;
-// A powerful library for parsing executable file formats (ELF, Mach-O, PE)
-use goblin::Object;
+// This line is conditional: it's only compiled when targeting Unix-like systems (macOS, Linux).
+// It's used to set file permissions, specifically making files executable, which is a Unix-specific concept.
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+// For working with file paths, specifically to construct installation paths.
+// `std::path::Path` is a powerful type for working with file paths in a robust way.
+// `std::path::PathBuf` provides an OS-agnostic way to build and manipulate file paths.
+use std::path::{Path, PathBuf};
 // For recursively traversing directory trees
 use walkdir::WalkDir;
 
@@ -57,131 +54,169 @@ use walkdir::WalkDir;
 ///   - `Some(PathBuf)` containing the full path to the most probable executable file found.
 ///   - `None` if no suitable executable file is identified within the specified directory tree.
 
-pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> Option<PathBuf> {
-    // Convert `tool_name` to lowercase for case-insensitive comparisons.
-    let tool_name_lower = tool_name.to_lowercase();
-    // Determine the primary target name for the executable. If `rename_to` is provided,
-    // use that; otherwise, default to `tool_name_lower`. This is crucial for tools
-    // like Helix where the binary is `hx` but the tool name is `helix`.
-    let target_name_lower = rename_to.map_or(tool_name_lower.clone(), |s| s.to_lowercase());
 
-    // Vector to store potential executable paths and their sizes.
-    // We store size to help prioritize larger files if multiple candidates are found.
+pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> Option<PathBuf> {
+    let tool_name_lower = tool_name.to_lowercase();
+    let target_name_lower = rename_to.map_or(tool_name_lower.clone(), |s| s.to_lowercase());
     let mut candidates: Vec<(PathBuf, u64)> = Vec::new();
 
-    // Start walking the directory recursively.
+    // Read entries in the extracted directory (non-recursive)
+    let entries: Vec<_> = fs::read_dir(dir)
+        .ok()?
+        .filter_map(Result::ok)
+        .collect();
+
+    if entries.len() == 1 {
+        let sole_path = entries[0].path();
+        if sole_path.is_file() {
+            log_debug!("Single file found, inspecting as potential binary: {}", sole_path.display());
+
+            match fs::read(&sole_path) {
+                Ok(data) => {
+                    log_debug!("Read {} bytes from file for header inspection.", data.len());
+                    match Object::parse(&data) {
+                        Ok(obj) => {
+                            match obj {
+                                Object::Elf(_) | Object::Mach(_) => {
+                                    log_debug!("Detected native binary (ELF/Mach-O) in single file: {}", sole_path.display());
+                                    #[cfg(unix)]
+                                    {
+                                        if !is_executable(&sole_path) {
+                                            if let Ok(metadata) = fs::metadata(&sole_path) {
+                                                let mut perms = metadata.permissions();
+                                                perms.set_mode(perms.mode() | 0o755);
+                                                let _ = fs::set_permissions(&sole_path, perms);
+                                                log_debug!("Updated permissions for single file binary: {}", sole_path.display());
+                                            }
+                                        }
+                                    }
+                                    return Some(sole_path);
+                                }
+                                _ => {
+                                    if data.starts_with(b"#!") {
+                                        log_debug!("Detected shebang script in single file: {}", sole_path.display());
+                                        #[cfg(unix)]
+                                        {
+                                            if !is_executable(&sole_path) {
+                                                if let Ok(metadata) = fs::metadata(&sole_path) {
+                                                    let mut perms = metadata.permissions();
+                                                    perms.set_mode(perms.mode() | 0o755);
+                                                    let _ = fs::set_permissions(&sole_path, perms);
+                                                    log_debug!("Updated permissions for single file script: {}", sole_path.display());
+                                                }
+                                            }
+                                        }
+                                        return Some(sole_path);
+                                    }
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            log_debug!("Goblin failed to parse the file: {}", err);
+                        }
+                    }
+                }
+                Err(err) => {
+                    log_warn!("Failed to read file {} for parsing: {}", sole_path.display(), err);
+                }
+            }
+        }
+    }
+
+    // Walk recursively for multiple files
     for entry in WalkDir::new(dir)
-        .into_iter() // Convert the `WalkDir` into an iterator.
-        .filter_map(Result::ok) // Filter out any `Err` entries (e.g., permission denied) and unwrap `Ok` entries.
-        .filter(|e| e.path().is_file()) // Only process file entries, ignore directories.
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.path().is_file())
     {
-        let path = entry.path(); // Get the `Path` for the current file entry.
-        // Get the filename part of the path and convert it to lowercase for case-insensitive checks.
+        let path = entry.path();
         let file_name = path
             .file_name()
             .and_then(|s| s.to_str())
             .unwrap_or("")
             .to_lowercase();
 
-        // Stage 1: Skip obvious non-binaries early
-        // This improves performance by quickly discarding files known not to be executables,
-        // reducing the need for more expensive file content analysis.
         if file_name.ends_with(".md")
             || file_name.ends_with(".txt")
             || file_name.ends_with(".json")
-            || file_name.ends_with(".1") // Commonly used for manual pages on Unix-like systems
-            || file_name.ends_with(".ps1") // PowerShell scripts (Windows)
-            || file_name.ends_with(".fish") // Fish shell scripts
-            || file_name.ends_with(".zsh") // Zsh scripts
-            || file_name.ends_with(".bash") // Bash scripts
-            || file_name.ends_with(".log") // Log files
+            || file_name.ends_with(".1")
+            || file_name.ends_with(".ps1")
+            || file_name.ends_with(".fish")
+            || file_name.ends_with(".zsh")
+            || file_name.ends_with(".bash")
+            || file_name.ends_with(".log")
             || file_name.ends_with(".yaml") || file_name.ends_with(".yml")
-            || file_name.contains("license") // License files
-            || file_name.contains("readme") // README files
+            || file_name.contains("license")
+            || file_name.contains("readme")
         {
             log_debug!("Skipping known non-executable file by extension/name: {}", file_name);
-            continue; // Move to the next file entry.
+            continue;
         }
 
-        let mut add_candidate = false; // Flag to determine if the current file should be added as a candidate.
+        let mut add_candidate = false;
 
-        // Stage 2: Header-based Binary Detection using `goblin` and Shebang Detection
-        // Attempt to open and read a small portion of the file to inspect its header.
-        if let Ok(mut file) = File::open(path) {
-            let mut buffer = [0u8; 256]; // Read sufficient bytes for `goblin` to identify formats.
-            if file.read(&mut buffer).is_ok() {
-                // `goblin::Object::parse` attempts to identify the file format (ELF, Mach-O, PE, etc.).
-                if let Ok(obj) = Object::parse(&buffer) {
-                    match obj {
-                        // If `goblin` identifies it as an ELF (Linux) or Mach-O (macOS) executable:
-                        Object::Elf(_) | Object::Mach(_) => {
-                            // Check if the file already has executable permissions.
+        if let Ok(data) = fs::read(path) {
+            log_debug!("Read {} bytes from file for header inspection: {}", data.len(), path.display());
+            if let Ok(obj) = Object::parse(&data) {
+                match obj {
+                    Object::Elf(_) | Object::Mach(_) => {
+                        if is_executable(path) {
+                            log_debug!("Found executable binary (ELF/Mach-O): {}", path.display());
+                            add_candidate = true;
+                        } else {
+                            #[cfg(unix)]
+                            if let Ok(metadata) = fs::metadata(path) {
+                                let mut perms = metadata.permissions();
+                                perms.set_mode(perms.mode() | 0o755);
+                                if fs::set_permissions(path, perms).is_ok() {
+                                    log_debug!("Set executable bit and added ELF/Mach-O binary: {}", path.display());
+                                    add_candidate = true;
+                                } else {
+                                    log_warn!("Failed to set executable permissions for {}.", path.display());
+                                }
+                            }
+                            #[cfg(not(unix))]
+                            {
+                                log_debug!("Found executable binary (ELF/Mach-O) on non-Unix: {}", path.display());
+                                add_candidate = true;
+                            }
+                        }
+                    }
+                    _ => {
+                        if data.starts_with(b"#!") {
                             if is_executable(path) {
-                                log_debug!("Found executable binary (ELF/Mach-O): {}", path.display());
+                                log_debug!("Found executable script (shebang): {}", path.display());
                                 add_candidate = true;
                             } else {
-                                // If not executable, attempt to set executable permissions on Unix-like systems.
                                 #[cfg(unix)]
                                 if let Ok(metadata) = fs::metadata(path) {
                                     let mut perms = metadata.permissions();
-                                    // Add read, write, and execute permissions for user, and read/execute for group/others.
                                     perms.set_mode(perms.mode() | 0o755);
                                     if fs::set_permissions(path, perms).is_ok() {
-                                        log_debug!("Set executable bit and added ELF/Mach-O binary: {}", path.display());
+                                        log_debug!("Set executable bit and added script: {}", path.display());
                                         add_candidate = true;
                                     } else {
-                                        log_warn!("Failed to set executable permissions for {}.", path.display());
+                                        log_warn!("Failed to set executable permissions for script {}.", path.display());
                                     }
                                 }
-                                #[cfg(not(unix))] // On non-Unix systems (e.g., Windows), assume it's executable if binary detected.
+                                #[cfg(not(unix))]
                                 {
-                                    log_debug!("Found executable binary (ELF/Mach-O) on non-Unix: {}", path.display());
+                                    log_debug!("Found executable script (shebang) on non-Unix: {}", path.display());
                                     add_candidate = true;
-                                }
-                            }
-                        }
-                        // For other `goblin` object types (e.g., PE for Windows, or data):
-                        _ => {
-                            // Check if the file starts with a shebang (`#!`), indicating it's a script.
-                            if buffer.starts_with(b"#!") {
-                                // For scripts, verify they have executable permissions.
-                                if is_executable(path) {
-                                    log_debug!("Found executable script (shebang): {}", path.display());
-                                    add_candidate = true;
-                                } else {
-                                    // If a script is found but not executable, attempt to set permissions.
-                                    #[cfg(unix)]
-                                    if let Ok(metadata) = fs::metadata(path) {
-                                        let mut perms = metadata.permissions();
-                                        perms.set_mode(perms.mode() | 0o755);
-                                        if fs::set_permissions(path, perms).is_ok() {
-                                            log_debug!("Set executable bit and added script: {}", path.display());
-                                            add_candidate = true;
-                                        } else {
-                                            log_warn!("Failed to set executable permissions for script {}.", path.display());
-                                        }
-                                    }
-                                    #[cfg(not(unix))] // On non-Unix, assume it's executable if script detected.
-                                    {
-                                        log_debug!("Found executable script (shebang) on non-Unix: {}", path.display());
-                                        add_candidate = true;
-                                    }
                                 }
                             }
                         }
                     }
                 }
+            } else {
+                log_debug!("Goblin failed to parse the file: {}", path.display());
             }
+        } else {
+            log_warn!("Failed to read file {} for parsing", path.display());
         }
 
-        // Stage 3: Fallback Name Match
-        // This is a crucial fallback for cases where header parsing might fail or
-        // for simple binaries without distinct headers (less common but possible)
-        // or if `file_name` matches exactly the expected binary name (like `hx`).
-        // It's only triggered if the file hasn't already been added as a candidate.
         if !add_candidate && file_name == target_name_lower {
             log_debug!("Fallback: Forcing executable candidate for {} (exact name match).", path.display());
-            // Attempt to ensure it's executable by setting permissions.
             #[cfg(unix)]
             if let Ok(metadata) = fs::metadata(path) {
                 let mut perms = metadata.permissions();
@@ -192,41 +227,32 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                     }
                 }
             }
-            #[cfg(not(unix))] // On non-Unix, if name matches, assume it's executable.
+            #[cfg(not(unix))]
             {
                 add_candidate = true;
             }
         }
 
-        // If the file was identified as a candidate in any of the stages, add it to the list.
         if add_candidate {
-            candidates.push((path.to_path_buf(), fs::metadata(path).map(|m| m.len()).unwrap_or(0)));
+            let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+            log_debug!("Adding candidate: {} ({} bytes)", path.display(), size);
+            candidates.push((path.to_path_buf(), size));
         }
     }
 
-    // Stage 4: Candidate Prioritization and Selection
-    // Sort the collected potential executables to determine the "best" one.
     candidates.sort_by(|(a_path, a_size), (b_path, b_size)| {
-        // Get lowercase filenames for comparison.
         let a = a_path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
         let b = b_path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
 
-        // Prioritize exact matches for `target_name_lower` (e.g., "hx" for Helix).
-        // This handles cases where the binary name is explicitly defined.
         if a == target_name_lower && b != target_name_lower {
-            std::cmp::Ordering::Less // 'a' is a better match
+            std::cmp::Ordering::Less
         } else if a != target_name_lower && b == target_name_lower {
-            std::cmp::Ordering::Greater // 'b' is a better match
-        }
-        // If both or neither are exact `target_name_lower` matches,
-        // then prioritize by file size in descending order (larger files first).
-        // This heuristic assumes the main executable is typically the largest binary.
-        else {
+            std::cmp::Ordering::Greater
+        } else {
             b_size.cmp(a_size)
         }
     });
 
-    // Return the first (best) candidate found, if any.
     candidates.into_iter().map(|(p, _)| p).next()
 }
 
