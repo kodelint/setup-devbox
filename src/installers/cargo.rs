@@ -6,7 +6,7 @@
 // handling common scenarios like specifying versions and passing additional Cargo options.
 
 // Standard library imports:
-use std::path::PathBuf;  // For ergonomic and platform-agnostic path manipulation.
+use std::path::PathBuf; // For ergonomic and platform-agnostic path manipulation.
 use std::process::{Command, Output}; // For executing external commands (like `cargo`) and capturing their output.
 
 // External crate imports:
@@ -22,7 +22,6 @@ use crate::schema::{ToolEntry, ToolState};
 use crate::{log_debug, log_error, log_info, log_warn};
 // Custom logging macros. These are used throughout the module to provide informative output
 // during the installation process, aiding in debugging and user feedback.
-
 
 /// Installs a Rust crate using the `cargo install` command.
 ///
@@ -46,7 +45,10 @@ use crate::{log_debug, log_error, log_info, log_warn};
 ///     is performed before returning `None` to provide context for the failure.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Start the installation process with a debug log, clearly indicating which tool (crate) is being processed.
-    log_debug!("[Cargo Installer] Attempting to install Cargo tool: {}", tool_entry.name.bold());
+    log_debug!(
+        "[Cargo Installer] Attempting to install Cargo tool: {}",
+        tool_entry.name.bold()
+    );
 
     // 1. Basic Validation: Check if `cargo` command is available.
     // Before attempting any installation, we must ensure that the Rust toolchain (specifically `cargo`)
@@ -69,7 +71,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     if let Some(version) = &tool_entry.version {
         command_args.push("--version");
         command_args.push(version);
-        log_debug!("[Cargo Installer] Installing specific version: {}", version.cyan());
+        log_debug!(
+            "[Cargo Installer] Installing specific version: {}",
+            version.cyan()
+        );
     }
 
     // Add any additional options from `tool_entry.options`.
@@ -82,7 +87,11 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     }
 
     // Log the full command that will be executed for debugging and user visibility.
-    log_info!("[Cargo Installer] Executing: {} {}", "cargo".cyan().bold(), command_args.join(" ").cyan());
+    log_info!(
+        "[Cargo Installer] Executing: {} {}",
+        "cargo".cyan().bold(),
+        command_args.join(" ").cyan()
+    );
 
     // 3. Execute `cargo install` Command
     // Spawn the `cargo` command with the prepared arguments and capture its standard output and error.
@@ -108,10 +117,16 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         );
         // Log stdout and stderr, even on success, as they might contain useful information or warnings.
         if !output.stdout.is_empty() {
-            log_debug!("[Cargo Installer] Stdout: {}", String::from_utf8_lossy(&output.stdout));
+            log_debug!(
+                "[Cargo Installer] Stdout: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
         }
         if !output.stderr.is_empty() {
-            log_warn!("[Cargo Installer] Stderr (might contain warnings): {}", String::from_utf8_lossy(&output.stderr));
+            log_warn!(
+                "[Cargo Installer] Stderr (might contain warnings): {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
 
         // 5. Determine Installation Path
@@ -120,14 +135,22 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         let install_path = if let Ok(mut home) = std::env::var("HOME") {
             home.push_str("/.cargo/bin/"); // Append the standard Cargo bin directory.
             // Join the bin directory with the tool's name to get the full binary path.
-            PathBuf::from(home).join(&tool_entry.name).to_string_lossy().into_owned()
+            PathBuf::from(home)
+                .join(&tool_entry.name)
+                .to_string_lossy()
+                .into_owned()
         } else {
             // Fallback path if the HOME environment variable is not set.
             // This is a less reliable default but provides a reasonable guess.
-            log_warn!("[Cargo Installer] HOME environment variable not set, defaulting install path to /usr/local/bin/");
+            log_warn!(
+                "[Cargo Installer] HOME environment variable not set, defaulting install path to /usr/local/bin/"
+            );
             "/usr/local/bin/".to_string()
         };
-        log_debug!("[Cargo Installer] Determined installation path: {}", install_path.cyan());
+        log_debug!(
+            "[Cargo Installer] Determined installation path: {}",
+            install_path.cyan()
+        );
 
         // 6. Return `ToolState` for Tracking
         // If the installation was successful, construct a `ToolState` object. This object
@@ -135,7 +158,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // track it in its internal state file (`state.json`).
         Some(ToolState {
             // The version recorded for the tool. Uses the specified version or "latest" as a fallback.
-            version: tool_entry.version.clone().unwrap_or_else(|| "latest".to_string()),
+            version: tool_entry
+                .version
+                .clone()
+                .unwrap_or_else(|| "latest".to_string()),
             // The absolute path where the tool's executable was installed.
             install_path,
             // Flag indicating that this tool was installed by `devbox`.
@@ -155,6 +181,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // For direct URL installations: The original URL from which the tool was downloaded.
             url: tool_entry.url.clone(),
             executable_path_after_extract: None,
+            additional_cmd_executed: tool_entry.additional_cmd.clone(),
         })
     } else {
         // 7. Handle Failed Installation
@@ -169,7 +196,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         );
         // Also log standard output on failure, as it might contain context for the error.
         if !output.stdout.is_empty() {
-            log_debug!("[Cargo Installer] Stdout (on failure): {}", String::from_utf8_lossy(&output.stdout));
+            log_debug!(
+                "[Cargo Installer] Stdout (on failure): {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
         }
         None // Return `None` to indicate that the installation failed.
     }

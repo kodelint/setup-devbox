@@ -62,7 +62,10 @@ use std::path::PathBuf;
 /// * `None` if `pip` (or `pip3`) is not found, or if the `pip install` command fails for any reason
 ///     (e.g., network error, package not found, installation error).
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_debug!("[Pip Installer] Attempting to install Python package: {}", tool_entry.name.bold());
+    log_debug!(
+        "[Pip Installer] Attempting to install Python package: {}",
+        tool_entry.name.bold()
+    );
 
     // 1. Basic validation: Ensure 'pip' command is available on the system.
     // We prioritize 'pip3' as it's the standard for Python 3 installations.
@@ -107,7 +110,11 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     // Log the full command being executed for debugging and user visibility.
     // The command and arguments are colored for better readability.
-    log_info!("[Pip Installer] Executing: {} {}", pip_command.cyan().bold(), command_args.join(" ").cyan());
+    log_info!(
+        "[Pip Installer] Executing: {} {}",
+        pip_command.cyan().bold(),
+        command_args.join(" ").cyan()
+    );
 
     // Execute the `pip install` command.
     // This is a blocking call that waits for the command to complete.
@@ -133,11 +140,17 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         );
         // Log standard output if available, usually contains installation progress.
         if !output.stdout.is_empty() {
-            log_debug!("[Pip Installer] Stdout: {}", String::from_utf8_lossy(&output.stdout));
+            log_debug!(
+                "[Pip Installer] Stdout: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
         }
         // Log standard error if available. Pip sometimes prints warnings to stderr even on success.
         if !output.stderr.is_empty() {
-            log_warn!("[Pip Installer] Stderr (might contain warnings): {}", String::from_utf8_lossy(&output.stderr));
+            log_warn!(
+                "[Pip Installer] Stderr (might contain warnings): {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
 
         // 3. Determine the installation path for `ToolState`.
@@ -151,21 +164,28 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // This is where many `pip --user` installed scripts/executables end up.
             home.push_str("/.local/bin/");
             // Construct the full path, joining the base path with the package name (assuming it might be an executable).
-            PathBuf::from(home).join(&tool_entry.name).to_string_lossy().into_owned()
+            PathBuf::from(home)
+                .join(&tool_entry.name)
+                .to_string_lossy()
+                .into_owned()
         } else {
             // If HOME directory cannot be determined, fall back to a generic system-wide bin path.
             // This is less accurate but provides a placeholder.
-            log_warn!("[Pip Installer] Could not determine HOME directory. Using generic fallback for pip package path.");
+            log_warn!(
+                "[Pip Installer] Could not determine HOME directory. Using generic fallback for pip package path."
+            );
             "/usr/local/bin/".to_string()
         };
-
 
         // 4. Return `ToolState` for Tracking.
         // Create and return a `ToolState` object to record this successful installation
         // in the application's persistent state (`state.json`).
         Some(ToolState {
             // Use the version specified in the config, or default to "latest" if not specified.
-            version: tool_entry.version.clone().unwrap_or_else(|| "latest".to_string()),
+            version: tool_entry
+                .version
+                .clone()
+                .unwrap_or_else(|| "latest".to_string()),
             // The approximated installation path.
             install_path,
             // Mark that this tool was installed by `setup-devbox`.
@@ -186,6 +206,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // For direct URL installations: The original URL from which the tool was downloaded.
             url: tool_entry.url.clone(),
             executable_path_after_extract: None,
+            additional_cmd_executed: tool_entry.additional_cmd.clone(),
         })
     } else {
         // 5. Handle Installation Failure.
@@ -196,11 +217,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             "[Pip Installer] Failed to install Python package '{}'. Exit code: {}. Error: {}",
             tool_entry.name.bold().red(), // Package name, colored red.
             output.status.code().unwrap_or(-1), // Exit code (default to -1 if not available).
-            stderr.red() // Standard error output, colored red.
+            stderr.red()                  // Standard error output, colored red.
         );
         // Also log stdout on failure, as it might contain useful context.
         if !output.stdout.is_empty() {
-            log_debug!("[Pip Installer] Stdout (on failure): {}", String::from_utf8_lossy(&output.stdout));
+            log_debug!(
+                "[Pip Installer] Stdout (on failure): {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
         }
         // Return `None` to signal that the installation was unsuccessful.
         None

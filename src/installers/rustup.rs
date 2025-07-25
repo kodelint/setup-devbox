@@ -50,7 +50,10 @@ use std::env;
 /// * `None` if `rustup` is not found, a toolchain version is missing from the config,
 ///   or if any `rustup` command (toolchain install or component add) fails.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_info!("[Rustup Installer] Attempting to install Rust-related tools based on entry: {}", tool_entry.name.bold());
+    log_info!(
+        "[Rustup Installer] Attempting to install Rust-related tools based on entry: {}",
+        tool_entry.name.bold()
+    );
     log_debug!("[Rustup Installer] ToolEntry details: {:#?}", tool_entry);
 
     // 1. Basic validation: Ensure 'rustup' command is available on the system.
@@ -81,7 +84,11 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // This command downloads and installs the specified Rust toolchain.
     let toolchain_command_args = vec!["toolchain", "install", &toolchain_name];
 
-    log_info!("[Rustup Installer] Executing: {} {}", "rustup".cyan().bold(), toolchain_command_args.join(" ").cyan());
+    log_info!(
+        "[Rustup Installer] Executing: {} {}",
+        "rustup".cyan().bold(),
+        toolchain_command_args.join(" ").cyan()
+    );
 
     let output_toolchain: Output = match Command::new("rustup")
         .args(&toolchain_command_args) // Pass all arguments to the `rustup` command.
@@ -102,11 +109,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             "[Rustup Installer] Failed to install toolchain '{}'. Exit code: {}. Error: {}",
             toolchain_name.bold().red(), // Toolchain name
             output_toolchain.status.code().unwrap_or(-1), // Exit code (default to -1 if not available)
-            stderr.red() // Standard error output from rustup
+            stderr.red()                                  // Standard error output from rustup
         );
         // Provide debug info if stdout also has content on failure.
         if !output_toolchain.stdout.is_empty() {
-            log_debug!("[Rustup Installer] Stdout (on failure): {}", String::from_utf8_lossy(&output_toolchain.stdout));
+            log_debug!(
+                "[Rustup Installer] Stdout (on failure): {}",
+                String::from_utf8_lossy(&output_toolchain.stdout)
+            );
         }
         return None; // Installation failed.
     } else {
@@ -116,10 +126,16 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             toolchain_name.bold().green()
         );
         if !output_toolchain.stdout.is_empty() {
-            log_debug!("[Rustup Installer] Stdout: {}", String::from_utf8_lossy(&output_toolchain.stdout));
+            log_debug!(
+                "[Rustup Installer] Stdout: {}",
+                String::from_utf8_lossy(&output_toolchain.stdout)
+            );
         }
         if !output_toolchain.stderr.is_empty() {
-            log_warn!("[Rustup Installer] Stderr (might contain warnings): {}", String::from_utf8_lossy(&output_toolchain.stderr));
+            log_warn!(
+                "[Rustup Installer] Stderr (might contain warnings): {}",
+                String::from_utf8_lossy(&output_toolchain.stderr)
+            );
         }
     }
 
@@ -129,9 +145,19 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     if let Some(components) = &tool_entry.options {
         for component in components {
             // Command to add a component to a specific toolchain.
-            let component_command_args = vec!["component", "add", component, "--toolchain", &toolchain_name];
+            let component_command_args = vec![
+                "component",
+                "add",
+                component,
+                "--toolchain",
+                &toolchain_name,
+            ];
 
-            log_info!("[Rustup Installer] Executing: {} {}", "rustup".cyan().bold(), component_command_args.join(" ").cyan());
+            log_info!(
+                "[Rustup Installer] Executing: {} {}",
+                "rustup".cyan().bold(),
+                component_command_args.join(" ").cyan()
+            );
 
             let output_component: Output = match Command::new("rustup")
                 .args(&component_command_args)
@@ -142,9 +168,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     // Log error if component command failed to execute.
                     log_error!(
                         "[Rustup Installer] Failed to execute 'rustup component add' for '{}' on toolchain '{}': {}",
-                        component.bold().red(), // Component name
+                        component.bold().red(),      // Component name
                         toolchain_name.bold().red(), // Toolchain name
-                        e // Error details
+                        e                            // Error details
                     );
                     // Decided to return None here. If a core component fails,
                     // the entire Rust setup might be considered incomplete/broken.
@@ -158,7 +184,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     "[Rustup Installer] Failed to add component '{}'. Exit code: {}. Stderr: {}",
                     component.bold().red(), // Component name (Argument 1)
                     output_component.status.code().unwrap_or(-1), // Exit code (Argument 2)
-                    String::from_utf8_lossy(&output_component.stderr).trim().red() // Stderr (Argument 3)
+                    String::from_utf8_lossy(&output_component.stderr)
+                        .trim()
+                        .red()  // Stderr (Argument 3)
                 );
                 // Similar to toolchain installation, a failed component addition
                 // is treated as a fatal error for this tool's installation.
@@ -173,10 +201,16 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     toolchain_name.bold().green()
                 );
                 if !output_component.stdout.is_empty() {
-                    log_debug!("[Rustup Installer] Stdout: {}", String::from_utf8_lossy(&output_component.stdout));
+                    log_debug!(
+                        "[Rustup Installer] Stdout: {}",
+                        String::from_utf8_lossy(&output_component.stdout)
+                    );
                 }
                 if !output_component.stderr.is_empty() {
-                    log_warn!("[Rustup Installer] Stderr (might contain warnings): {}", String::from_utf8_lossy(&output_component.stderr));
+                    log_warn!(
+                        "[Rustup Installer] Stderr (might contain warnings): {}",
+                        String::from_utf8_lossy(&output_component.stderr)
+                    );
                 }
             }
         }
@@ -191,24 +225,27 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     } else {
         // Fallback if HOME directory cannot be determined, though this might be less accurate
         // for rustup which heavily relies on the user's home directory structure.
-        log_warn!("[Rustup Installer] Could not determine HOME directory. Using generic fallback for toolchain path.");
+        log_warn!(
+            "[Rustup Installer] Could not determine HOME directory. Using generic fallback for toolchain path."
+        );
         "/usr/local/bin/".to_string()
     };
 
     // Return a `ToolState` object indicating successful installation.
     // This `ToolState` will be serialized into `state.json` to track installed tools.
     Some(ToolState {
-        version: toolchain_name, // The installed toolchain version.
-        install_path,           // The path where the toolchain binaries are expected.
+        version: toolchain_name,                  // The installed toolchain version.
+        install_path,              // The path where the toolchain binaries are expected.
         installed_by_devbox: true, // Mark as installed by this application.
         install_method: "rustup".to_string(), // The method used for installation.
         renamed_to: tool_entry.rename_to.clone(), // Any rename preference from the config.
         package_type: "rust-toolchain".to_string(), // Categorize the installed item.
-        repo: None, // Not applicable for rustup (no direct Git repo tracking).
-        tag: None,  // Not applicable for rustup (no direct Git tag tracking).
+        repo: None,                // Not applicable for rustup (no direct Git repo tracking).
+        tag: None,                 // Not applicable for rustup (no direct Git tag tracking).
         options: tool_entry.options.clone(), // Store the components that were attempted to be added.
         // For direct URL installations: The original URL from which the tool was downloaded.
         url: tool_entry.url.clone(),
         executable_path_after_extract: None,
+        additional_cmd_executed: tool_entry.additional_cmd.clone(),
     })
 }
