@@ -1,10 +1,10 @@
 use std::process::Command;
 // Our custom logging macros to give us nicely formatted (and colored!) output
 // for debugging, general information, and errors.
-use crate::{log_debug, log_error, log_warn};
+use crate::{log_debug, log_error, log_info, log_warn};
 // The 'colored' crate helps us make our console output look pretty and readab
-use colored::Colorize;
 use crate::schema::InstallerError;
+use colored::Colorize;
 
 /// Checks if a given asset filename from a GitHub release (or similar source)
 /// is likely compatible with the current operating system and architecture.
@@ -34,7 +34,11 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
 
     // If no OS match, immediately return false. No need to check architecture.
     if !os_matches {
-        log_debug!("[Utils] Asset '{}' does not match OS '{}'", filename.dimmed(), os);
+        log_debug!(
+            "[Utils] Asset '{}' does not match OS '{}'",
+            filename.dimmed(),
+            os
+        );
         return false;
     }
 
@@ -49,13 +53,17 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
     // If the target is macOS ARM64, and the asset filename contains "x86_64" (Intel architecture)
     // but *does not* contain "arm64" or "aarch64" (explicit ARM64),
     // it's considered a potential match because macOS can run x86_64 binaries via Rosetta 2 emulation.
-    let rosetta_fallback = (os_lower == "macos" && arch_lower == "arm64") &&
-        asset_name_lower.contains("x86_64") &&
-        !(asset_name_lower.contains("arm64") || asset_name_lower.contains("aarch64"));
+    let rosetta_fallback = (os_lower == "macos" && arch_lower == "arm64")
+        && asset_name_lower.contains("x86_64")
+        && !(asset_name_lower.contains("arm64") || asset_name_lower.contains("aarch64"));
 
     // If neither a direct architecture match nor the Rosetta fallback condition is met, return false.
     if !(arch_matches || rosetta_fallback) {
-        log_debug!("[Utils] Asset '{}' does not match architecture '{}' (and no Rosetta fallback).", filename.dimmed(), arch);
+        log_debug!(
+            "[Utils] Asset '{}' does not match architecture '{}' (and no Rosetta fallback).",
+            filename.dimmed(),
+            arch
+        );
         return false;
     }
 
@@ -68,13 +76,24 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
         asset_name_lower.contains("checksum") ||
         asset_name_lower.contains("sha256") ||
         asset_name_lower.contains("tar.gz.sig") || // Common signature file for tar.gz
-        asset_name_lower.ends_with(".asc") {      // Common detached signature file extension
-        log_debug!("[Utils] Asset '{}' excluded due to containing common non-binary keywords.", filename.dimmed());
+        asset_name_lower.ends_with(".asc")
+    {
+        // Common detached signature file extension
+        log_debug!(
+            "[Utils] Asset '{}' excluded due to containing common non-binary keywords.",
+            filename.dimmed()
+        );
         return false;
     }
 
     // If all checks pass, the asset is considered a match for the current platform.
-    log_debug!("[Utils] Asset '{}' matches platform (OS: {}, ARCH: {}) -> {}", filename.dimmed(), os.cyan(), arch.magenta(), "true".bold());
+    log_debug!(
+        "[Utils] Asset '{}' matches platform (OS: {}, ARCH: {}) -> {}",
+        filename.dimmed(),
+        os.cyan(),
+        arch.magenta(),
+        "true".bold()
+    );
     true
 }
 
@@ -112,10 +131,12 @@ fn arch_aliases(arch: &str) -> Vec<String> {
 /// * `Vec<String>`: A vector of strings containing the input OS name and its known aliases.
 fn os_aliases(os: &str) -> Vec<String> {
     match os.to_lowercase().as_str() {
-        "macos" => vec!["macos", "darwin", "apple-darwin", "macosx", "pkg", "dmg"] // Aliases for macOS.
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect(),
+        "macos" => {
+            vec!["macos", "darwin", "apple-darwin", "macosx", "pkg", "dmg"] // Aliases for macOS.
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect()
+        }
         "linux" => vec!["linux"] // Aliases for Linux (currently just "linux" itself).
             .into_iter()
             .map(|s| s.to_string())
@@ -174,13 +195,16 @@ pub fn normalize_os(os: &str) -> String {
     // Convert the input OS string to lowercase for case-insensitive matching.
     match os.to_lowercase().as_str() {
         "macos" | "darwin" | "apple-darwin" => "macos".to_string(), // Map various macOS/Darwin names to "macos".
-        "linux" => "linux".to_string(),                             // Linux is typically straightforward.
-        "windows" | "win32" | "win64" => "windows".to_string(),     // Map various Windows names to "windows".
+        "linux" => "linux".to_string(), // Linux is typically straightforward.
+        "windows" | "win32" | "win64" => "windows".to_string(), // Map various Windows names to "windows".
         other => {
             // If we encounter an unknown OS variant, log a warning.
             // We return the lowercase version of the unknown string as-is,
             // hoping it might still match some asset names.
-            log_warn!("[Utils] Unknown OS variant '{}', using as-is. This might cause issues with asset matching.", other.purple());
+            log_warn!(
+                "[Utils] Unknown OS variant '{}', using as-is. This might cause issues with asset matching.",
+                other.purple()
+            );
             other.to_string()
         }
     }
@@ -204,7 +228,10 @@ pub fn normalize_arch(arch: &str) -> String {
         other => {
             // If we encounter an unknown architecture variant, log a warning.
             // We return the lowercase version of the unknown string as-is.
-            log_warn!("[Utils] Unknown ARCH variant '{}', using as-is. This might cause issues with asset matching.", other.purple());
+            log_warn!(
+                "[Utils] Unknown ARCH variant '{}', using as-is. This might cause issues with asset matching.",
+                other.purple()
+            );
             other.to_string()
         }
     }
@@ -223,7 +250,10 @@ pub fn normalize_arch(arch: &str) -> String {
 /// `Ok(())` if the command is found and appears to be executable.
 /// `Err(InstallerError::MissingCommand)` if the command is not found in PATH.
 pub fn check_installer_command_available(command_name: &str) -> Result<(), InstallerError> {
-    log_debug!("[Utils] Checking for installer command: '{}'", command_name.cyan());
+    log_debug!(
+        "[Utils] Checking for installer command: '{}'",
+        command_name.cyan()
+    );
 
     // Attempt to run the command. We use `output()` first with `--version` because
     // many commands support it as a lightweight way to check existence and print version info.
@@ -237,7 +267,10 @@ pub fn check_installer_command_available(command_name: &str) -> Result<(), Insta
         .is_ok(); // Or did it just exit with a status code (meaning it was found)?
 
     if command_found {
-        log_debug!("[Utils] Installer command '{}' found.", command_name.green());
+        log_debug!(
+            "[Utils] Installer command '{}' found.",
+            command_name.green()
+        );
         Ok(())
     } else {
         log_error!(
@@ -246,4 +279,146 @@ pub fn check_installer_command_available(command_name: &str) -> Result<(), Insta
         );
         Err(InstallerError::MissingCommand(command_name.to_string()))
     }
+}
+
+/// Executes additional commands specified in the tool configuration after successful installation.
+///
+/// This function handles the execution of post-installation commands that may be required
+/// for proper tool setup, such as copying configuration files, creating directories, or
+/// setting up symbolic links.
+///
+/// # Arguments
+/// * `commands`: A reference to a vector of command strings to execute
+/// * `working_dir`: The directory where commands should be executed (typically the extraction directory)
+/// * `tool_name`: The name of the tool (used for logging purposes)
+///
+/// # Returns
+/// * `Result<Vec<String>, String>`:
+///   - `Ok(Vec<String>)`: Successfully executed all commands, returns the list of executed commands
+///   - `Err(String)`: An error occurred during command execution, contains error description
+///
+/// # Command Execution Context
+/// Commands are executed with the following characteristics:
+/// - Working directory is set to the specified `working_dir` (usually the extracted archive location)
+/// - Commands have access to all environment variables (including $HOME, $USER, etc.)
+/// - Commands are executed using the system shell (`/bin/sh` on Unix-like systems)
+/// - Each command is executed independently and sequentially
+/// - If any command fails, the entire operation fails and returns an error
+///
+/// # Security Considerations
+/// - Commands are executed with the same permissions as the current user
+/// - No sandboxing or privilege restriction is applied
+/// - Input validation should be performed by the caller to prevent command injection
+/// - Consider the security implications of executing user-provided commands
+pub(crate) fn execute_additional_commands(
+    commands: &[String],
+    working_dir: &std::path::Path,
+    tool_name: &str,
+) -> Result<Vec<String>, String> {
+    log_info!(
+        "[GitHub] Executing {} additional command(s) for {}",
+        commands.len().to_string().yellow(),
+        tool_name.bold()
+    );
+
+    let mut executed_commands = Vec::new();
+
+    for (index, command) in commands.iter().enumerate() {
+        log_debug!(
+            "[GitHub] Executing command {}/{} for {}: {}",
+            (index + 1).to_string().cyan(),
+            commands.len().to_string().cyan(),
+            tool_name.bold(),
+            command.dimmed()
+        );
+
+        // Execute the command using the system shell
+        // We use `/bin/sh` for Unix-like systems as it's the most portable option
+        let mut cmd = Command::new("sh");
+        cmd.arg("-c").arg(command).current_dir(working_dir);
+
+        // Execute the command and capture the result
+        match cmd.output() {
+            Ok(output) => {
+                // Check if the command succeeded (exit status 0)
+                if output.status.success() {
+                    log_debug!(
+                        "[GitHub] Command {}/{} executed successfully for {}",
+                        (index + 1).to_string().green(),
+                        commands.len().to_string().green(),
+                        tool_name.bold()
+                    );
+
+                    // Log stdout if present (for debugging purposes)
+                    if !output.stdout.is_empty() {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        log_debug!(
+                            "[GitHub] Command output for {}: {}",
+                            tool_name.bold(),
+                            stdout.trim().dimmed()
+                        );
+                    }
+
+                    executed_commands.push(command.clone());
+                } else {
+                    // Command failed - log error details and return failure
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+
+                    log_error!(
+                        "[GitHub] Command {}/{} failed for {} with exit code {}: {}",
+                        (index + 1).to_string().red(),
+                        commands.len().to_string().red(),
+                        tool_name.red(),
+                        output.status.code().unwrap_or(-1).to_string().red(),
+                        command.red()
+                    );
+
+                    if !stderr.is_empty() {
+                        log_error!(
+                            "[GitHub] Command stderr for {}: {}",
+                            tool_name.red(),
+                            stderr.trim().red()
+                        );
+                    }
+
+                    if !stdout.is_empty() {
+                        log_debug!(
+                            "[GitHub] Command stdout for {}: {}",
+                            tool_name.dimmed(),
+                            stdout.trim().dimmed()
+                        );
+                    }
+
+                    return Err(format!(
+                        "Command '{}' failed with exit code {}: {}",
+                        command,
+                        output.status.code().unwrap_or(-1),
+                        stderr.trim()
+                    ));
+                }
+            }
+            Err(e) => {
+                // Failed to execute the command (e.g., command not found, permission denied)
+                log_error!(
+                    "[GitHub] Failed to execute command {}/{} for {}: {} - Error: {}",
+                    (index + 1).to_string().red(),
+                    commands.len().to_string().red(),
+                    tool_name.red(),
+                    command.red(),
+                    e.to_string().red()
+                );
+
+                return Err(format!("Failed to execute command '{}': {}", command, e));
+            }
+        }
+    }
+
+    log_info!(
+        "[GitHub] Successfully executed all {} additional command(s) for {}",
+        executed_commands.len().to_string().green(),
+        tool_name.bold()
+    );
+
+    Ok(executed_commands)
 }

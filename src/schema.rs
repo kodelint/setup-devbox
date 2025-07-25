@@ -1,13 +1,13 @@
 // Defines the data structures (schemas) for configuration files and the application's internal state.
 
 use serde::{Deserialize, Serialize}; // Serde traits for serialization and deserialization.
-use std::collections::HashMap;     // Used for key-value pair storage.
+use std::collections::HashMap; // Used for key-value pair storage.
 use std::fmt;
 
 /// Represents a downloadable asset attached to a GitHub release.
 #[derive(Debug, Deserialize)]
 pub struct ReleaseAsset {
-    pub(crate) name: String,             // The asset's filename.
+    pub(crate) name: String,                 // The asset's filename.
     pub(crate) browser_download_url: String, // Direct download URL for the asset.
 }
 
@@ -60,22 +60,47 @@ pub struct ToolConfig {
 pub struct ToolEntry {
     pub name: String,
     pub version: Option<String>,
-    pub source: String, // Installation source (e.g., "github", "brew").
-    pub url: Option<String>, // Direct download URL (required if source is "URL").
-    pub repo: Option<String>, // GitHub repository in "owner/repo_name" format.
-    pub tag: Option<String>,  // Specific GitHub release tag to download from.
+    pub source: String,            // Installation source (e.g., "github", "brew").
+    pub url: Option<String>,       // Direct download URL (required if source is "URL").
+    pub repo: Option<String>,      // GitHub repository in "owner/repo_name" format.
+    pub tag: Option<String>,       // Specific GitHub release tag to download from.
     pub rename_to: Option<String>, // Optional new name for the executable after installation.
     #[serde(default)]
     pub options: Option<Vec<String>>, // Additional installer-specific options/flags.
     #[serde(default)]
     pub executable_path_after_extract: Option<String>, // Path to executable within extracted archive.
+
+    /// Additional commands to execute after successful tool installation.
+    /// These commands are executed in the context of the extracted archive directory
+    /// (for archive-based installations) or download directory (for binary installations).
+    ///
+    /// Commands can reference:
+    /// - Environment variables like $HOME, $USER, etc.
+    /// - Relative paths within the extracted/downloaded content
+    /// - Shell built-ins and system commands
+    ///
+    /// Example usage:
+    /// ```yaml
+    /// additional_cmd:
+    ///   - cp -r runtime $HOME/.config/helix/
+    ///   - mkdir -p $HOME/.local/share/helix
+    ///   - ln -sf $(pwd)/themes $HOME/.config/helix/themes
+    /// ```
+    ///
+    /// Important notes:
+    /// - Commands are executed sequentially in the order specified
+    /// - If any command fails, the entire installation is considered failed
+    /// - Commands are executed with the working directory set to the extraction/download location
+    /// - Use absolute paths when referencing locations outside the tool's directory
+    #[serde(default)]
+    pub additional_cmd: Option<Vec<String>>,
 }
 
 /// Configuration schema for `shellac.yaml`.
 /// Defines the structure for shell environment customization (shellrc and aliases).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ShellConfig {
-    pub shellrc: ShellRc,       // Core shell configuration.
+    pub shellrc: ShellRc,         // Core shell configuration.
     pub aliases: Vec<AliasEntry>, // List of custom command aliases.
 }
 
@@ -83,7 +108,7 @@ pub struct ShellConfig {
 /// Contains fundamental shell settings.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ShellRc {
-    pub shell: String,       // Type of shell (e.g., "bash", "zsh").
+    pub shell: String,            // Type of shell (e.g., "bash", "zsh").
     pub raw_configs: Vec<String>, // Raw commands to be appended/sourced into shell config.
 }
 
@@ -126,15 +151,15 @@ pub struct SettingsConfig {
 pub struct OsSpecificSettings {
     #[serde(default)]
     pub macos: Vec<SettingEntry>, // macOS specific settings.
-    // Add fields for other operating systems as needed.
+                                  // Add fields for other operating systems as needed.
 }
 
 /// Represents a single system setting to be applied (e.g., via macOS `defaults` command).
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SettingEntry {
-    pub domain: String,  // The setting's domain (e.g., "com.apple.finder").
-    pub key: String,     // The specific key within the domain.
-    pub value: String,   // The value to set for the key.
+    pub domain: String, // The setting's domain (e.g., "com.apple.finder").
+    pub key: String,    // The specific key within the domain.
+    pub value: String,  // The value to set for the key.
     #[serde(rename = "type")]
     pub value_type: String, // Data type of the value (e.g., "bool", "string").
 }
@@ -146,49 +171,54 @@ pub struct SettingEntry {
 /// The complete structure of `state.json`, representing `setup-devbox`'s persistent memory.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct DevBoxState {
-    pub tools: HashMap<String, ToolState>,   // Records information about installed tools.
+    pub tools: HashMap<String, ToolState>, // Records information about installed tools.
     pub settings: HashMap<String, SettingState>, // Records applied system settings.
-    pub fonts: HashMap<String, FontState>,   // Stores information about installed fonts.
+    pub fonts: HashMap<String, FontState>, // Stores information about installed fonts.
 }
 
 /// Stores detailed information about each installed tool.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ToolState {
-    pub version: String,             // Exact version of the installed tool.
-    pub install_path: String,        // File system path where the tool is installed.
-    pub installed_by_devbox: bool,   // True if managed by `setup-devbox`.
-    pub install_method: String,      // Method used for installation (e.g., "github-release", "brew").
-    pub renamed_to: Option<String>,  // New name if the executable was renamed.
-    pub package_type: String,        // Type of package (e.g., "binary", "go-module").
-    pub repo: Option<String>,        // GitHub repository if applicable.
-    pub tag: Option<String>,         // Specific GitHub tag/release if applicable.
+    pub version: String,            // Exact version of the installed tool.
+    pub install_path: String,       // File system path where the tool is installed.
+    pub installed_by_devbox: bool,  // True if managed by `setup-devbox`.
+    pub install_method: String, // Method used for installation (e.g., "github-release", "brew").
+    pub renamed_to: Option<String>, // New name if the executable was renamed.
+    pub package_type: String,   // Type of package (e.g., "binary", "go-module").
+    pub repo: Option<String>,   // GitHub repository if applicable.
+    pub tag: Option<String>,    // Specific GitHub tag/release if applicable.
     #[serde(default)]
     pub options: Option<Vec<String>>, // Options passed to the installer during installation.
     #[serde(default)]
-    pub url: Option<String>,         // Original download URL for direct URL installations.
+    pub url: Option<String>, // Original download URL for direct URL installations.
     pub executable_path_after_extract: Option<String>, // Path to executable within extracted archive, relative to `install_path`.
+
+    /// Records any additional commands that were executed during installation.
+    /// This is stored for reference and potential cleanup/uninstall operations.
+    #[serde(default)]
+    pub additional_cmd_executed: Option<Vec<String>>,
 }
 
 /// Records the state of an applied system setting.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SettingState {
-    pub domain: String,  // Setting's domain.
-    pub key: String,     // Setting's key.
-    pub value: String,   // Value that was set.
+    pub domain: String,     // Setting's domain.
+    pub key: String,        // Setting's key.
+    pub value: String,      // Value that was set.
     pub value_type: String, // Type of the value.
 }
 
 /// Records the state of an installed font.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FontState {
-    pub name: String,         // Name of the font.
-    pub url: String,          // Original download URL.
-    pub files: Vec<String>,   // List of installed font files.
-    pub version: String,      // Installed version of the font.
+    pub name: String,       // Name of the font.
+    pub url: String,        // Original download URL.
+    pub files: Vec<String>, // List of installed font files.
+    pub version: String,    // Installed version of the font.
     #[serde(default)]
     pub repo: Option<String>, // GitHub repository if applicable.
     #[serde(default)]
-    pub tag: Option<String>,  // Specific GitHub tag/release if applicable.
+    pub tag: Option<String>, // Specific GitHub tag/release if applicable.
 }
 
 // Main Application Configuration
@@ -251,16 +281,21 @@ impl ToolEntry {
                         "repo or tag should not be present for URL source".to_string(),
                     ));
                 }
-                // options and rename_to are general and can be present.
+                // options, rename_to, and additional_cmd are general and can be present.
             }
             // For other sources, ensure GitHub/URL specific fields are NOT present.
             "brew" | "cargo" | "rustup" | "pip" | "go" => {
-                if self.repo.is_some() || self.tag.is_some() || self.url.is_some() || self.executable_path_after_extract.is_some() {
+                if self.repo.is_some()
+                    || self.tag.is_some()
+                    || self.url.is_some()
+                    || self.executable_path_after_extract.is_some()
+                {
                     return Err(ToolEntryError::ConflictingFields(format!(
                         "repo, tag, url, or executable_path_after_extract should not be present for '{}' source",
                         self.source
                     )));
                 }
+                // additional_cmd is allowed for all sources as it provides post-install flexibility
             }
             _ => { /* Handled by supported_sources check. */ }
         }
@@ -274,7 +309,11 @@ impl fmt::Display for InstallerError {
         match self {
             // Formats the `MissingCommand` variant to indicate a missing command-line tool.
             InstallerError::MissingCommand(cmd) => {
-                write!(f, "Installer command '{}' not found in your system's PATH.", cmd)
+                write!(
+                    f,
+                    "Installer command '{}' not found in your system's PATH.",
+                    cmd
+                )
             }
         }
     }
