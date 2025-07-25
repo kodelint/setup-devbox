@@ -1,15 +1,15 @@
 // This module orchestrates the installation of software tools that are distributed as GitHub
 // releases. It encapsulates the complete lifecycle from fetching release metadata to placing
 // the final executable, handling platform-specific asset selection, downloads, and various
-// extraction/installation routines.
+// extraction/installation routines, including post-installation command execution.
 //
 // Our primary goal here is to provide a robust and extensible mechanism for installing tools
 // where the source of truth for distribution is a GitHub repository's "Releases" section.
 
-// For interacting with environment variables, specifically to find the HOME directory.
-use std::path::PathBuf;
 // Standard library imports:
 use std::env;
+// For interacting with environment variables, specifically to find the HOME directory.
+use std::path::PathBuf;
 // For ergonomic and platform-agnostic path manipulation.
 
 // External crate imports:
@@ -32,7 +32,9 @@ use crate::libs::utilities::{
     assets::{detect_file_type, download_file, install_pkg},
     binary::{find_executable, make_executable, move_and_rename_binary},
     compression,
-    platform::{asset_matches_platform, detect_architecture, detect_os},
+    platform::{
+        asset_matches_platform, detect_architecture, detect_os, execute_additional_commands,
+    },
 };
 // Internal module imports:
 // `Release`: Defines the structure for deserializing GitHub Release API responses.
@@ -52,19 +54,21 @@ use tempfile::Builder as TempFileBuilder;
 ///
 /// This is the core function responsible for the GitHub-based installation flow. It orchestrates
 /// several steps: platform detection, configuration validation, GitHub API interaction, asset
-/// selection, download, extraction (if applicable), and final placement of the executable.
+/// selection, download, extraction (if applicable), final placement of the executable, and
+/// execution of any additional post-installation commands.
 ///
 /// # Arguments
 /// * `tool`: A reference to a `ToolEntry` struct. This `ToolEntry` contains all the
 ///           metadata read from the `tools.yaml` configuration file that specifies
 ///           how to install this particular tool from GitHub (e.g., `repo`, `tag`,
-///           `name`, `rename_to`).
+///           `name`, `rename_to`, `additional_cmd`).
 ///
 /// # Returns
 /// * `Option<ToolState>`:
 ///   - `Some(ToolState)`: Indicates a successful installation. The contained `ToolState`
 ///     struct provides details like the installed version, the absolute path to the binary,
-///     and the installation method, which are then persisted in our internal `state.json`.
+///     the installation method, and any executed additional commands, which are then
+///     persisted in our internal `state.json`.
 ///   - `None`: Signifies that the installation failed at some step. Detailed error logging
 ///     is performed before returning `None` to provide context for the failure.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
@@ -258,13 +262,6 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         download_url.dimmed()
     );
 
-    // Once the correct asset is identified, extract its download URL.
-    let download_url = &asset.browser_download_url;
-    log_debug!(
-        "[GitHub] Download URL for selected asset: {}",
-        download_url.dimmed()
-    );
-
     // 5. Download the Asset
     // We download the asset to a temporary directory to avoid cluttering the user's system
     // with intermediate files. This temporary directory is managed by the `tempfile` crate,
@@ -356,6 +353,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // record how the tool was installed (e.g., "binary", "macos-pkg-installer").
     let package_type_for_state: String;
 
+    // Variable to track the working directory for additional commands execution.
+    // For archives, this will be the extraction directory; for binaries/pkg/dmg, the download directory.
+    let mut additional_cmd_working_dir = install_temp_root.path().to_path_buf();
+
     // 8. Install Based on File Type
     // This `match` statement serves as the primary dispatcher for installation logic,
     // branching based on the detected `file_type`. Each branch handles a
@@ -405,7 +406,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                         "[GitHub] Failed to install .dmg for {}: {}",
                         tool_entry.name.to_string().red(),
                         err
-                    ); // Note: Corrected log from .pkg to .dmg
+                    );
                     return None;
                 }
             }
@@ -469,6 +470,15 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 tool_entry.name.to_string().blue(),
                 extracted_path.display().to_string().cyan()
             );
+
+            // For additional commands, we want to use the same directory where we found the executable
+            // or the root of the extracted content, whichever contains the actual tool files
+            let content_root_path = extracted_path.clone();
+            log_debug!(
+                "[GitHub] Archived assets root path is {}",
+                content_root_path.display().to_string().cyan()
+            );
+
             // Many archives contain nested directories (e.g., `tool-v1.0.0/bin/tool_executable`).
             // `find_executable` recursively searches the extracted contents to locate the actual binary
             // we need to install. It handles cases where the binary might be in a subdirectory.
@@ -486,6 +496,44 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     return None;
                 }
             };
+
+            // Determine the directory containing the actual tool content for additional commands
+            // If the executable is in a subdirectory of the extraction, use that subdirectory as the base
+            // for additional commands so they can find sibling files like 'runtime', 'config', etc.
+            if let Some(parent_dir) = executable_path.parent() {
+                // Check if the executable is in a bin/ subdirectory or similar
+                // If so, we want to go up one level to find sibling directories like 'runtime'
+                if parent_dir
+                    .file_name()
+                    .map(|name| name.to_str().unwrap_or(""))
+                    == Some("bin")
+                {
+                    if let Some(grandparent) = parent_dir.parent() {
+                        // Use the grandparent (e.g., helix-25.07.1/) as the content root
+                        additional_cmd_working_dir = grandparent.to_path_buf();
+                        log_debug!(
+                            "[GitHub] Using grandparent directory for additional commands: {}",
+                            additional_cmd_working_dir.display().to_string().cyan()
+                        );
+                    } else {
+                        additional_cmd_working_dir = content_root_path;
+                    }
+                } else {
+                    // Executable is not in a bin/ directory, use its parent directory
+                    additional_cmd_working_dir = parent_dir.to_path_buf();
+                    log_debug!(
+                        "[GitHub] Using parent directory for additional commands: {}",
+                        additional_cmd_working_dir.display().to_string().cyan()
+                    );
+                }
+            } else {
+                // Fallback to the extraction root if we can't determine the parent
+                additional_cmd_working_dir = content_root_path;
+                log_debug!(
+                    "[GitHub] Using extraction root for additional commands: {}",
+                    additional_cmd_working_dir.display().to_string().cyan()
+                );
+            }
             log_debug!(
                 "[GitHub] Moving and renaming executable for {}.",
                 tool_entry.name.to_string().blue()
@@ -528,14 +576,69 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         }
     }
 
+    // 9. Execute Additional Commands (if specified)
+    // After the main installation is complete, execute any additional commands specified
+    // in the tool configuration. These commands are often used for post-installation setup,
+    // such as copying configuration files, creating directories, or setting up symbolic links.
+    let executed_additional_commands = if let Some(ref additional_commands) =
+        tool_entry.additional_cmd
+    {
+        if !additional_commands.is_empty() {
+            log_info!(
+                "[GitHub] Tool {} has {} additional command(s) to execute",
+                tool_entry.name.bold(),
+                additional_commands.len().to_string().yellow()
+            );
+
+            log_debug!(
+                "[GitHub] Additional commands will execute from working directory: {}",
+                additional_cmd_working_dir.display().to_string().cyan()
+            );
+
+            match execute_additional_commands(
+                additional_commands,
+                &additional_cmd_working_dir,
+                &tool_entry.name,
+            ) {
+                Ok(executed_cmds) => {
+                    log_info!(
+                        "[GitHub] Successfully completed all additional commands for {}",
+                        tool_entry.name.to_string().green()
+                    );
+                    Some(executed_cmds)
+                }
+                Err(err) => {
+                    log_error!(
+                        "[GitHub] Failed to execute additional commands for {}: {}. Installation aborted.",
+                        tool_entry.name.to_string().red(),
+                        err.red()
+                    );
+                    return None;
+                }
+            }
+        } else {
+            log_debug!(
+                "[GitHub] Tool {} has additional_cmd field but it's empty, skipping",
+                tool_entry.name.dimmed()
+            );
+            None
+        }
+    } else {
+        log_debug!(
+            "[GitHub] No additional commands specified for {}",
+            tool_entry.name.dimmed()
+        );
+        None
+    };
+
     // If execution reaches this point, the installation was successful.
     log_info!(
         "[GitHub] Installation of {} completed successfully at {}!",
         tool_entry.name.to_string().bold(),
-        install_path.display().to_string().green()
+        final_install_path_for_state.display().to_string().green()
     );
 
-    // 9. Return ToolState for Tracking
+    // 10. Return ToolState for Tracking
     // Construct a `ToolState` object to record the details of this successful installation.
     // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
     // what tools are installed, where they are, and how they were installed. This is crucial
@@ -573,5 +676,8 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // This field is currently `None` but could be used to store the path to an executable
         // *within* an extracted archive if `install_path` points to the archive's root.
         executable_path_after_extract: None,
+        // Record any additional commands that were executed during installation.
+        // This is useful for tracking what was done and potentially for cleanup during uninstall.
+        additional_cmd_executed: executed_additional_commands,
     })
 }
