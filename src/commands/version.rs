@@ -19,22 +19,6 @@ use ureq;
 const REPO_OWNER: &str = "kodelint"; // The GitHub username or organization that owns the repository.
 const REPO_NAME: &str = "setup-devbox"; // The name of the repository to check for releases.
 
-/// Represents the top-level structure of a `Cargo.toml` file relevant to this module.
-/// This struct is used by Serde to deserialize the TOML content.
-#[derive(Deserialize)]
-struct CargoToml {
-    // The `package` field directly maps to the `[package]` section in `Cargo.toml`.
-    package: Package,
-}
-
-/// Represents the `[package]` section within `Cargo.toml`.
-/// Specifically designed to extract the `version` field.
-#[derive(Deserialize)]
-struct Package {
-    // The `version` field holds the package's version string, e.g., "0.1.0".
-    version: String,
-}
-
 /// Retrieves the local tool version at **compile time** directly from the `Cargo.toml` file.
 ///
 /// This function leverages Rust's `env!` macro, which expands to the value of the

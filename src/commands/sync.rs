@@ -2,18 +2,17 @@
 // Its primary function is to regenerate configuration YAML files from the application's
 // internal state file (`state.json`), or vice-versa.
 
+use crate::libs::state_management::read_devbox_state; // Function to read application state.
+use crate::libs::utilities::path_helpers::get_devbox_dir;
 use crate::schema::{
-    FontConfig, FontEntry, MainConfig,
-    OsSpecificSettings, SettingEntry,
-    SettingsConfig, ToolConfig, ToolEntry,
+    FontConfig, FontEntry, MainConfig, OsSpecificSettings, SettingEntry, SettingsConfig,
+    ToolConfig, ToolEntry,
 }; // Schema definitions for config and state.
 use crate::{log_debug, log_error, log_info, log_warn}; // Custom logging macros.
-use crate::libs::state_management::read_devbox_state; // Function to read application state.
 use clap::Args; // Clap macro for argument parsing.
 use colored::Colorize; // For colored terminal output.
 use std::fs; // File system operations.
-use std::path::{Path, PathBuf}; // Path manipulation utilities.
-use crate::libs::utilities::path_helpers::get_devbox_dir; // Helper to get the base DevBox directory.
+use std::path::{Path, PathBuf}; // Path manipulation utilities. // Helper to get the base DevBox directory.
 
 /// Arguments for the `sync config` subcommand.
 #[derive(Debug, Args)]
@@ -30,12 +29,24 @@ pub struct SyncConfigArgs {
 /// Executes the `sync` command, primarily for syncing state to config files.
 pub fn run(args: SyncConfigArgs) {
     eprint!("\n"); // Add a blank line for readability.
-    log_warn!("{}", "[Sync] This 'sync' command is an EMERGENCY command and \
-    should be avoided if possible.".bold()); // Warns user about command usage.
-    log_warn!("{}", "[Sync] It is primarily for recovering or generating \
-    configuration from/to the state.".bold()); // Explains purpose of sync.
-    log_warn!("{}", "[Sync] Please use the 'now' command for regular setup \
-    and updates.".bold()); // Recommends 'now' for regular use.
+    log_warn!(
+        "{}",
+        "[Sync] This 'sync' command is an EMERGENCY command and \
+    should be avoided if possible."
+            .bold()
+    ); // Warns user about command usage.
+    log_warn!(
+        "{}",
+        "[Sync] It is primarily for recovering or generating \
+    configuration from/to the state."
+            .bold()
+    ); // Explains purpose of sync.
+    log_warn!(
+        "{}",
+        "[Sync] Please use the 'now' command for regular setup \
+    and updates."
+            .bold()
+    ); // Recommends 'now' for regular use.
     eprint!("\n"); // Add another blank line.
 
     // Resolve default paths for state and configs.
@@ -48,22 +59,38 @@ pub fn run(args: SyncConfigArgs) {
     let state_path = args.state.unwrap_or(default_state_path);
     let output_dir = args.output_dir.unwrap_or(default_config_dir);
     log_debug!("[Sync] Syncing from state: {}", state_path.display());
-    log_debug!("[Sync] Outputting to config directory: {}", output_dir.display());
+    log_debug!(
+        "[Sync] Outputting to config directory: {}",
+        output_dir.display()
+    );
     sync_state_to_configs(&state_path, &output_dir);
     log_info!("[Sync] Synchronization process completed.");
 }
 
 /// Helper function to serialize data to YAML and write to a file.
 fn write_yaml_file<T: serde::Serialize>(path: &PathBuf, data: &T) -> Result<(), String> {
-    log_debug!("[Sync:File] Writing YAML file: {}", path.display().to_string().cyan());
+    log_debug!(
+        "[Sync:File] Writing YAML file: {}",
+        path.display().to_string().cyan()
+    );
     // Create parent directories if they don't exist.
-    fs::create_dir_all(path.parent().unwrap_or(Path::new(".")))
-        .map_err(|e| format!("Failed to create directory for {}: \
-        {}", path.display(), e))?;
+    fs::create_dir_all(path.parent().unwrap_or(Path::new("."))).map_err(|e| {
+        format!(
+            "Failed to create directory for {}: \
+        {}",
+            path.display(),
+            e
+        )
+    })?;
     // Serialize data to YAML string.
-    let content = serde_yaml::to_string(data)
-        .map_err(|e| format!("Failed to serialize data to YAML for {}: \
-        {}", path.display(), e))?;
+    let content = serde_yaml::to_string(data).map_err(|e| {
+        format!(
+            "Failed to serialize data to YAML for {}: \
+        {}",
+            path.display(),
+            e
+        )
+    })?;
     // Write content to file.
     fs::write(path, content)
         .map_err(|e| format!("Failed to write to {}: {}", path.display(), e))?;
@@ -116,13 +143,23 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
             rename_to: tool_state.renamed_to,
             options: tool_state.options,
             executable_path_after_extract: tool_state.executable_path_after_extract,
+            additional_cmd: tool_state.additional_cmd_executed,
         };
-        tool_entry.validate().map_err(|e| {
-            log_warn!("[Sync:Config] Validation warning for tool '{}': {}", tool_entry.name, e);
-        }).ok(); // Log validation warnings but continue.
+        tool_entry
+            .validate()
+            .map_err(|e| {
+                log_warn!(
+                    "[Sync:Config] Validation warning for tool '{}': {}",
+                    tool_entry.name,
+                    e
+                );
+            })
+            .ok(); // Log validation warnings but continue.
         tool_entries.push(tool_entry);
     }
-    let tool_config = ToolConfig { tools: tool_entries };
+    let tool_config = ToolConfig {
+        tools: tool_entries,
+    };
 
     let tools_yaml_path = output_dir.join("tools.yaml");
     if let Err(e) = write_yaml_file(&tools_yaml_path, &tool_config) {
@@ -183,7 +220,9 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
         };
         font_entries.push(font_entry);
     }
-    let font_config = FontConfig { fonts: font_entries };
+    let font_config = FontConfig {
+        fonts: font_entries,
+    };
 
     let fonts_yaml_path = output_dir.join("fonts.yaml");
     if let Err(e) = write_yaml_file(&fonts_yaml_path, &font_config) {

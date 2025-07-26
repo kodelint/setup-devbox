@@ -63,7 +63,10 @@ use std::path::PathBuf;
 /// * `None` if the `go` command is not found, or if the `go install` command fails for any reason
 ///   (e.g., compilation error, network issue, module not found).
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_debug!("[Go Installer] Attempting to install Go tool: {}", tool_entry.name.bold());
+    log_debug!(
+        "[Go Installer] Attempting to install Go tool: {}",
+        tool_entry.name.bold()
+    );
 
     // Basic validation: Ensure 'go' command is available in the system's PATH.
     // We check for its existence by attempting to run `go version`.
@@ -97,7 +100,11 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     // Log the full command being executed for debugging and user visibility.
     // The command and its arguments are colored for better readability in the terminal.
-    log_info!("[Go Installer] Executing: {} {}", "go".cyan().bold(), command_args.join(" ").cyan());
+    log_info!(
+        "[Go Installer] Executing: {} {}",
+        "go".cyan().bold(),
+        command_args.join(" ").cyan()
+    );
 
     // Execute the `go install` command and capture its output.
     // This is a blocking call that waits for the command to complete.
@@ -123,11 +130,17 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         );
         // Log standard output if available, usually contains build progress or confirmation.
         if !output.stdout.is_empty() {
-            log_debug!("[Go Installer] Stdout: {}", String::from_utf8_lossy(&output.stdout));
+            log_debug!(
+                "[Go Installer] Stdout: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
         }
         // Log standard error if available. Go commands might print warnings to stderr even on success.
         if !output.stderr.is_empty() {
-            log_warn!("[Go Installer] Stderr (might contain warnings): {}", String::from_utf8_lossy(&output.stderr));
+            log_warn!(
+                "[Go Installer] Stderr (might contain warnings): {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
 
         // Determine the installation path.
@@ -137,7 +150,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         let install_path = if let Ok(mut home) = std::env::var("HOME") {
             home.push_str("/go/bin/"); // Common default for `go install` if `GOPATH` isn't customized.
             // Join the base path with the tool's name, assuming the binary is named after the tool.
-            PathBuf::from(home).join(&tool_entry.name).to_string_lossy().into_owned()
+            PathBuf::from(home)
+                .join(&tool_entry.name)
+                .to_string_lossy()
+                .into_owned()
         } else {
             // Fallback path if HOME environment variable is not found.
             // This is less accurate but provides a placeholder.
@@ -148,7 +164,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // This `ToolState` will be serialized into `state.json` for persistent tracking.
         Some(ToolState {
             // Record the actual version used, or "latest" if not explicitly specified.
-            version: tool_entry.version.clone().unwrap_or_else(|| "latest".to_string()),
+            version: tool_entry
+                .version
+                .clone()
+                .unwrap_or_else(|| "latest".to_string()),
             // The determined installation path.
             install_path,
             // Mark as installed by this application.
@@ -168,6 +187,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             options: tool_entry.options.clone(),
             url: tool_entry.url.clone(),
             executable_path_after_extract: None,
+            additional_cmd_executed: tool_entry.additional_cmd.clone(),
         })
     } else {
         // Handle failed installation.
@@ -178,11 +198,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             "[Go Installer] Failed to install Go tool '{}'. Exit code: {}. Error: {}",
             tool_entry.name.bold().red(), // Tool name, colored red.
             output.status.code().unwrap_or(-1), // Exit code (default to -1 if not available).
-            stderr.red() // Standard error output, colored red.
+            stderr.red()                  // Standard error output, colored red.
         );
         // Also log stdout on failure, as it might contain useful context or partial build logs.
         if !output.stdout.is_empty() {
-            log_debug!("[Go Installer] Stdout (on failure): {}", String::from_utf8_lossy(&output.stdout));
+            log_debug!(
+                "[Go Installer] Stdout (on failure): {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
         }
         None // Return None to indicate failure.
     }

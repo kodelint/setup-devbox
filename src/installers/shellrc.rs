@@ -14,10 +14,7 @@ use crate::schema::{AliasEntry, ShellRc};
 // `get_rc_file`: for figuring out which RC file to target based on the shell type.
 // `read_rc_lines`: for reading the existing content of an RC file line by line.
 use crate::libs::shell_configurator::{
-    contains_multiline_block,
-    append_to_rc_file,
-    get_rc_file,
-    read_rc_lines
+    append_to_rc_file, contains_multiline_block, get_rc_file, read_rc_lines,
 };
 // These are our custom logging tools! They let us print messages
 // to the console at different detail levels:
@@ -28,7 +25,49 @@ use crate::{log_debug, log_info, log_warn};
 // This wonderful crate allows us to make our terminal output
 // much more readable by adding colors!
 use colored::Colorize;
+// Standard library imports for executing shell commands and path handling
+use std::path::Path;
+use std::process::Command;
 
+/// Helper function to source the RC file by executing it in the appropriate shell.
+/// This ensures that any newly added configurations and aliases are immediately
+/// available in the current shell environment without requiring a manual restart.
+///
+/// # Arguments
+/// * `shell_type`: The type of shell (e.g., "zsh", "bash")
+/// * `rc_path`: The path to the RC file that needs to be sourced
+///
+/// # Returns
+/// * `Result<(), Box<dyn std::error::Error>>`: Ok(()) on success, or an error if sourcing fails
+fn source_rc_file(shell_type: &str, rc_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    log_debug!(
+        "[Shell Config] Attempting to source RC file: {}",
+        rc_path.display()
+    );
+
+    // Construct the source command based on the shell type
+    let source_command = format!("source {}", rc_path.display());
+
+    // Execute the source command in the appropriate shell
+    let output = Command::new(shell_type)
+        .arg("-c")
+        .arg(&source_command)
+        .output()?;
+
+    if output.status.success() {
+        log_info!(
+            "[Shell Config] Successfully sourced {} file: {}",
+            shell_type.bold(),
+            rc_path.display().to_string().green()
+        );
+        Ok(())
+    } else {
+        let error_msg = String::from_utf8_lossy(&output.stderr);
+        let err_msg = format!("Failed to source RC file: {}", error_msg);
+        log_warn!("[Shell Config] {}", err_msg.red());
+        Err(err_msg.into())
+    }
+}
 
 /// This is the main orchestrator for applying shell configurations and aliases.
 /// Think of `apply_shellrc` as the "chief manager" for your shell setup.
@@ -50,6 +89,8 @@ use colored::Colorize;
 ///     it carefully appends them to the end of your RC file. This ensures
 ///     that the DevBox configurations are applied without interfering
 ///     with existing user setups.
+/// 5.  **Source the RC file**: After successful updates, it sources the RC file
+///     to make the new configurations immediately available in the current shell.
 ///
 /// # Arguments
 /// * `shellrc`: A blueprint (`ShellRc` struct) of your desired shell configuration.
@@ -61,7 +102,10 @@ use colored::Colorize;
 pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
     // Let's kick things off with a friendly message, telling the user which shell
     // we're focusing on for configuration. The shell name is colored for better readability.
-    log_debug!("[Shell Config] Starting the process to apply configurations for shell: {}", shellrc.shell.bold());
+    log_debug!(
+        "[Shell Config] Starting the process to apply configurations for shell: {}",
+        shellrc.shell.bold()
+    );
 
     // For deeper dives, let's log the full details of the shell configuration
     // and the aliases we've received. This is great for debugging complex issues,
@@ -69,24 +113,42 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
     // We try to pretty-print the `ShellRc` struct using `serde_json` for a readable format.
     match serde_json::to_string_pretty(shellrc) {
         Ok(pretty_shellrc) => {
-            log_debug!("[Shell Config] Received ShellRc configuration details:\n{}", pretty_shellrc);
-        },
+            log_debug!(
+                "[Shell Config] Received ShellRc configuration details:\n{}",
+                pretty_shellrc
+            );
+        }
         Err(e) => {
             // Fallback to debug print if pretty-printing fails, and log a warning.
-            log_warn!("[Shell Config] Failed to pretty-print ShellRc for debug log: {}", e);
-            log_debug!("[Shell Config] Received ShellRc configuration details: {:#?}", shellrc);
+            log_warn!(
+                "[Shell Config] Failed to pretty-print ShellRc for debug log: {}",
+                e
+            );
+            log_debug!(
+                "[Shell Config] Received ShellRc configuration details: {:#?}",
+                shellrc
+            );
         }
     }
 
     // Similarly, pretty-print the aliases for debugging.
     match serde_json::to_string_pretty(aliases) {
         Ok(pretty_aliases) => {
-            log_debug!("[Shell Config] Received aliases to consider:\n{}", pretty_aliases);
-        },
+            log_debug!(
+                "[Shell Config] Received aliases to consider:\n{}",
+                pretty_aliases
+            );
+        }
         Err(e) => {
             // Fallback to debug print if pretty-printing fails.
-            log_warn!("[Shell Config] Failed to pretty-print aliases for debug log: {}", e);
-            log_debug!("[Shell Config] Received aliases to consider: {:#?}", aliases);
+            log_warn!(
+                "[Shell Config] Failed to pretty-print aliases for debug log: {}",
+                e
+            );
+            log_debug!(
+                "[Shell Config] Received aliases to consider: {:#?}",
+                aliases
+            );
         }
     }
 
@@ -105,8 +167,13 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
         return; // We can't proceed, so let's exit this function for this shell.
     };
     // Success! We've found the target RC file. Let's let everyone know, coloring the path for clarity.
-    log_debug!("[Shell Config] Identified the target RC file path: {}", rc_path.display().to_string().cyan());
-    log_debug!("[Shell Config] Preparing to read the existing content of the RC file for smart merging.");
+    log_debug!(
+        "[Shell Config] Identified the target RC file path: {}",
+        rc_path.display().to_string().cyan()
+    );
+    log_debug!(
+        "[Shell Config] Preparing to read the existing content of the RC file for smart merging."
+    );
 
     // Step 2: Read Existing RC File Content
     // To avoid creating duplicate entries, we absolutely need to know what's already
@@ -117,7 +184,7 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
     log_debug!(
         "[Shell Config] Successfully read {} existing line(s) from {}.",
         existing_lines.len().to_string().bold(), // Bold the count for emphasis.
-        rc_path.display() // Display the path of the file.
+        rc_path.display()                        // Display the path of the file.
     );
     // For extreme debugging situations, you could uncomment the line below to see
     // a snippet of the existing content. Be careful with large files as this could
@@ -125,11 +192,15 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
     // This is where we'll collect all the brand-new lines that need to be added to the RC file.
     // It starts empty and gets populated as we compare the desired configurations against the existing ones.
     let mut new_lines_to_add: Vec<String> = vec![];
-    log_debug!("[Shell Config] Awaiting new configuration entries; 'new_lines_to_add' is currently empty.");
+    log_debug!(
+        "[Shell Config] Awaiting new configuration entries; 'new_lines_to_add' is currently empty."
+    );
 
     // Step 3a: Process Raw Configurations from `shellrc.yaml`
     // These are typically multi-line shell snippets that the user wants to inject directly.
-    log_debug!("[Shell Config] Now, let's carefully review the 'raw_configs' from your shellrc.yaml.");
+    log_debug!(
+        "[Shell Config] Now, let's carefully review the 'raw_configs' from your shellrc.yaml."
+    );
     // We'll go through each raw configuration snippet you've provided in the `raw_configs` field.
     for raw_config_entry in &shellrc.raw_configs {
         // Split each raw config entry into individual lines to perform a robust comparison.
@@ -143,7 +214,9 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
 
         // If, after filtering, the raw config block is empty (e.g., only contained comments), skip it.
         if raw_config_lines.is_empty() {
-            log_debug!("[Shell Config] Raw config entry was empty or only comments/whitespace. Skipping.");
+            log_debug!(
+                "[Shell Config] Raw config entry was empty or only comments/whitespace. Skipping."
+            );
             continue; // Move to the next raw config entry.
         }
 
@@ -158,11 +231,16 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
         // `contains_multiline_block` is a helper for this robust check.
         if !contains_multiline_block(&existing_lines, &raw_config_lines) {
             // Hooray! This raw config is not found in the existing file. It's truly new!
-            log_info!("[Shell Config] Discovered a new raw configuration! Adding:\n{}", raw_config_entry.green());
+            log_info!(
+                "[Shell Config] Discovered a new raw configuration! Adding:\n{}",
+                raw_config_entry.green()
+            );
             new_lines_to_add.push(raw_config_entry.clone()); // Add the original (untrimmed) raw config string to the list.
         } else {
             // No need to add this one; it's already there! Log that it was skipped.
-            log_debug!("[Shell Config] Raw config is already happily living in your RC file. Skipping.");
+            log_debug!(
+                "[Shell Config] Raw config is already happily living in your RC file. Skipping."
+            );
         }
     }
     log_debug!("[Shell Config] Finished checking all 'raw_configs'.");
@@ -175,18 +253,30 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
         // We first format the alias exactly how it would appear in a shell RC file:
         // `alias <name>='<value>'`. This ensures our comparison is accurate and avoids partial matches.
         let alias_line_to_check = format!("alias {}='{}'", alias_entry.name, alias_entry.value);
-        log_debug!("[Shell Config] Examining alias definition: '{}'", alias_line_to_check.dimmed());
+        log_debug!(
+            "[Shell Config] Examining alias definition: '{}'",
+            alias_line_to_check.dimmed()
+        );
 
         // Again, we check if this exact alias definition already `contains`
         // within any of the `existing_lines` in the RC file. `any` is used
         // to iterate and find a match.
-        if !existing_lines.iter().any(|existing_line| existing_line.contains(&alias_line_to_check)) {
+        if !existing_lines
+            .iter()
+            .any(|existing_line| existing_line.contains(&alias_line_to_check))
+        {
             // Fantastic! This alias is new and not in the RC file yet.
-            log_info!("[Shell Config] Found a new alias to add! It's: {}", alias_line_to_check.green());
+            log_info!(
+                "[Shell Config] Found a new alias to add! It's: {}",
+                alias_line_to_check.green()
+            );
             new_lines_to_add.push(alias_line_to_check); // Add the freshly formatted alias line to our list.
         } else {
             // This alias is already set up; no action needed. Log that it was skipped.
-            log_debug!("[Shell Config] Alias '{}' is already defined in your RC file. Skipping.", alias_entry.name.yellow());
+            log_debug!(
+                "[Shell Config] Alias '{}' is already defined in your RC file. Skipping.",
+                alias_entry.name.yellow()
+            );
         }
     }
     log_debug!("[Shell Config] All 'aliases' have been processed.");
@@ -206,7 +296,7 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
         log_info!(
             "[Shell Config] Identified {} new line(s) to add. Appending them to {}.",
             new_lines_to_add.len().to_string().bold(), // Bold the count.
-            rc_path.display().to_string().cyan() // Color the path.
+            rc_path.display().to_string().cyan()       // Color the path.
         );
         // We call the `append_to_rc_file` helper to safely write these new lines
         // to the end of the identified RC file.
@@ -215,9 +305,31 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
                 // Success! The file has been updated.
                 log_info!(
                     "[Shell Config] RC file {} updated successfully!",
-                    rc_path.display().to_string().green()// Display the filename, colored green for success.
+                    rc_path.display().to_string().green() // Display the filename, colored green for success.
                 );
                 log_debug!("[Shell Config] Append operation finished with no issues.");
+
+                // Step 5: Source the RC File
+                // Now that we've successfully updated the RC file, let's source it
+                // to make the new configurations immediately available.
+                log_debug!(
+                    "[Shell Config] Attempting to source the updated RC file to apply changes immediately."
+                );
+                match source_rc_file(&shellrc.shell, &rc_path) {
+                    Ok(_) => {
+                        log_info!(
+                            "[Shell Config] RC file successfully sourced! New configurations are now active in your {} shell.",
+                            shellrc.shell.bold().green()
+                        );
+                    }
+                    Err(err) => {
+                        log_warn!(
+                            "[Shell Config] RC file was updated but failed to source automatically: {}. You may need to manually restart your shell or run 'source {}' to apply the changes.",
+                            err.to_string().yellow(),
+                            rc_path.display().to_string().cyan()
+                        );
+                    }
+                }
             }
             Err(err) => {
                 // Uh oh! Something went wrong while trying to write to the file (e.g., permissions).
@@ -225,11 +337,13 @@ pub fn apply_shellrc(shellrc: &ShellRc, aliases: &[AliasEntry]) {
                 log_warn!(
                     "[Shell Config] Failed to write new configurations to RC file {}: {}. Please double-check your file permissions and try again.",
                     rc_path.display().to_string().red(), // Red-colored path for error.
-                    err.to_string().red() // Red-colored error message.
+                    err.to_string().red()                // Red-colored error message.
                 );
             }
         }
     }
     // Conclude the shell configuration application process.
-    log_debug!("[Shell Config] Shell configuration application process for `apply_shellrc` has concluded.");
+    log_debug!(
+        "[Shell Config] Shell configuration application process for `apply_shellrc` has concluded."
+    );
 }

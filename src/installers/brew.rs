@@ -7,7 +7,7 @@
 // manage tools available through Homebrew.
 
 // Standard library imports:
-use std::path::PathBuf;  // For ergonomic and platform-agnostic path manipulation.
+use std::path::PathBuf; // For ergonomic and platform-agnostic path manipulation.
 use std::process::Command; // For executing external commands (like `brew`) and capturing their output.
 
 // External crate imports:
@@ -23,7 +23,6 @@ use crate::schema::{ToolEntry, ToolState};
 use crate::{log_debug, log_error, log_info, log_warn};
 // Custom logging macros. These are used throughout the module to provide informative output
 // during the installation process, aiding in debugging and user feedback.
-
 
 /// Installs a tool using the Homebrew package manager.
 ///
@@ -50,18 +49,22 @@ use crate::{log_debug, log_error, log_info, log_warn};
 ///     `brew` command not found, `brew install` failed). Detailed error logging is performed
 ///     before returning `None` to provide context for the failure.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_debug!("[Brew] Starting installation process for tool: {}", tool_entry.name.bold());
+    log_debug!(
+        "[Brew] Starting installation process for tool: {}",
+        tool_entry.name.bold()
+    );
 
     // 1. Validate Tool Name
     // Ensure that the `name` field is present in the `ToolEntry` and is not empty.
     // The tool name is essential for the `brew install` command.
     let name = &tool_entry.name;
     if name.is_empty() {
-        log_error!("[Brew] Tool name is empty in the configuration. Cannot proceed with Homebrew installation.");
+        log_error!(
+            "[Brew] Tool name is empty in the configuration. Cannot proceed with Homebrew installation."
+        );
         return None; // Abort if the tool name is missing.
     }
     log_debug!("[Brew] Tool name '{}' is validated.", name.blue());
-
 
     // 2. Prepare and Execute Homebrew Installation Command
     // Create a new `Command` instance to interact with the `brew` executable.
@@ -74,7 +77,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // For this implementation, we assume installation of the latest stable version.
     cmd.arg("install").arg(name);
 
-    log_info!("[Brew] Attempting to install {} using Homebrew...", name.bold());
+    log_info!(
+        "[Brew] Attempting to install {} using Homebrew...",
+        name.bold()
+    );
     // Log the exact command being executed for debugging purposes.
     log_debug!("[Brew] Executing command: {:#?}", cmd);
 
@@ -108,7 +114,6 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     log_info!("[Brew] Successfully installed {}!", name.green());
 
-
     // 3. Determine the Installation Path
     // Homebrew installs binaries into a specific directory, which varies based on macOS architecture
     // (e.g., `/usr/local/bin` on Intel, `/opt/homebrew/bin` on Apple Silicon).
@@ -121,7 +126,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     let brew_prefix = if brew_prefix_output.status.success() {
         // If `brew --prefix` was successful, take its stdout, trim whitespace, and convert to a String.
-        String::from_utf8_lossy(&brew_prefix_output.stdout).trim().to_string()
+        String::from_utf8_lossy(&brew_prefix_output.stdout)
+            .trim()
+            .to_string()
     } else {
         // If `brew --prefix` failed (e.g., even if `brew` is found, `--prefix` might error for some reason),
         // log a warning and default to a common, but potentially incorrect, path.
@@ -153,7 +160,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // The version field. Homebrew handles versions, so we can either use the `tool.version`
         // if specified (e.g., for specific formula@version syntax) or default to "latest"
         // to signify it's managed by Homebrew.
-        version: tool_entry.version.clone().unwrap_or_else(|| "latest".to_string()),
+        version: tool_entry
+            .version
+            .clone()
+            .unwrap_or_else(|| "latest".to_string()),
         // The detected absolute path to the installed binary.
         install_path: install_path.display().to_string(),
         // Flag indicating that this tool was installed by `devbox`.
@@ -172,5 +182,6 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // For direct URL installations: The original URL from which the tool was downloaded.
         url: tool_entry.url.clone(),
         executable_path_after_extract: None,
+        additional_cmd_executed: tool_entry.additional_cmd.clone(),
     })
 }
