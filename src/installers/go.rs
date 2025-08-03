@@ -31,19 +31,24 @@ use std::path::PathBuf;
 /// Go module syntax (e.g., `module@version`), includes any additional build options,
 /// executes the command, and records the installation details.
 ///
+/// This revised version prioritizes using `tool_entry.url` as the source for `go install`
+/// if provided, falling back to `tool_entry.name` otherwise.
+///
 /// # Workflow:
 /// 1.  **`go` Executable Check**: Verifies that the `go` command is available in the system's PATH.
-/// 2.  **Command Construction**: Builds the `go install` command arguments, combining the module path
+/// 2.  **Source Determination**: Decides whether to use `tool_entry.url` or `tool_entry.name`
+///     as the Go module path for `go install`.
+/// 3.  **Command Construction**: Builds the `go install` command arguments, combining the module path
 ///     with an optional version specifier (`@version`).
-/// 3.  **Additional Options**: Incorporates any extra `go install` options (e.g., `-ldflags`)
+/// 4.  **Additional Options**: Incorporates any extra `go install` options (e.g., `-ldflags`)
 ///     provided in the `tool_entry.options`.
-/// 4.  **Execution**: Runs the constructed `go install` command and captures its standard output,
+/// 5.  **Execution**: Runs the constructed `go install` command and captures its standard output,
 ///     standard error, and exit status.
-/// 5.  **Error Handling**: Provides detailed logging for successful installations, warnings,
+/// 6.  **Error Handling**: Provides detailed logging for successful installations, warnings,
 ///     and failures, including the command's exit code and standard error.
-/// 6.  **Path Determination**: Attempts to determine the common installation path for Go binaries
+/// 7.  **Path Determination**: Attempts to determine the common installation path for Go binaries
 ///     (typically `GOPATH/bin` or `~/go/bin/`).
-/// 7.  **State Recording**: Creates and returns a `ToolState` object to persistently track
+/// 8.  **State Recording**: Creates and returns a `ToolState` object to persistently track
 ///     the installed Go tool within the `state.json` file.
 ///
 /// # Arguments
@@ -53,6 +58,8 @@ use std::path::PathBuf;
 ///   - `tool_entry.version`: An optional version string (e.g., "v0.1.0"). If present, `go install`
 ///     will attempt to install that specific version using `@version` syntax. If `None`, the latest
 ///     stable version is typically installed.
+///   - `tool_entry.url`: An optional URL string. If present, and interpretable by `go install` as
+///     a module path (e.g., "https://github.com/spf13/cobra"), it will be used as the source.
 ///   - `tool_entry.options`: An optional `Vec<String>` containing additional arguments to pass
 ///     directly to the `go install` command (e.g., `"-ldflags='-s -w'"`, `"-buildvcs=false"`).
 ///
@@ -78,18 +85,22 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         return None; // Cannot proceed without the Go executable.
     }
 
+    // Determine the base package path for `go install`.
+    // Prioritize `tool_entry.url` if it's provided, otherwise use `tool_entry.name`.
+    // This allows users to specify a direct repository URL for `go install`.
+    let base_package_path = tool_entry.url.as_ref().unwrap_or(&tool_entry.name);
+
     // Initialize command arguments for `go install`.
-    // `go install` is the standard way to install Go programs from modules.
     let mut command_args = vec!["install"];
 
-    // Handle versioning if provided in `tool_entry.version`.
-    // Go modules typically use `@version` syntax (e.g., `golang.org/x/tools/cmd/goimports@latest`).
-    let package_path = if let Some(version) = &tool_entry.version {
-        format!("{}@{}", tool_entry.name, version) // Format as `module_path@version`.
+    // Combine the base package path with the version if provided.
+    // Go modules typically use `@version` syntax (e.g., `module_path@version`).
+    let package_path_with_version = if let Some(version) = &tool_entry.version {
+        format!("{}@{}", base_package_path, version) // Format as `module_path_or_url@version`.
     } else {
-        tool_entry.name.clone() // If no version specified, install the latest (implicitly `@latest`).
+        base_package_path.clone() // If no version specified, install the latest (implicitly `@latest`).
     };
-    command_args.push(&package_path); // Add the constructed package path (with/without version) to arguments.
+    command_args.push(&package_path_with_version); // Add the constructed package path to arguments.
 
     // Add any additional options specified in the `ToolEntry`, e.g., build flags (`-ldflags`).
     if let Some(options) = &tool_entry.options {
@@ -151,7 +162,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             home.push_str("/go/bin/"); // Common default for `go install` if `GOPATH` isn't customized.
             // Join the base path with the tool's name, assuming the binary is named after the tool.
             PathBuf::from(home)
-                .join(&tool_entry.name)
+                .join(&tool_entry.name) // Use `tool_entry.name` for the *binary filename*.
                 .to_string_lossy()
                 .into_owned()
         } else {
@@ -185,6 +196,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             tag: None,
             // Pass the additional `options` that were used during the `go install` command.
             options: tool_entry.options.clone(),
+            // Store the URL if it was used as the source for `go install`.
             url: tool_entry.url.clone(),
             executable_path_after_extract: None,
             additional_cmd_executed: tool_entry.additional_cmd.clone(),

@@ -284,7 +284,7 @@ impl ToolEntry {
                 // options, rename_to, and additional_cmd are general and can be present.
             }
             // For other sources, ensure GitHub/URL specific fields are NOT present.
-            "brew" | "cargo" | "rustup" | "pip" | "go" => {
+            "brew" | "cargo" | "rustup" | "pip" => {
                 if self.repo.is_some()
                     || self.tag.is_some()
                     || self.url.is_some()
