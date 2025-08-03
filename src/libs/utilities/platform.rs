@@ -19,16 +19,21 @@ use colored::Colorize;
 /// # Returns
 /// * `bool`: `true` if the filename contains recognizable keywords for the platform's OS and architecture,
 ///           considering aliases and a special Rosetta 2 fallback for macOS ARM64. `false` otherwise.
+
 pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
     // Convert inputs to lowercase for case-insensitive comparison.
     let asset_name_lower = filename.to_lowercase();
-    let os_lower = os.to_lowercase();
-    let arch_lower = arch.to_lowercase();
+
+    // Pre-Step: Normalize the input OS and Architecture first
+    // This makes sure we are working with consistent, canonical names like "macOS" and "arm64",
+    // regardless of whether the input was "Darwin" or "aarch64".
+    let os_normalized = normalize_os(os);
+    let arch_normalized = normalize_arch(arch);
 
     // 1. Check for OS match:
     // Iterate through all known aliases for the current OS. If any alias is found
     // as a substring within the asset filename, it's considered an OS match.
-    let os_matches = os_aliases(&os_lower)
+    let os_matches = os_aliases(&os_normalized)
         .iter()
         .any(|alias| asset_name_lower.contains(alias));
 
@@ -42,18 +47,31 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
         return false;
     }
 
-    // 2. Check for Architecture match:
+    // 2. Handle universal macOS packages (.dmg, .pkg)
+    // If the OS is macOS and the asset is a .dmg or .pkg file, we consider it a match
+    // because these are often universal installers that don't specify an architecture.
+    let is_macos_universal_package = os_normalized == "macos"
+        && (asset_name_lower.ends_with(".dmg") || asset_name_lower.ends_with(".pkg"));
+
+    if is_macos_universal_package {
+        log_debug!(
+            "[Utils] Asset '{}' matches as a potential universal macOS package (dmg/pkg).",
+            filename.dimmed()
+        );
+        // We'll still run the exclusion check to be safe.
+        // If it passes, we're done here and we return `true`.
+        return !is_excluded_asset(&asset_name_lower);
+    }
+    // 3. Check for Architecture match:
     // Iterate through all known aliases for the current architecture. If any alias is found
     // as a substring within the asset filename, it's considered an architecture match.
-    let arch_matches = arch_aliases(&arch_lower)
+    let arch_matches = arch_aliases(&arch_normalized)
         .iter()
         .any(|alias| asset_name_lower.contains(alias));
 
-    // 3. Special consideration for macOS ARM64 (aarch64) with Rosetta 2 fallback:
-    // If the target is macOS ARM64, and the asset filename contains "x86_64" (Intel architecture)
-    // but *does not* contain "arm64" or "aarch64" (explicit ARM64),
-    // it's considered a potential match because macOS can run x86_64 binaries via Rosetta 2 emulation.
-    let rosetta_fallback = (os_lower == "macos" && arch_lower == "arm64")
+    // 4. Special consideration for macOS ARM64 (aarch64) with Rosetta 2 fallback:
+    // By using our normalized strings here, we handle aliases like "darwin" and "aarch64" automatically.
+    let rosetta_fallback = (os_normalized == "macos" && arch_normalized == "arm64")
         && asset_name_lower.contains("x86_64")
         && !(asset_name_lower.contains("arm64") || asset_name_lower.contains("aarch64"));
 
@@ -70,19 +88,7 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
     // 4. Optional: Exclude common source, debug, or checksum files.
     // These files are usually not the actual executable binaries we want to download.
     // This helps in picking the actual binary release.
-    if asset_name_lower.contains("src") ||
-        asset_name_lower.contains("source") ||
-        asset_name_lower.contains("debug") ||
-        asset_name_lower.contains("checksum") ||
-        asset_name_lower.contains("sha256") ||
-        asset_name_lower.contains("tar.gz.sig") || // Common signature file for tar.gz
-        asset_name_lower.ends_with(".asc")
-    {
-        // Common detached signature file extension
-        log_debug!(
-            "[Utils] Asset '{}' excluded due to containing common non-binary keywords.",
-            filename.dimmed()
-        );
+    if is_excluded_asset(&asset_name_lower) {
         return false;
     }
 
@@ -96,6 +102,119 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
     );
     true
 }
+
+/// Checks if an asset filename should be excluded based on common keywords for non-binary files.
+///
+/// This function is a helper used to filter out files from a list of release assets
+/// that are typically not the primary executable binary. This includes source code archives,
+/// debug symbols, checksums, and signature files.
+///
+/// # Arguments
+///
+/// * `asset_name_lower`: A string slice (`&str`) of the asset's filename, which is expected to be
+///   in lowercase for case-insensitive matching.
+///
+/// # Returns
+///
+/// * `bool`: Returns `true` if the filename contains keywords for exclusion (e.g., "src", "checksum", ".asc").
+///           Returns `false` if the asset is considered a potential binary.
+fn is_excluded_asset(asset_name_lower: &str) -> bool {
+    // These files are usually not the actual executable binaries we want to download.
+    // This helps in picking the actual binary release.
+    let is_excluded = asset_name_lower.contains("src") ||
+        asset_name_lower.contains("source") ||
+        asset_name_lower.contains("debug") ||
+        asset_name_lower.contains("checksum") ||
+        asset_name_lower.contains("sha256") ||
+        asset_name_lower.contains("tar.gz.sig") || // Common signature file for tar.gz
+        asset_name_lower.ends_with(".asc"); // Common detached signature file extension
+
+    if is_excluded {
+        log_debug!(
+            "[Utils] Asset '{}' excluded due to containing common non-binary keywords.",
+            asset_name_lower.dimmed()
+        );
+    }
+    is_excluded
+}
+
+// pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
+//     // Convert inputs to lowercase for case-insensitive comparison.
+//     let asset_name_lower = filename.to_lowercase();
+//     let os_lower = os.to_lowercase();
+//     let arch_lower = arch.to_lowercase();
+//
+//     // 1. Check for OS match:
+//     // Iterate through all known aliases for the current OS. If any alias is found
+//     // as a substring within the asset filename, it's considered an OS match.
+//     let os_matches = os_aliases(&os_lower)
+//         .iter()
+//         .any(|alias| asset_name_lower.contains(alias));
+//
+//     // If no OS match, immediately return false. No need to check architecture.
+//     if !os_matches {
+//         log_debug!(
+//             "[Utils] Asset '{}' does not match OS '{}'",
+//             filename.dimmed(),
+//             os
+//         );
+//         return false;
+//     }
+//
+//     // 2. Check for Architecture match:
+//     // Iterate through all known aliases for the current architecture. If any alias is found
+//     // as a substring within the asset filename, it's considered an architecture match.
+//     let arch_matches = arch_aliases(&arch_lower)
+//         .iter()
+//         .any(|alias| asset_name_lower.contains(alias));
+//
+//     // 3. Special consideration for macOS ARM64 (aarch64) with Rosetta 2 fallback:
+//     // If the target is macOS ARM64, and the asset filename contains "x86_64" (Intel architecture)
+//     // but *does not* contain "arm64" or "aarch64" (explicit ARM64),
+//     // it's considered a potential match because macOS can run x86_64 binaries via Rosetta 2 emulation.
+//     let rosetta_fallback = (os_lower == "macos" && arch_lower == "arm64")
+//         && asset_name_lower.contains("x86_64")
+//         && !(asset_name_lower.contains("arm64") || asset_name_lower.contains("aarch64"));
+//
+//     // If neither a direct architecture match nor the Rosetta fallback condition is met, return false.
+//     if !(arch_matches || rosetta_fallback) {
+//         log_debug!(
+//             "[Utils] Asset '{}' does not match architecture '{}' (and no Rosetta fallback).",
+//             filename.dimmed(),
+//             arch
+//         );
+//         return false;
+//     }
+//
+//     // 4. Optional: Exclude common source, debug, or checksum files.
+//     // These files are usually not the actual executable binaries we want to download.
+//     // This helps in picking the actual binary release.
+//     if asset_name_lower.contains("src") ||
+//         asset_name_lower.contains("source") ||
+//         asset_name_lower.contains("debug") ||
+//         asset_name_lower.contains("checksum") ||
+//         asset_name_lower.contains("sha256") ||
+//         asset_name_lower.contains("tar.gz.sig") || // Common signature file for tar.gz
+//         asset_name_lower.ends_with(".asc")
+//     {
+//         // Common detached signature file extension
+//         log_debug!(
+//             "[Utils] Asset '{}' excluded due to containing common non-binary keywords.",
+//             filename.dimmed()
+//         );
+//         return false;
+//     }
+//
+//     // If all checks pass, the asset is considered a match for the current platform.
+//     log_debug!(
+//         "[Utils] Asset '{}' matches platform (OS: {}, ARCH: {}) -> {}",
+//         filename.dimmed(),
+//         os.cyan(),
+//         arch.magenta(),
+//         "true".bold()
+//     );
+//     true
+// }
 
 /// Helper function: Provides a list of common alternative names (aliases) for a given CPU architecture.
 /// This is used internally by `asset_matches_platform` to handle different naming conventions
