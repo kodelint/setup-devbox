@@ -8,9 +8,9 @@
 
 // Standard library imports:
 use std::env; // For interacting with environment variables, like $HOME.
-use std::path::{Path, PathBuf}; // For ergonomic and platform-agnostic path manipulation.
 use std::fs; // For file system operations (creating directories, copying files, reading directories).
-use std::io; // For core input/output functionalities and error types.
+use std::io;
+use std::path::{Path, PathBuf}; // For ergonomic and platform-agnostic path manipulation. // For core input/output functionalities and error types.
 
 // External crate imports:
 use colored::Colorize; // Used for adding color to terminal output, enhancing readability of logs.
@@ -28,8 +28,8 @@ use crate::schema::{FontEntry, FontState};
 use crate::libs::utilities::assets::download_file; // For downloading files from URLs.
 use crate::libs::utilities::compression::extract_archive; // For extracting various archive formats.
 
-
 /// Helper struct to hold validated font entry details, reducing redundancy.
+#[allow(dead_code)]
 struct ValidatedFontDetails {
     repo: String,
     tag: String,
@@ -113,24 +113,31 @@ fn validate_font_entry(font: &FontEntry) -> Option<ValidatedFontDetails> {
 fn get_font_installation_dir() -> io::Result<PathBuf> {
     log_debug!("[Font Paths] Attempting to get macOS font installation directory.");
     let Some(home_dir) = dirs::home_dir() else {
-        log_error!("[Font Paths] Could not determine home directory. Cannot proceed with font installation.");
-        return Err(io::Error::new(io::ErrorKind::NotFound, "Home directory not found"));
+        log_error!(
+            "[Font Paths] Could not determine home directory. Cannot proceed with font installation."
+        );
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "Home directory not found",
+        ));
     };
 
     let font_dir = home_dir.join("Library").join("Fonts");
 
     // Ensure the directory exists.
-    fs::create_dir_all(&font_dir)
-        .map_err(|e| {
-            log_error!(
-                "[Font Paths] Failed to create font installation directory '{}': {}",
-                font_dir.display(),
-                e.to_string().red()
-            );
-            e // Propagate the io::Error
-        })?;
+    fs::create_dir_all(&font_dir).map_err(|e| {
+        log_error!(
+            "[Font Paths] Failed to create font installation directory '{}': {}",
+            font_dir.display(),
+            e.to_string().red()
+        );
+        e // Propagate the io::Error
+    })?;
 
-    log_debug!("[Font Paths] macOS font installation directory: {}", font_dir.display());
+    log_debug!(
+        "[Font Paths] macOS font installation directory: {}",
+        font_dir.display()
+    );
     Ok(font_dir)
 }
 
@@ -138,8 +145,13 @@ fn get_font_installation_dir() -> io::Result<PathBuf> {
 // This will return an error if compiled on a non-macOS system.
 #[cfg(not(target_os = "macos"))]
 fn get_font_installation_dir() -> io::Result<PathBuf> {
-    log_error!("[Font Paths] Font installation is not supported on this operating system. Currently only macOS is supported.");
-    Err(io::Error::new(io::ErrorKind::Other, "Unsupported operating system for font installation"))
+    log_error!(
+        "[Font Paths] Font installation is not supported on this operating system. Currently only macOS is supported."
+    );
+    Err(io::Error::new(
+        io::ErrorKind::Other,
+        "Unsupported operating system for font installation",
+    ))
 }
 
 /// Downloads the font archive from the given URL to a temporary directory.
@@ -172,7 +184,10 @@ fn download_font_archive(
     // Use the centralized `download_file` utility.
     download_file(url, &temp_download_path)?; // `?` propagates the Box<dyn Error>
 
-    log_debug!("[Font Download] Download complete for '{}'.", font_name.bold());
+    log_debug!(
+        "[Font Download] Download complete for '{}'.",
+        font_name.bold()
+    );
     Ok(temp_download_path)
 }
 
@@ -199,18 +214,20 @@ fn extract_font_archive(
 
     // `extract_archive` is designed to return the path to the extracted contents.
     // This handles various archive types (zip, tar.gz, etc.)
-    let extracted_path = extract_archive(archive_path, extract_to_dir, None)
-        .map_err(|e| {
-            log_error!(
-                "[Font Extraction] Failed to extract archive for '{}' from '{}': {}",
-                font_name.red(),
-                archive_path.display().to_string().red(),
-                e.to_string().red()
-            );
-            e // Propagate the io::Error
-        })?;
+    let extracted_path = extract_archive(archive_path, extract_to_dir, None).map_err(|e| {
+        log_error!(
+            "[Font Extraction] Failed to extract archive for '{}' from '{}': {}",
+            font_name.red(),
+            archive_path.display().to_string().red(),
+            e.to_string().red()
+        );
+        e // Propagate the io::Error
+    })?;
 
-    log_debug!("[Font Extraction] Archive extracted to: {}", extracted_path.display());
+    log_debug!(
+        "[Font Extraction] Archive extracted to: {}",
+        extracted_path.display()
+    );
 
     // Clean up the original downloaded archive file after successful extraction.
     if archive_path.is_file() {
@@ -267,7 +284,10 @@ fn copy_non_hidden_font_files(
 
         // Skip hidden files/directories (starting with '.') and non-files.
         if filename.starts_with('.') || (!path.is_file()) {
-            log_debug!("[Font Copy] Skipping hidden or non-file entry: {}", filename.blue());
+            log_debug!(
+                "[Font Copy] Skipping hidden or non-file entry: {}",
+                filename.blue()
+            );
             continue;
         }
 
@@ -275,7 +295,11 @@ fn copy_non_hidden_font_files(
         let is_font_file = matches!(extension.to_lowercase().as_str(), "ttf" | "otf");
 
         if !is_font_file {
-            log_debug!("[Font Copy] Skipping non-font file (unsupported extension '{}'): {}", extension.blue(), filename.blue());
+            log_debug!(
+                "[Font Copy] Skipping non-font file (unsupported extension '{}'): {}",
+                extension.blue(),
+                filename.blue()
+            );
             continue;
         }
 
@@ -284,7 +308,8 @@ fn copy_non_hidden_font_files(
             if !filters.iter().any(|filter| filename.contains(filter)) {
                 log_debug!(
                     "[Font Copy] Skipping font file '{}' as it does not match 'install_only' filters ({:#?}).",
-                    filename.blue(), filters
+                    filename.blue(),
+                    filters
                 );
                 continue;
             }
@@ -297,16 +322,15 @@ fn copy_non_hidden_font_files(
             destination_path.display()
         );
 
-        fs::copy(&path, &destination_path)
-            .map_err(|e| {
-                log_error!(
-                    "[Font Copy] Failed to copy font file '{}' to '{}': {}",
-                    path.display().to_string().red(),
-                    destination_path.display().to_string().red(),
-                    e.to_string().red()
-                );
-                e // Propagate the io::Error
-            })?;
+        fs::copy(&path, &destination_path).map_err(|e| {
+            log_error!(
+                "[Font Copy] Failed to copy font file '{}' to '{}': {}",
+                path.display().to_string().red(),
+                destination_path.display().to_string().red(),
+                e.to_string().red()
+            );
+            e // Propagate the io::Error
+        })?;
 
         installed_font_files.push(filename.to_string());
         log_debug!("[Font Copy] Successfully copied: {}", filename.green());
@@ -318,7 +342,8 @@ fn copy_non_hidden_font_files(
 /// Helper to derive the version string for `FontState`.
 /// Prefers `version` from `FontEntry`, then `tag`, then "unknown".
 fn determine_font_version(font: &FontEntry) -> String {
-    font.version.clone()
+    font.version
+        .clone()
         .unwrap_or_else(|| font.tag.clone().unwrap_or_else(|| "unknown".to_string()))
 }
 
@@ -337,7 +362,10 @@ fn determine_font_version(font: &FontEntry) -> String {
 /// * `None` if the font installation process failed for any reason (e.g., validation error,
 ///   download failure, no font files found/copied). Error details are logged internally.
 pub fn install(font: &FontEntry) -> Option<FontState> {
-    log_info!("[Font Installer] Starting installation for font: {}", font.name.bold());
+    log_info!(
+        "[Font Installer] Starting installation for font: {}",
+        font.name.bold()
+    );
 
     // 1. Validate the font entry and get download details.
     let font_details = validate_font_entry(font)?; // Returns None if validation fails
@@ -348,7 +376,8 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
         Err(_) => return None, // Already logged error, just abort
     };
 
-    let temp_dir = env::temp_dir().join(format!("setup-devbox-font-{}", font.name.replace(' ', "-")));
+    let temp_dir =
+        env::temp_dir().join(format!("setup-devbox-font-{}", font.name.replace(' ', "-")));
     let temp_dir_clone_for_cleanup = temp_dir.clone(); // Clone for deferred cleanup
 
     // Ensure the temporary directory exists.
@@ -424,7 +453,10 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
     // 7. Return FontState for Tracking (Conditional):
     // Only record the font's state if at least one file was successfully installed.
     if !installed_font_files.is_empty() {
-        log_debug!("[Font Installer] Constructing FontState for '{}'.", font.name.bold());
+        log_debug!(
+            "[Font Installer] Constructing FontState for '{}'.",
+            font.name.bold()
+        );
         Some(FontState {
             name: font.name.clone(),
             // Derive version using the helper function.
