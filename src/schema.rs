@@ -131,7 +131,7 @@ pub struct FontConfig {
 pub struct FontEntry {
     pub name: String,
     pub version: Option<String>, // Desired font version.
-    pub source: String,          // Source for the font (e.g., "github", "nerdfonts").
+    pub source: String,          // Source for the font (e.g., "GitHub", "nerd-fonts").
     pub repo: Option<String>,    // GitHub repository for the font.
     pub tag: Option<String>,     // Specific GitHub tag/release.
     #[serde(default)]

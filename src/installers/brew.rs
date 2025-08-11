@@ -78,7 +78,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     cmd.arg("install").arg(name);
 
     log_info!(
-        "[Brew] Attempting to install {} using Homebrew...",
+        "[Brew] Attempting to install or upgrade {} using Homebrew...",
         name.bold()
     );
     // Log the exact command being executed for debugging purposes.
