@@ -14,8 +14,8 @@ use std::fs::File;
 // `std::process::Command` allows the application to spawn and control external processes.
 use std::process::{Command, Stdio};
 // `std::io` contains core input/output functionalities and error types.
-use std::{fs, io};
-use std::str; // Needed for `String::from_utf8_lossy`
+use std::str;
+use std::{fs, io}; // Needed for `String::from_utf8_lossy`
 
 /// Downloads a file from a given URL and saves it to a specified destination on the local file system.
 /// This is crucial for fetching tools and resources from the internet (e.g., GitHub releases).
@@ -42,7 +42,10 @@ pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
             log_error!("[Utils] HTTP request failed for {}: {}", url.red(), e);
             // Convert the `ureq` error into a standard `io::Error` for consistent error handling
             // across the application. `io::ErrorKind::Other` is a generic error kind.
-            return Err(io::Error::new(io::ErrorKind::Other, format!("HTTP error: {}", e)));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("HTTP error: {}", e),
+            ));
         }
     };
 
@@ -60,7 +63,10 @@ pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
     std::io::copy(&mut reader, &mut file)?;
 
     // Log a debug message upon successful download, coloring the destination path.
-    log_debug!("[Utils] File downloaded successfully to {}", dest.to_string_lossy().green());
+    log_debug!(
+        "[Utils] File downloaded successfully to {}",
+        dest.to_string_lossy().green()
+    );
     Ok(()) // Indicate success by returning `Ok(())`.
 }
 
@@ -88,7 +94,10 @@ pub fn detect_file_type(path: &Path) -> String {
             return "tar.gz".to_string();
         } else if lower_file_name.ends_with(".tar.xz") || lower_file_name.ends_with(".txz") {
             return "tar.xz".to_string();
-        } else if lower_file_name.ends_with(".tar.bz2") || lower_file_name.ends_with(".tbz") || lower_file_name.ends_with(".tbz2") {
+        } else if lower_file_name.ends_with(".tar.bz2")
+            || lower_file_name.ends_with(".tbz")
+            || lower_file_name.ends_with(".tbz2")
+        {
             return "tar.bz2".to_string();
         }
         // Then check for common single extensions. The order here is important
@@ -117,10 +126,14 @@ pub fn detect_file_type(path: &Path) -> String {
         .arg("--mime-type")
         .arg("--brief")
         .arg(path)
-        .output() {
+        .output()
+    {
         Ok(output) => output,
         Err(e) => {
-            log_warn!("[Utils] Failed to execute 'file' command for type detection: {}. Falling back to 'binary'.", e);
+            log_warn!(
+                "[Utils] Failed to execute 'file' command for type detection: {}. Falling back to 'binary'.",
+                e
+            );
             return "binary".to_string(); // Default to binary if 'file' command fails
         }
     };
@@ -135,15 +148,26 @@ pub fn detect_file_type(path: &Path) -> String {
         "application/x-bzip2" => "bz2".to_string(),
         "application/x-xz" => "xz".to_string(),
         // Specific handling for macOS installers based on MIME type, but confirm extension as a fallback
-        "application/x-xar" if path.extension().map_or(false, |ext| ext.to_string_lossy().eq_ignore_ascii_case("pkg")) => "pkg".to_string(),
-        "application/x-apple-diskimage" if path.extension().map_or(false, |ext| ext.to_string_lossy().eq_ignore_ascii_case("dmg")) => "dmg".to_string(),
+        "application/x-xar"
+            if path.extension().map_or(false, |ext| {
+                ext.to_string_lossy().eq_ignore_ascii_case("pkg")
+            }) =>
+        {
+            "pkg".to_string()
+        }
+        "application/x-apple-diskimage"
+            if path.extension().map_or(false, |ext| {
+                ext.to_string_lossy().eq_ignore_ascii_case("dmg")
+            }) =>
+        {
+            "dmg".to_string()
+        }
         // Generic binary or unknown
         _ => "binary".to_string(), // Default fallback
     }
 }
 
-
-// install_pkg function (Updated to return PathBuf for the installed app) 
+// install_pkg function (Updated to return PathBuf for the installed app)
 /// Installs a software from a .pkg file on macOS.
 /// This is a dummy implementation; your actual function needs to:
 /// 1. Execute the `installer` command with the .pkg file.
@@ -158,7 +182,10 @@ pub fn detect_file_type(path: &Path) -> String {
 ///   `Err(io::Error)` otherwise.
 #[cfg(target_os = "macos")]
 pub fn install_pkg(pkg_path: &Path, tool_name: &str) -> io::Result<PathBuf> {
-    log_info!("[macOS Installer] Initiating .pkg installation for: {}", pkg_path.display().to_string().bold());
+    log_info!(
+        "[macOS Installer] Initiating .pkg installation for: {}",
+        pkg_path.display().to_string().bold()
+    );
     log_info!("[macOS Installer] Executing .pkg installer (may require admin privileges)...");
 
     let installer_output = Command::new("sudo")
@@ -174,7 +201,10 @@ pub fn install_pkg(pkg_path: &Path, tool_name: &str) -> io::Result<PathBuf> {
     if !installer_output.status.success() {
         let stderr = String::from_utf8_lossy(&installer_output.stderr);
         log_error!("[macOS Installer] Failed to install .pkg: {}", stderr.red());
-        return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to install .pkg: {}", stderr)));
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to install .pkg: {}", stderr),
+        ));
     }
 
     // Determine the actual installation path using a more generic heuristic
@@ -187,7 +217,10 @@ pub fn install_pkg(pkg_path: &Path, tool_name: &str) -> io::Result<PathBuf> {
     // 1. Check for application bundles in /Applications (common for GUI apps)
     let app_path = PathBuf::from(format!("/Applications/{}.app", tool_name));
     if app_path.exists() {
-        log_debug!("[macOS Installer] Found application bundle at: {}", app_path.display());
+        log_debug!(
+            "[macOS Installer] Found application bundle at: {}",
+            app_path.display()
+        );
         inferred_install_path = Some(app_path);
     }
 
@@ -195,13 +228,19 @@ pub fn install_pkg(pkg_path: &Path, tool_name: &str) -> io::Result<PathBuf> {
     if inferred_install_path.is_none() {
         let cli_root_path = PathBuf::from(format!("/usr/local/{}", tool_name));
         if cli_root_path.exists() && cli_root_path.is_dir() {
-            log_debug!("[macOS Installer] Found CLI tool root directory at: {}", cli_root_path.display());
+            log_debug!(
+                "[macOS Installer] Found CLI tool root directory at: {}",
+                cli_root_path.display()
+            );
             inferred_install_path = Some(cli_root_path);
         } else {
             // As a fallback, check if a binary directly exists in /usr/local/bin
             let cli_bin_path = PathBuf::from(format!("/usr/local/bin/{}", tool_name));
             if cli_bin_path.exists() {
-                log_debug!("[macOS Installer] Found CLI binary at: {}", cli_bin_path.display());
+                log_debug!(
+                    "[macOS Installer] Found CLI binary at: {}",
+                    cli_bin_path.display()
+                );
                 inferred_install_path = Some(cli_bin_path);
             }
         }
@@ -220,15 +259,23 @@ pub fn install_pkg(pkg_path: &Path, tool_name: &str) -> io::Result<PathBuf> {
         PathBuf::from(format!("/usr/local/bin/{}", tool_name))
     });
 
-    log_info!("[macOS Installer] PKG for {} installed successfully. Inferred install path: {}",
-        tool_name.green(), final_path.display().to_string().green());
+    log_info!(
+        "[macOS Installer] PKG for {} installed successfully. Inferred install path: {}",
+        tool_name.green(),
+        final_path.display().to_string().green()
+    );
     Ok(final_path)
 }
 
 #[cfg(not(target_os = "macos"))]
 pub fn install_pkg(_pkg_path: &Path, _tool_name: &str) -> io::Result<PathBuf> {
-    log_warn!("[macOS Installer] .pkg installation is only supported on macOS. Skipping for this platform.");
-    Err(io::Error::new(io::ErrorKind::Other, ".pkg installation is only supported on macOS."))
+    log_warn!(
+        "[macOS Installer] .pkg installation is only supported on macOS. Skipping for this platform."
+    );
+    Err(io::Error::new(
+        io::ErrorKind::Other,
+        ".pkg installation is only supported on macOS.",
+    ))
 }
 
 // install_dmg function (With corrected return type logic to PathBuf)
@@ -252,16 +299,22 @@ pub fn install_pkg(_pkg_path: &Path, _tool_name: &str) -> io::Result<PathBuf> {
 ///   containing the final installation path; `Err(io::Error)` otherwise.
 #[cfg(target_os = "macos")]
 pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
-    log_info!("[macOS Installer] Initiating .dmg installation for: {}", dmg_path.display().to_string().bold());
+    log_info!(
+        "[macOS Installer] Initiating .dmg installation for: {}",
+        dmg_path.display().to_string().bold()
+    );
 
     if !dmg_path.exists() || !dmg_path.is_file() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
-            format!("DMG file does not exist or is not a file: {}", dmg_path.display())
+            format!(
+                "DMG file does not exist or is not a file: {}",
+                dmg_path.display()
+            ),
         ));
     }
 
-    let mut mounted_path: Option<PathBuf> = None;
+    let mounted_path: Option<PathBuf>;
 
     log_debug!("[macOS Installer] Mounting DMG: {}", dmg_path.display());
     let hdiutil_output = Command::new("sudo")
@@ -279,34 +332,50 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
     if !hdiutil_output.status.success() {
         let stderr = String::from_utf8_lossy(&hdiutil_output.stderr);
         log_error!("[macOS Installer] Failed to mount DMG: {}", stderr.red());
-        return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to mount DMG: {}", stderr)));
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to mount DMG: {}", stderr),
+        ));
     }
 
     let stdout = String::from_utf8_lossy(&hdiutil_output.stdout);
     if let Some(path_str) = extract_mounted_path_from_hdiutil_plist(&stdout) {
         let path = PathBuf::from(path_str);
         if path.exists() && path.is_dir() {
-            log_info!("[macOS Installer] DMG mounted successfully at: {}", path.display().to_string().green());
+            log_info!(
+                "[macOS Installer] DMG mounted successfully at: {}",
+                path.display().to_string().green()
+            );
             mounted_path = Some(path);
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("hdiutil reported successful mount, but path does not exist or is not a directory: {}", path.display())
+                format!(
+                    "hdiutil reported successful mount, but path does not exist or is not a directory: {}",
+                    path.display()
+                ),
             ));
         }
     } else {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("Failed to parse mounted path from hdiutil output for {}", dmg_path.display())
+            format!(
+                "Failed to parse mounted path from hdiutil output for {}",
+                dmg_path.display()
+            ),
         ));
     }
 
     let mounted_volume_path = mounted_path.ok_or_else(|| {
-        io::Error::new(io::ErrorKind::Other, "DMG was not mounted or mounted path could not be determined.")
+        io::Error::new(
+            io::ErrorKind::Other,
+            "DMG was not mounted or mounted path could not be determined.",
+        )
     })?;
 
     //  Perform Installation and ensure unmount happens
-    let install_result: io::Result<PathBuf> = (|| { // Changed closure return type to PathBuf
+    let install_result: io::Result<PathBuf> = (|| {
+        // Changed closure return type to PathBuf
         let mut pkg_found: Option<PathBuf> = None;
         let mut app_found: Option<PathBuf> = None;
 
@@ -322,16 +391,27 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
         }
 
         if let Some(pkg_path) = pkg_found {
-            log_info!("[macOS Installer] Found .pkg installer: {}", pkg_path.display().to_string().bold());
-            log_info!("[macOS Installer] Executing .pkg installer (may require admin privileges)...");
+            log_info!(
+                "[macOS Installer] Found .pkg installer: {}",
+                pkg_path.display().to_string().bold()
+            );
+            log_info!(
+                "[macOS Installer] Executing .pkg installer (may require admin privileges)..."
+            );
             // Call install_pkg and return its result (which is PathBuf)
             install_pkg(&pkg_path, app_name)
         } else if let Some(app_path) = app_found {
-            log_info!("[macOS Installer] Found .app bundle: {}", app_path.display().to_string().bold());
+            log_info!(
+                "[macOS Installer] Found .app bundle: {}",
+                app_path.display().to_string().bold()
+            );
             let target_app_path = PathBuf::from("/Applications").join(format!("{}.app", app_name));
 
             if target_app_path.exists() {
-                log_info!("[macOS Installer] Removing existing app at: {}", target_app_path.display().to_string().yellow());
+                log_info!(
+                    "[macOS Installer] Removing existing app at: {}",
+                    target_app_path.display().to_string().yellow()
+                );
                 // --- FIX: Use sudo rm -rf for permission issues ---
                 let rm_output = Command::new("sudo")
                     .arg("rm")
@@ -343,13 +423,27 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
 
                 if !rm_output.status.success() {
                     let stderr = String::from_utf8_lossy(&rm_output.stderr);
-                    log_error!("[macOS Installer] Failed to remove existing app {}: {}", target_app_path.display(), stderr.red());
-                    return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to remove existing app {}: {}", target_app_path.display(), stderr)));
+                    log_error!(
+                        "[macOS Installer] Failed to remove existing app {}: {}",
+                        target_app_path.display(),
+                        stderr.red()
+                    );
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!(
+                            "Failed to remove existing app {}: {}",
+                            target_app_path.display(),
+                            stderr
+                        ),
+                    ));
                 }
                 log_info!("[macOS Installer] Existing app removed successfully.");
             }
 
-            log_debug!("[macOS Installer] Copying .app to: {}", target_app_path.display());
+            log_debug!(
+                "[macOS Installer] Copying .app to: {}",
+                target_app_path.display()
+            );
             let cp_output = Command::new("sudo")
                 .arg("cp")
                 .arg("-R")
@@ -361,14 +455,32 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
 
             if !cp_output.status.success() {
                 let stderr = String::from_utf8_lossy(&cp_output.stderr);
-                log_error!("[macOS Installer] Failed to copy .app to /Applications: {}", stderr.red());
-                return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to copy .app: {}", stderr)));
+                log_error!(
+                    "[macOS Installer] Failed to copy .app to /Applications: {}",
+                    stderr.red()
+                );
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Failed to copy .app: {}", stderr),
+                ));
             }
-            log_info!("[macOS Installer] .app copied successfully to {}", target_app_path.display().to_string().green());
+            log_info!(
+                "[macOS Installer] .app copied successfully to {}",
+                target_app_path.display().to_string().green()
+            );
             Ok(target_app_path) // Return the path for .app
         } else {
-            log_warn!("[macOS Installer] No .pkg or .app found in DMG: {}. Manual intervention may be required.", mounted_volume_path.display());
-            Err(io::Error::new(io::ErrorKind::NotFound, format!("No installable .app or .pkg found in DMG: {}", mounted_volume_path.display())))
+            log_warn!(
+                "[macOS Installer] No .pkg or .app found in DMG: {}. Manual intervention may be required.",
+                mounted_volume_path.display()
+            );
+            Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "No installable .app or .pkg found in DMG: {}",
+                    mounted_volume_path.display()
+                ),
+            ))
         }
     })();
 
@@ -376,21 +488,33 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
     match unmount_dmg(&mounted_volume_path) {
         Ok(_) => log_debug!("[macOS Installer] DMG unmounted successfully."),
         Err(e) => {
-            log_error!("[macOS Installer] Failed to unmount DMG {}: {}", mounted_volume_path.display(), e.to_string().red());
+            log_error!(
+                "[macOS Installer] Failed to unmount DMG {}: {}",
+                mounted_volume_path.display(),
+                e.to_string().red()
+            );
             if install_result.is_ok() {
                 return Err(e);
             }
         }
     }
 
-    log_info!("[macOS Installer] .dmg installation process completed for: {}", dmg_path.display().to_string().green());
+    log_info!(
+        "[macOS Installer] .dmg installation process completed for: {}",
+        dmg_path.display().to_string().green()
+    );
     install_result // Return the result of the installation process (which includes the PathBuf)
 }
 
 #[cfg(not(target_os = "macos"))]
 pub fn install_dmg(_dmg_path: &Path, _app_name: &str) -> io::Result<PathBuf> {
-    log_warn!("[macOS Installer] .dmg installation is only supported on macOS. Skipping for this platform.");
-    Err(io::Error::new(io::ErrorKind::Other, ".dmg installation is only supported on macOS."))
+    log_warn!(
+        "[macOS Installer] .dmg installation is only supported on macOS. Skipping for this platform."
+    );
+    Err(io::Error::new(
+        io::ErrorKind::Other,
+        ".dmg installation is only supported on macOS.",
+    ))
 }
 
 /// Helper function to unmount a DMG.
@@ -402,7 +526,10 @@ pub fn install_dmg(_dmg_path: &Path, _app_name: &str) -> io::Result<PathBuf> {
 /// * `io::Result<()>`: `Ok(())` if the DMG was unmounted successfully,
 ///   `Err(io::Error)` otherwise.
 fn unmount_dmg(mount_path: &Path) -> io::Result<()> {
-    log_debug!("[macOS Installer] Attempting to unmount DMG from: {}", mount_path.display());
+    log_debug!(
+        "[macOS Installer] Attempting to unmount DMG from: {}",
+        mount_path.display()
+    );
     let detach_output = Command::new("sudo")
         .arg("hdiutil")
         .arg("detach")
@@ -416,7 +543,7 @@ fn unmount_dmg(mount_path: &Path) -> io::Result<()> {
         let stderr = String::from_utf8_lossy(&detach_output.stderr);
         return Err(io::Error::new(
             io::ErrorKind::Other,
-            format!("Failed to unmount DMG {}: {}", mount_path.display(), stderr)
+            format!("Failed to unmount DMG {}: {}", mount_path.display(), stderr),
         ));
     }
     log_debug!("[macOS Installer] DMG unmounted successfully.");
