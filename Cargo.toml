@@ -48,10 +48,6 @@ serde_yaml = "0.9.34"
 # JSON is a very common format for web APIs and data exchange.
 serde_json = "1.0.140"
 
-# 'toml' is a crate for working with TOML files, which are often used for Rust project configurations
-# (like our Cargo.toml!). It helps us read and write data in this format.
-toml = "0.9.1"
-
 # 'ureq' is a simple and easy-to-use HTTP client.
 # It's what we'll use to make requests to web services (like GitHub's API).
 # The 'json' feature adds convenience for handling JSON responses automatically.
