@@ -19,6 +19,7 @@ use crate::schema::{ToolEntry, ToolState};
 // `ToolState`: Represents the state of an installed tool, which we persist in `state.json`
 //              to track installed tools, their versions, and paths.
 
+use crate::libs::utilities::assets::current_timestamp;
 use crate::{log_debug, log_error, log_info, log_warn};
 // Custom logging macros. These are used throughout the module to provide informative output
 // during the installation process, aiding in debugging and user feedback.
@@ -152,26 +153,32 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             install_path.cyan()
         );
 
-        // 6. Return `ToolState` for Tracking
-        // If the installation was successful, construct a `ToolState` object. This object
-        // captures all relevant information about the installed tool, allowing `devbox` to
-        // track it in its internal state file (`state.json`).
+        // 6. Return ToolState for Tracking
+        // Construct a `ToolState` object to record the details of this successful installation.
+        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+        // what tools are installed, where they are, and how they were installed. This is crucial
+        // for future operations like uninstallation, updates, or syncing.
         Some(ToolState {
             // The version recorded for the tool. Uses the specified version or "latest" as a fallback.
             version: tool_entry
                 .version
                 .clone()
                 .unwrap_or_else(|| "latest".to_string()),
-            // The absolute path where the tool's executable was installed.
+            // The canonical path where the tool's executable was installed. This is the path
+            // that will be recorded in the `state.json` file.
             install_path,
-            // Flag indicating that this tool was installed by `devbox`.
+            // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
+            // between tools managed by our system and those installed manually.
             installed_by_devbox: true,
             // The method of installation, useful for future diagnostics or differing update logic.
+            // In this module, it's always "cargo-install".
             install_method: "cargo-install".to_string(),
             // Records if the binary was renamed during installation. For `cargo install`, this is
             // usually `None` unless `--bin` or `--example` flags are used in `options`.
             renamed_to: tool_entry.rename_to.clone(),
-            // Specifies the type of package.
+            // The actual package type detected by the `file` command or inferred. This is for diagnostic
+            // purposes, providing the most accurate type even if the installation logic
+            // used a filename-based guess (e.g., "binary", "macos-pkg-installer").
             package_type: "rust-crate".to_string(),
             // These fields are specific to GitHub releases and are not applicable for `cargo install`.
             repo: None,
@@ -179,8 +186,15 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // Pass any custom options defined in the `ToolEntry` to the `ToolState`.
             options: tool_entry.options.clone(),
             // For direct URL installations: The original URL from which the tool was downloaded.
+            // This is important for re-downloading or verifying in the future.
             url: tool_entry.url.clone(),
+            // Record the timestamp when the tool was installed or updated
+            last_updated: Some(current_timestamp()),
+            // This field is currently `None` but could be used to store the path to an executable
+            // *within* an extracted archive if `install_path` points to the archive's root.
             executable_path_after_extract: None,
+            // Record any additional commands that were executed during installation.
+            // This is useful for tracking what was done and potentially for cleanup during uninstall.
             additional_cmd_executed: tool_entry.additional_cmd.clone(),
         })
     } else {

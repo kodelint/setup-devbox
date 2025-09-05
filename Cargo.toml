@@ -33,6 +33,9 @@ clap = { version = "4.5.41", features = ["derive"] }
 # It makes our output much easier to read and more engaging!
 colored = "3.0.0"
 
+# 'chorno' for time
+chrono = { version = "0.4", features = ["serde"] }
+
 # 'serde' is like the universal translator for Rust data structures.
 # It helps us convert our Rust data into various formats (like JSON or YAML) and vice-versa.
 # The 'derive' feature gives us handy macros to automatically implement serialization/deserialization.

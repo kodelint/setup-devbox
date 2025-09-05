@@ -22,6 +22,7 @@ use colored::Colorize;
 use std::process::{Command, Output};
 // For working with file paths, specifically to construct installation paths.
 // `PathBuf` is used here primarily for constructing the `install_path` for the `ToolState`.
+use crate::libs::utilities::assets::current_timestamp;
 use std::path::PathBuf;
 
 /// Installs a Go binary or module using the `go install` command.
@@ -171,34 +172,51 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             "/usr/local/go/bin/".to_string()
         };
 
-        // Return a `ToolState` struct to record the successful installation.
-        // This `ToolState` will be serialized into `state.json` for persistent tracking.
+        // Return ToolState for Tracking
+        // Construct a `ToolState` object to record the details of this successful installation.
+        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+        // what tools are installed, where they are, and how they were installed. This is crucial
+        // for future operations like uninstallation, updates, or syncing.
         Some(ToolState {
             // Record the actual version used, or "latest" if not explicitly specified.
             version: tool_entry
                 .version
                 .clone()
                 .unwrap_or_else(|| "latest".to_string()),
-            // The determined installation path.
+            // The canonical path where the tool's executable was installed. This is the path
+            // that will be recorded in the `state.json` file.
             install_path,
-            // Mark as installed by this application.
+            // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
+            // between tools managed by our system and those installed manually.
             installed_by_devbox: true,
-            // Specify the installation method.
+            // The method of installation, useful for future diagnostics or differing update logic.
+            // In this module, it's always "go-install".
             install_method: "go-install".to_string(),
-            // Record if the tool was renamed by the user in `tools.yaml`.
+            // Records if the binary was renamed during installation, storing the new name.
             renamed_to: tool_entry.rename_to.clone(),
-            // Define the package type for categorization in `state.json`.
-            package_type: "go-module".to_string(),
             // `repo` and `tag` are not directly applicable for standard `go install`
             // from `tool_entry` as it typically resolves modules from Go proxies, not direct Git repos.
             // Therefore, these fields are set to `None` for clarity and clean `state.json`.
             repo: None,
             tag: None,
-            // Pass the additional `options` that were used during the `go install` command.
+            // The actual package type detected by the `file` command or inferred. This is for diagnostic
+            // purposes, providing the most accurate type even if the installation logic
+            // used a filename-based guess (e.g., "binary", "macos-pkg-installer").
+            // For Go Installer it will always be 'go-module`
+            package_type: "go-module".to_string(),
+            // Pass any custom options defined in the `ToolEntry` to the `ToolState`.
+            // The additional `options` that were used during the `go install` command.
             options: tool_entry.options.clone(),
-            // Store the URL if it was used as the source for `go install`.
+            // For direct URL installations: The original URL from which the tool was downloaded.
+            // This is important for re-downloading or verifying in the future.
             url: tool_entry.url.clone(),
+            // Record the timestamp when the tool was installed or updated
+            last_updated: Some(current_timestamp()),
+            // This field is currently `None` but could be used to store the path to an executable
+            // *within* an extracted archive if `install_path` points to the archive's root.
             executable_path_after_extract: None,
+            // Record any additional commands that were executed during installation.
+            // This is useful for tracking what was done and potentially for cleanup during uninstall.
             additional_cmd_executed: tool_entry.additional_cmd.clone(),
         })
     } else {
