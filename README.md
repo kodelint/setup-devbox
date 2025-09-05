@@ -29,14 +29,16 @@ By defining your desired tools, system settings, shell configurations, and fonts
 * **Declarative Configuration**: Define your entire development environment in easy-to-read YAML files.
 * **Intelligent State Management**: Tracks installed tools and applied settings in a `state.json` file to prevent redundant operations and ensure efficiency.
 * **Platform Support**: Currently designed for and tested on **macOS**. Linux support is planned for future releases.
+* **Smart Update Policies**: Control when tools with version "latest" should be updated using the `update_latest_only_after` configuration. 
+Override update policies with the `--update-latest` flag to force updates of all "latest" version tools.
 * **Extensible Installer Support**:
-    * 📦 **Homebrew (`brew`)**: Install packages and applications (primarily macOS).
-    * 🐙 **GitHub Releases (`github`)**: Download and install pre-compiled binaries.
-    * ⚙️ **Go (`go`)**: Install Go binaries and tools.
-    * 🦀 **Cargo (`cargo`)**: Install Rust crates.
-    * 🐍 **Pip (`pip`)**: Install Python packages.
-    * 🧡 **Rustup (`rustup`)**: Manage and install Rust toolchains and components.
-    * 🚀 **URL (`direct URL`)**: Manage and install tool directly from URL.
+  * 📦 **Homebrew (`brew`)**: Install packages and applications (primarily macOS).
+  * 🐙 **GitHub Releases (`github`)**: Download and install pre-compiled binaries.
+  * ⚙️ **Go (`go`)**: Install Go binaries and tools.
+  * 🦀 **Cargo (`cargo`)**: Install Rust crates.
+  * 🐍 **Pip (`pip`)**: Install Python packages.
+  * 🦀 **Rustup (`rustup`)**: Manage and install Rust toolchains and components.
+  * 🚀 **URL (`direct URL`)**: Manage and install tool directly from URL.
 * **Highly Modular and Pluggable**: The architecture is designed for ease of extension. Adding support for new package managers or installation methods is straightforward, requiring minimal changes to the core logic and making `setup-devbox` adaptable to evolving needs.
 * **System Settings Application**: Define macOS system preferences to be applied automatically.
 * **Shell Configuration Management**: Manage shell aliases, environment variables, and dotfiles.
@@ -96,6 +98,9 @@ setup-devbox now
 ### `tools.yaml`
 ```yaml
 # ~/.setup-devbox/configs/tools.yaml
+# Global update policy for tools with version "latest"
+# Only update these tools if they haven't been updated within the specified duration
+update_latest_only_after: "7 days"  # Options: "1 day", "3 days", "14 days", "24 hours", etc.
 
 tools:
   # --- GitHub Release Installer Example (source: github) ---
@@ -153,6 +158,24 @@ tools:
     options:
       - --without-completion    # Example: Pass flags to `brew install`.
 ```
+### Update Policy Behavior
+The `update_latest_only_after` feature provides intelligent control over when tools with version "**latest**" should be updated:
+
+- **Specific Versions:** Tools with explicit versions (e.g., v2.50.0, 24.4.2) are always updated when the version changes 
+- **Latest Versions:** Tools with version: latest are only updated if:
+    - They've never been installed before, OR 
+    - Their last update was more than the specified duration ago
+- **No Version Specified:** Tools without a version field are treated as "latest" and follow the update policy
+
+#### Supported Duration Formats:
+
+- "1 day" or "1 days"
+- "7 days"
+- "24 hours"
+- "60 minutes"
+
+_(**Note:** Override update policies with the `--update-latest` flag to force updates of all "latest" version tools.)_
+
 ### `fonts.yaml`
 ```yaml
 fonts:
