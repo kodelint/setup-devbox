@@ -576,3 +576,8 @@ fn extract_mounted_path_from_hdiutil_plist(plist_output: &str) -> Option<String>
     }
     None
 }
+
+pub fn current_timestamp() -> String {
+    use chrono::Utc;
+    Utc::now().to_rfc3339()
+}
