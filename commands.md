@@ -60,18 +60,22 @@ setup-devbox --help
     ##### Options 
     - `--config <CONFIG>`: Optional argument to specify the path to the main configuration file (e.g., `config.yaml`). If not provided, `setup-devbox` will use the default path (typically `~/.setup-devbox/configs/config.yaml`).
     - `--state <STATE>`: Optional argument to specify a custom path for the state file (e.g., state.json). If not provided, the default state file path (typically `~/.setup-devbox/state.json`) will be used.
+    - `--update-latest`: Force update all tools with version "latest", overriding `update_latest_only_after` policy
     - `-h`, `--help`: Print help for the now command.
     ##### Examples
 
     ```bash
     # Run the full setup process using default config and state paths
     setup-devbox now
+  
+    # Force update all tools with version "latest" (override policy)
+    setup-devbox now --update-latest
 
-    # Run the setup process using a custom main config file
-    setup-devbox now --config /my/custom/path/my_main_config.yaml
-
-    # Run the setup process using a custom state file
-    setup-devbox now --state /tmp/my_devbox_state.json
+    # Use custom configuration and state files
+    setup-devbox now --config ~/custom/config.yaml --state ~/custom/state.json
+  
+    # Combine custom files with forced updates
+    setup-devbox now --config ~/custom/config.yaml --update-latest
     ```
 - #### `generate` Generates the default configs.
 

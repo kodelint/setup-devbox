@@ -36,6 +36,7 @@ pub fn install_tools(
     tools_cfg: ToolConfig,
     state: &mut DevBoxState,
     state_path_resolved: &PathBuf,
+    update_latest: bool,
 ) {
     // Add a newline for better visual separation in the terminal output, improving readability of logs.
     eprintln!("\n");
@@ -51,15 +52,28 @@ pub fn install_tools(
     // This list is used to provide a summary to the user at the end of the process.
     let mut skipped_tools: Vec<String> = Vec::new();
     // Parse the update_latest_only_after duration if provided
-    let update_duration = tools_cfg
-        .update_latest_only_after
-        .as_ref()
-        .and_then(|d| parse_duration(d))
-        .unwrap_or_else(|| Duration::days(0)); // Default to 0 days (always update)
+    let update_duration = if update_latest {
+        // If --update-latest flag is set, use zero duration to force updates
+        Duration::seconds(0)
+    } else {
+        // Otherwise, use the configured duration
+        tools_cfg
+            .update_latest_only_after
+            .as_ref()
+            .and_then(|d| parse_duration(d))
+            .unwrap_or_else(|| Duration::days(0))
+    };
 
     log_debug!(
-        "[Tools] Update policy: only update 'latest' versions if older than {:?}",
-        update_duration
+        "[Tools] Update policy: {}",
+        if update_latest {
+            "forced update of all 'latest' version tools (--update-latest flag)".to_string()
+        } else {
+            format!(
+                "only update 'latest' versions if older than {:?}",
+                update_duration
+            )
+        }
     );
 
     // Iterate over each `tool` entry provided in the `tools_cfg`.
@@ -170,9 +184,10 @@ pub fn install_tools(
             let is_latest_version = tool.version.as_ref().map_or(true, |v| v == "latest")
                 || existing_tool_state.version == "latest";
 
-            if is_latest_version {
+            if is_latest_version && !update_latest {
                 // Check if we should skip update based on last_updated timestamp
                 // The threshold is defined in `tools.yaml` as `update_latest_only_after`
+                // Only apply time-based update policy if --update-latest flag is NOT set
                 if let Some(last_updated) = &existing_tool_state.last_updated {
                     if !is_timestamp_older_than(last_updated, &update_duration) {
                         should_install_tool = false;
