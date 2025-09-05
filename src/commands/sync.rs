@@ -158,6 +158,7 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
         tool_entries.push(tool_entry);
     }
     let tool_config = ToolConfig {
+        update_latest_only_after: None,
         tools: tool_entries,
     };
 
