@@ -46,6 +46,9 @@ enum Commands {
         /// Optional path to a custom state file.
         #[arg(long)]
         state: Option<String>,
+        /// Force update all tools with version "latest", overriding update_latest_only_after policy
+        #[arg(long)]
+        update_latest: bool,
     },
     /// Generates default configuration files.
     Generate {
@@ -82,11 +85,15 @@ fn main() {
             log_debug!("[main] 'Version' subcommand detected. Calling version::run().");
             version::run();
         }
-        Commands::Now { config, state } => {
+        Commands::Now {
+            config,
+            state,
+            update_latest,
+        } => {
             log_debug!("[main] 'Now' subcommand detected.");
             log_debug!("[main] 'Now' subcommand received config path: {:?}", config);
             log_debug!("[main] 'Now' subcommand received state path: {:?}", state);
-            now::run(config, state);
+            now::run(config, state, update_latest);
         }
         Commands::Generate { config, state } => {
             log_debug!("[main] 'Generate' subcommand detected.");
