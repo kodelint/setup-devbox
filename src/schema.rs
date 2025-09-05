@@ -191,6 +191,7 @@ pub struct ToolState {
     pub options: Option<Vec<String>>, // Options passed to the installer during installation.
     #[serde(default)]
     pub url: Option<String>, // Original download URL for direct URL installations.
+    pub last_updated: Option<String>, // To record the last updated time
     pub executable_path_after_extract: Option<String>, // Path to executable within extracted archive, relative to `install_path`.
 
     /// Records any additional commands that were executed during installation.
