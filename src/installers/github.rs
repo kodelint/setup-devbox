@@ -44,7 +44,7 @@ use crate::libs::utilities::{
 //              to track installed tools, their versions, and paths.
 use crate::schema::{Release, ReleaseAsset, ToolEntry, ToolState};
 
-use crate::libs::utilities::assets::install_dmg;
+use crate::libs::utilities::assets::{current_timestamp, install_dmg};
 // Custom logging macros. These are used throughout the module to provide informative output
 // during the installation process, aiding in debugging and user feedback.
 use crate::{log_debug, log_error, log_info};
@@ -668,11 +668,13 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // purposes, providing the most accurate type even if the installation logic
         // used a filename-based guess (e.g., "binary", "macos-pkg-installer").
         package_type: package_type_for_state,
-        // Placeholder for future options that might be stored with the tool's state.
+        // Pass any custom options defined in the `ToolEntry` to the `ToolState`.
         options: tool_entry.options.clone(),
         // For direct URL installations: The original URL from which the tool was downloaded.
         // This is important for re-downloading or verifying in the future.
         url: Some(download_url.clone()),
+        // Record the timestamp when the tool was installed or updated
+        last_updated: Some(current_timestamp()),
         // This field is currently `None` but could be used to store the path to an executable
         // *within* an extracted archive if `install_path` points to the archive's root.
         executable_path_after_extract: None,

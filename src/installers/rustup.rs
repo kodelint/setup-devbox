@@ -20,6 +20,7 @@ use std::process::{Command, Output};
 use std::path::PathBuf;
 // For getting environment variables, like HOME.
 // `std::env` is used to find the user's home directory to determine rustup's installation path.
+use crate::libs::utilities::assets::current_timestamp;
 use std::env;
 
 /// Installs a Rust toolchain and optionally its components using `rustup`.
@@ -231,21 +232,51 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         "/usr/local/bin/".to_string()
     };
 
-    // Return a `ToolState` object indicating successful installation.
-    // This `ToolState` will be serialized into `state.json` to track installed tools.
+    // Return ToolState for Tracking
+    // Construct a `ToolState` object to record the details of this successful installation.
+    // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+    // what tools are installed, where they are, and how they were installed. This is crucial
+    // for future operations like uninstallation, updates, or syncing.
     Some(ToolState {
-        version: toolchain_name,                  // The installed toolchain version.
-        install_path,              // The path where the toolchain binaries are expected.
-        installed_by_devbox: true, // Mark as installed by this application.
-        install_method: "rustup".to_string(), // The method used for installation.
-        renamed_to: tool_entry.rename_to.clone(), // Any rename preference from the config.
-        package_type: "rust-toolchain".to_string(), // Categorize the installed item.
-        repo: None,                // Not applicable for rustup (no direct Git repo tracking).
-        tag: None,                 // Not applicable for rustup (no direct Git tag tracking).
-        options: tool_entry.options.clone(), // Store the components that were attempted to be added.
+        // The version field for tracking. Defaults to "latest" if not explicitly set in `tools.yaml`.
+        // The installed toolchain version.
+        version: toolchain_name,
+        // The canonical path where the tool's executable was installed. This is the path
+        // that will be recorded in the `state.json` file.
+        // The path where the toolchain binaries are expected.
+        install_path,
+        // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
+        // between tools managed by our system and those installed manually.
+        installed_by_devbox: true,
+        // The method of installation, useful for future diagnostics or differing update logic.
+        // In this module, it's always "rustup".
+        install_method: "rustup".to_string(),
+        // Records if the binary was renamed during installation, storing the new name.
+        // Usually not useful for `rustup` installers
+        renamed_to: tool_entry.rename_to.clone(),
+        // `repo` and `tag` are not typically applicable for rust installations
+        // as rust fetches from crate or other package indexes, not directly from Git repositories.
+        // Therefore, these fields are set to `None` for clarity and clean state.json.
+        repo: None,
+        tag: None,
+        // The actual package type detected by the `file` command or inferred. This is for diagnostic
+        // purposes, providing the most accurate type even if the installation logic
+        // used a filename-based guess (e.g., "binary", "macos-pkg-installer").
+        package_type: "rust-toolchain".to_string(),
+        // Pass any custom options defined in the `ToolEntry` to the `ToolState`.
+        // Store the components that were attempted to be added with `rustup`
+        options: tool_entry.options.clone(),
         // For direct URL installations: The original URL from which the tool was downloaded.
+        // This is important for re-downloading or verifying in the future.
+        // Not used for rustup
         url: tool_entry.url.clone(),
+        // Record the timestamp when the tool was installed or updated
+        last_updated: Some(current_timestamp()),
+        // This field is currently `None` but could be used to store the path to an executable
+        // *within* an extracted archive if `install_path` points to the archive's root.
         executable_path_after_extract: None,
+        // Record any additional commands that were executed during installation.
+        // This is useful for tracking what was done and potentially for cleanup during uninstall.
         additional_cmd_executed: tool_entry.additional_cmd.clone(),
     })
 }

@@ -39,7 +39,9 @@ use tempfile::tempdir;
 // `download_file`: A custom utility function for downloading files, likely wrapping `ureq`.
 // `detect_file_type_from_filename`: A utility to guess file types based on name/extension.
 // `extract_archive`: A utility function to decompress and extract various archive formats.
-use crate::libs::utilities::assets::{detect_file_type, download_file, install_dmg, install_pkg};
+use crate::libs::utilities::assets::{
+    current_timestamp, detect_file_type, download_file, install_dmg, install_pkg,
+};
 use crate::libs::utilities::compression::extract_archive;
 
 /// Installs a tool from a direct URL source.
@@ -329,37 +331,48 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             e
         );
     }
-    // `temp_dir` will be automatically cleaned up when it goes out of scope
 
-    // 6. Construct and return the ToolState
+    // 6. Return ToolState for Tracking
+    // Construct a `ToolState` object to record the details of this successful installation.
+    // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+    // what tools are installed, where they are, and how they were installed. This is crucial
+    // for future operations like uninstallation, updates, or syncing.
     Some(ToolState {
-        // Use the version from `tool_entry`. If `version` is `None` in the config,
-        // default to "unknown".
+        // The version field for tracking. Defaults to "latest" if not explicitly set in `tools.yaml`.
         version: tool_entry
             .version
             .clone()
             .unwrap_or_else(|| "unknown".to_string()),
-        // The `install_path` points to the tool's base directory within `~/.setup-devbox/tools/`
-        // or the absolute path for system-wide installations.
+        // The canonical path where the tool's executable was installed. This is the path
+        // that will be recorded in the `state.json` file.
         install_path: final_install_path_for_state.to_string_lossy().into_owned(),
-        // Mark that this tool was installed by `setup-devbox`.
+        // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
+        // between tools managed by our system and those installed manually.
         installed_by_devbox: true,
-        // Specify the installation method for logging and future reference.
+        // The method of installation, useful for future diagnostics or differing update logic.
+        // In this module, it's always "direct-url".
         install_method: "direct-url".to_string(),
-        // Record if the tool was renamed during installation.
+        // Records if the binary was renamed during installation, storing the new name.
         renamed_to: tool_entry.rename_to.clone(),
-        // Record the detected or assigned package type (e.g., "zip-archive", "binary", "macos-pkg-installer").
-        package_type: package_type.to_string(),
         // For direct URL installs, `repo` and `tag` are typically not applicable, so they are `None`.
         repo: None,
         tag: None,
+        // The actual package type detected by the `file` command or inferred. This is for diagnostic
+        // purposes, providing the most accurate type even if the installation logic
+        // used a filename-based guess (e.g., "binary", "macos-pkg-installer").
+        // Record the detected or assigned package type (e.g., "zip-archive", "binary", "macos-pkg-installer").
+        package_type: package_type.to_string(),
         // Store the original download URL in the state for potential re-downloads or verification.
         url: Some(download_url_str.clone()),
         // Clone any additional options provided in the configuration.
         options: tool_entry.options.clone(),
-        // Store the `executable_path_after_extract` if it was specified for archives,
-        // otherwise `None` for direct binaries/installers.
+        // Record the timestamp when the tool was installed or updated
+        last_updated: Some(current_timestamp()),
+        // This field is currently `None` but could be used to store the path to an executable
+        // *within* an extracted archive if `install_path` points to the archive's root.
         executable_path_after_extract: executable_path_after_extract_for_state,
+        // Record any additional commands that were executed during installation.
+        // This is useful for tracking what was done and potentially for cleanup during uninstall.
         additional_cmd_executed: tool_entry.additional_cmd.clone(),
     })
 }
