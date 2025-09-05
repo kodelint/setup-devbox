@@ -52,6 +52,7 @@ pub enum ToolInstallMethod {
 /// Defines the top-level structure for managing software tools.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ToolConfig {
+    pub update_latest_only_after: Option<String>,
     pub tools: Vec<ToolEntry>, // List of individual tool entries.
 }
 

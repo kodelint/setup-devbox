@@ -1,4 +1,5 @@
 // For working with file paths, particularly for the state file.
+use chrono::Duration;
 use std::path::PathBuf;
 // For adding color to terminal output, enhancing readability.
 // The `Colorize` trait provides methods like `.bright_green()` or `.bold()`
@@ -17,6 +18,7 @@ use crate::schema::{DevBoxState, ToolConfig, ToolEntryError};
 // Imports the function for saving the application state, usually defined in `state_management.rs`.
 // This is crucial for persisting changes made during the tool installation process.
 use crate::libs::state_management::save_devbox_state;
+use crate::libs::utilities::assets::{is_timestamp_older_than, parse_duration, time_since};
 use crate::libs::utilities::platform::check_installer_command_available;
 
 /// Installs tools based on the provided configuration and updates the application state.
@@ -48,6 +50,17 @@ pub fn install_tools(
     // `skipped_tools` vector: Stores the names of tools that were found to be up-to-date and were skipped.
     // This list is used to provide a summary to the user at the end of the process.
     let mut skipped_tools: Vec<String> = Vec::new();
+    // Parse the update_latest_only_after duration if provided
+    let update_duration = tools_cfg
+        .update_latest_only_after
+        .as_ref()
+        .and_then(|d| parse_duration(d))
+        .unwrap_or_else(|| Duration::days(0)); // Default to 0 days (always update)
+
+    log_debug!(
+        "[Tools] Update policy: only update 'latest' versions if older than {:?}",
+        update_duration
+    );
 
     // Iterate over each `tool` entry provided in the `tools_cfg`.
     // The `&tools_cfg.tools` takes a reference to the vector of tools to avoid moving it,
@@ -137,6 +150,12 @@ pub fn install_tools(
         // Version Comparison Logic
         // Flag to determine if a new installation or update is needed. It is initially set to true.
         let mut should_install_tool = true;
+        // Flag to identify why to skip
+        // 1. Specified version is already installed
+        // 2. Latest version is already installed and within the threshold
+        //    - Threshold is defined in the `tools.yaml` as `update_latest_only_after`
+        //    - Compare with `last_updated` from `state.json` file
+        let mut skip_reason = None;
 
         // Use `if let Some(...)` to safely check if a tool with the same name already exists in the state file.
         // If it does, `existing_tool_state` will be a reference to the `ToolState` struct for that tool.
@@ -147,42 +166,57 @@ pub fn install_tools(
                 tool.name.bright_green()
             );
 
-            // Check if a specific version is provided in the configuration (`tools.yaml`).
-            if let Some(config_version) = &tool.version {
-                // Compare the version from the config file with the version recorded in the state file.
-                if existing_tool_state.version == *config_version {
-                    // Versions match: the tool is already at the desired version.
-                    // Log an informative message and set the flag to `false` to skip installation.
-                    log_info!(
-                        "[Tools] Tool '{}' (v{}) is already up to date. Skipping installation.",
-                        tool.name.bright_green().bold(),
-                        config_version.blue()
-                    );
-                    should_install_tool = false;
-                } else {
-                    // Versions do not match: a new version is available.
-                    // Log an informative message, including the old and new versions.
-                    log_info!(
-                        "[Tools] Tool '{}' has a new version ({} -> {}). Updating...",
-                        tool.name.bright_green().bold(),
-                        existing_tool_state.version.blue(),
-                        config_version.blue()
-                    );
-                    // `should_install_tool` remains `true` to proceed with the update.
+            // Check if tool version is "latest" and should respect update policy
+            let is_latest_version = tool.version.as_ref().map_or(true, |v| v == "latest")
+                || existing_tool_state.version == "latest";
+
+            if is_latest_version {
+                // Check if we should skip update based on last_updated timestamp
+                // The threshold is defined in `tools.yaml` as `update_latest_only_after`
+                if let Some(last_updated) = &existing_tool_state.last_updated {
+                    if !is_timestamp_older_than(last_updated, &update_duration) {
+                        should_install_tool = false;
+                        skip_reason = Some(format!(
+                            "version 'latest' was updated {} (within {} threshold)",
+                            time_since(last_updated).unwrap_or_else(|| "recently".to_string()),
+                            format_duration(&update_duration)
+                        ));
+                    }
                 }
-            } else {
-                // No version was specified in the configuration (`tools.yaml`).
-                // In this case, we assume the user wants the latest version. For simplicity,
-                // we proceed with installation to ensure the tool is at its latest available version.
-                log_debug!(
-                    "[Tools] Tool '{}' found in state but no version specified in config. Assuming update is needed.",
-                    tool.name.bright_green()
-                );
+                // If no last_updated timestamp exists, we should update
+            }
+
+            if should_install_tool {
+                if let Some(config_version) = &tool.version {
+                    if existing_tool_state.version == *config_version && config_version != "latest"
+                    {
+                        should_install_tool = false;
+                        skip_reason = Some("specified version already installed".to_string());
+                    }
+                } else {
+                    // No version was specified in the configuration (`tools.yaml`).
+                    // In this case, we assume the user wants the latest version. For simplicity,
+                    // we proceed with installation to ensure the tool is at its latest available version.
+                    if !existing_tool_state.version.is_empty()
+                        && existing_tool_state.version != "latest"
+                    {
+                        should_install_tool = false;
+                        skip_reason =
+                            Some("version not specified but tool is installed".to_string());
+                    }
+                }
             }
 
             // If the `should_install_tool` flag is `false` (meaning versions matched),
             // add the tool name to the skipped list and continue to the next tool in the loop.
             if !should_install_tool {
+                if let Some(reason) = skip_reason {
+                    log_info!(
+                        "[Tools] Skipping tool '{}': {}",
+                        tool.name.bright_green().bold(),
+                        reason.blue()
+                    );
+                }
                 skipped_tools.push(tool.name.clone());
                 log_debug!("[Tools] Tool '{}' added to skipped list.", tool.name.blue());
                 continue;
@@ -205,20 +239,32 @@ pub fn install_tools(
         ============================"
                 .bright_blue()
         );
+
+        // Determine installation reason for logging
+        let install_reason = if state.tools.contains_key(&tool.name) {
+            "Updating"
+        } else {
+            "Installing"
+        };
+
         log_info!(
-            "[Tools] Installing new tool from {}: {}",
+            "[Tools] {} tool from {}: {}",
+            install_reason.bright_yellow(),
             tool.source.to_string().bright_yellow(),
             tool.name.to_string().bright_blue().bold()
         );
+
         log_debug!(
-            "[Tools] Full configuration details for tool '{}': name='{}', version='{}', source='{}', repo='{}', tag='{}', rename_to='{}'",
+            "[Tools] Full configuration details for tool '{}': name='{}', version='{}', source='{}', \
+            repo='{}', tag='{}', rename_to='{}' and reason='{}'",
             tool.name.green(),
             tool.name,
             tool.version.as_deref().unwrap_or("N/A"),
             tool.source,
             tool.repo.as_deref().unwrap_or("N/A"),
             tool.tag.as_deref().unwrap_or("N/A"),
-            tool.rename_to.as_deref().unwrap_or("N/A")
+            tool.rename_to.as_deref().unwrap_or("N/A"),
+            install_reason,
         );
 
         // Use a `match` statement to call the correct installer function based on the tool's source.
@@ -310,4 +356,49 @@ pub fn install_tools(
 
     eprintln!();
     log_debug!("Exiting install_tools() function.");
+}
+
+/// Converts a Chrono `Duration` object into a human-readable string representation.
+///
+/// This function formats time durations for display purposes, selecting the most
+/// appropriate time unit (days, hours, or minutes) based on the duration's magnitude.
+/// It's particularly useful for user-facing messages, logs, and configuration displays
+/// where raw duration values would be less intuitive.
+///
+/// # Arguments
+/// * `duration` - A reference to a Chrono `Duration` object to be formatted
+///
+/// # Returns
+/// A `String` containing the formatted duration in the most appropriate time unit:
+/// - Days for durations ≥ 1 day
+/// - Hours for durations ≥ 1 hour but less than 1 day
+/// - Minutes for durations ≥ 1 minute but less than 1 hour
+/// - "0 minutes" for durations less than 1 minute
+///
+/// # Unit Selection Logic
+/// The function uses a hierarchical approach to determine the best unit:
+/// 1. **Days**: If the duration contains any complete days (≥ 86400 seconds)
+/// 2. **Hours**: If no days but contains complete hours (≥ 3600 seconds)
+/// 3. **Minutes**: If no hours but contains complete minutes (≥ 60 seconds)
+/// 4. **Fallback**: "0 minutes" for sub-minute durations
+fn format_duration(duration: &Duration) -> String {
+    // Check if the duration contains any complete days
+    // Using num_days() which returns the total number of whole days in the duration
+    if duration.num_days() > 0 {
+        format!("{} days", duration.num_days())
+    }
+    // If no days, check for complete hours
+    // num_hours() returns total whole hours, including those that might be part of days
+    else if duration.num_hours() > 0 {
+        format!("{} hours", duration.num_hours())
+    }
+    // If no hours, check for complete minutes
+    // num_minutes() returns total whole minutes in the duration
+    else if duration.num_minutes() > 0 {
+        format!("{} minutes", duration.num_minutes())
+    } else {
+        // Fallback for durations less than 1 minute
+        // This ensures we always return a meaningful string, even for very short durations
+        "0 minutes".to_string()
+    }
 }
