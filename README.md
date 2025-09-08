@@ -189,34 +189,51 @@ fonts:
 
 ### `shellrc.yaml`
 ```yaml
-shellrc:
-  shell: zsh
-  raw_configs:
-    - export PATH=$HOME/bin:$PATH
-    - export PATH=$HOME/.cargo/bin:$PATH
-    - export PATH=$HOME/go/bin:$PATH
-    - eval "$(starship init zsh)"
-    - "[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh"
-    - zle -N fzf-history-widget
-    - bindkey '^R' fzf-history-widget
-    - 'export FZF_CTRL_R_OPTS="--no-preview --scheme=history --tiebreak=index --bind=ctrl-r:toggle-sort"'
-    - |
-      export FZF_CTRL_T_OPTS="
-        --preview 'bat --style=numbers --color=always {} || cat {}'
-        --preview-window=right:80%
-        --bind ctrl-b:preview-page-up,ctrl-f:preview-page-down
-      "
-    - setopt append_history
-    - setopt share_history
-    - HISTSIZE=100000
-    - SAVEHIST=100000
-    - HISTFILE=~/.zsh_history
-    - setopt hist_ignore_all_dups
+# shellrc.yaml - Shell configuration for setup-devbox
+# This file defines shell run commands organized by sections
+
+run_commands:
+  shell: "zsh" # or "bash"
+  run_commands:
+    # Exports Section - Environment variables
+    - command: |
+        export EDITOR="zed"
+        export VISUAL="zed"
+      section: Exports
+      
+    # Paths Section - PATH modifications
+    - command: export PATH="$HOME/bin:$PATH"
+      section: Paths
+    - command: export PATH="$HOME/.cargo/bin:$PATH"
+      section: Paths
+    - command: export PATH="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$PATH"
+      section: Paths
+    - command: export RUSTUP_HOME="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin"
+      section: Paths
+
+    # Evals Section - Command evaluations
+    - command: eval "$(pyenv init - zsh)"
+      section: Evals
+    - command: eval "$(pyenv virtualenv-init -)"
+      section: Evals
+    - command: eval "$(starship init zsh)"
+      section: Evals
+    - command: eval "$(atuin init zsh --disable-up-arrow)"
+      section: Evals
+
+    # Other Section - Miscellaneous configurations
+    - command: source $HOME/.config/secrets.zsh
+      section: Other
+
 aliases:
-  - name: code
-    value: cd $HOME/Documents/github/
-  - name: gocode
-    value: cd $HOME/go/src/
+  - name: cat # Replace `cat with `bat`
+    value: bat --paging=never # The command it expands to: change directory to a common dev folder
+  - name: config
+    value: zed $HOME/.config
+  - name: ls
+    value: lsd --tree
+  - name: sd
+    value: setup-devbox
 ```
 
 ### `settings.yaml`
