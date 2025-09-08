@@ -2,9 +2,11 @@
 // It orchestrates the reading of configuration files, state management,
 // and the installation/application of tools, fonts, shell configs, and system settings.
 
+use crate::installers::shell_run_commands::apply_shell_configs;
 use crate::schema::DevBoxState; // Application state structure.
 use crate::{log_debug, log_info}; // Custom logging macros.
-use colored::Colorize; // For colored terminal output.
+use colored::Colorize;
+// For colored terminal output.
 
 use crate::libs::{
     config_loading::{
@@ -14,8 +16,8 @@ use crate::libs::{
     font_installer::install_fonts, // Handles font installation.
     paths,                         // Path resolution utilities.
     settings_applier::apply_system_settings, // Applies macOS system settings.
-    shell_configurator::apply_shell_configs, // Applies shell configurations and aliases.
-    state_management,              // Module for loading and saving application state.
+    // Applies shell configurations and aliases.
+    state_management, // Module for loading and saving application state.
     tool_installer::install_tools, // Handles tool installation.
 };
 

@@ -6,11 +6,6 @@
 // methods are supported by `setup-devbox` and allowing for easy extension
 // with new installer types in the future.
 
-// `pub(crate) mod <module_name>;` makes the module and its contents
-// accessible within the current crate (`setup-devbox`), but not to external crates
-// that might depend on `setup-devbox`. This is standard practice for internal
-// utility modules.
-
 /// Declares the `GitHub` module, responsible for installing tools
 /// distributed as GitHub releases. This includes logic for fetching
 /// release assets, downloading, extracting, and placing binaries.
@@ -35,11 +30,11 @@ pub(crate) mod cargo;
 /// the user's system, especially on macOS.
 pub(crate) mod fonts;
 
-/// Declares the `shellrc` module, for managing or injecting
+/// Declares the `shell_run_commands` module, for managing or injecting
 /// configurations into shell startup files (e.g., `.bashrc`, `.zshrc`)
 /// after a tool has been installed, to ensure it's in the PATH or
 /// has necessary environment variables set.
-pub(crate) mod shellrc;
+pub(crate) mod shell_run_commands;
 
 /// Declares the `rustup` module, which would handle the installation
 /// and management of the Rust toolchain itself, using the `rustup` installer.

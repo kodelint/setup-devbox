@@ -5,7 +5,8 @@
 // Declare the `path_helpers` module.
 pub mod path_helpers;
 // Declare the `compression` module.
-pub mod compression;
-pub mod platform;
 pub mod assets;
 pub mod binary;
+pub mod compression;
+pub mod file_operations;
+pub mod platform;
