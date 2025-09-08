@@ -463,3 +463,16 @@ pub(crate) fn execute_additional_commands(
 
     Ok(executed_commands)
 }
+
+/// Version that considers "1", "yes", "y", "on" as true values (case-insensitive)
+pub fn is_env_var_set(env_var_name: &str) -> bool {
+    std::env::var(env_var_name)
+        .map(|val| {
+            let lower_val = val.to_lowercase();
+            matches!(
+                lower_val.as_str(),
+                "true" | "1" | "yes" | "y" | "on" | "enabled"
+            )
+        })
+        .unwrap_or(false)
+}
