@@ -15,12 +15,14 @@ use std::path::PathBuf; // Used for colored terminal output in logs.
 // Use 'clap' for command-line argument parsing.
 use clap::{Parser, Subcommand};
 // Import specific `run` functions from the `commands` module.
+use crate::commands::help;
 use commands::{generate, now, sync, version};
 
 /// Defines the command-line interface (CLI) for 'setup-devbox'.
 /// `#[derive(Parser)]` automatically generates argument parsing code via `clap`.
 #[derive(Parser)]
 #[command(name = "setup-devbox")]
+#[command(disable_help_subcommand = true)]
 #[command(about = "Setup development environment with ease
 
 Supported Installers:
@@ -82,6 +84,17 @@ enum Commands {
         #[arg(long)]
         output_dir: Option<PathBuf>,
     },
+    /// Show detailed help for commands and installers.
+    Help {
+        /// The command or topic to show help for (e.g., 'now', 'installers').
+        topic: Option<String>,
+        /// Show detailed information with examples and advanced usage.
+        #[arg(long)]
+        detailed: bool,
+        /// Filter results by installer type or category.
+        #[arg(long)]
+        filter: Option<String>,
+    },
 }
 
 // Main entry point of the application.
@@ -125,6 +138,17 @@ fn main() {
             log_debug!("[main] 'SyncConfig' subcommand detected.");
             let args = sync::SyncConfigArgs { state, output_dir };
             sync::run(args);
+        }
+        Commands::Help {
+            topic,
+            detailed,
+            filter,
+        } => {
+            log_debug!("[main] 'Help' subcommand detected.");
+            log_debug!("[main] Help topic: {:?}", topic);
+            log_debug!("[main] Detailed mode: {}", detailed);
+            log_debug!("[main] Filter: {:?}", filter);
+            help::run(topic, detailed, filter);
         }
     }
     log_debug!("[main] Command execution completed. Exiting application.");
