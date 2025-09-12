@@ -51,7 +51,7 @@ use crate::{log_debug, log_error, log_info, log_warn};
 ///     before returning `None` to provide context for the failure.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_debug!(
-        "[Brew] Starting installation process for tool: {}",
+        "[Brew Installer] Starting installation process for tool: {}",
         tool_entry.name.bold()
     );
 
@@ -61,11 +61,11 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     let name = &tool_entry.name;
     if name.is_empty() {
         log_error!(
-            "[Brew] Tool name is empty in the configuration. Cannot proceed with Homebrew installation."
+            "[Brew Installer] Tool name is empty in the configuration. Cannot proceed with Homebrew installation."
         );
         return None; // Abort if the tool name is missing.
     }
-    log_debug!("[Brew] Tool name '{}' is validated.", name.blue());
+    log_debug!("[Brew Installer] Tool name '{}' is validated.", name.blue());
 
     // 2. Prepare and Execute Homebrew Installation Command
     // Create a new `Command` instance to interact with the `brew` executable.
@@ -79,7 +79,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     cmd.arg("install").arg(name);
 
     log_info!(
-        "[Brew] Attempting to install or upgrade {} using Homebrew...",
+        "[Brew Installer] Attempting to install or upgrade {} using Homebrew...",
         name.bold()
     );
     // Log the exact command being executed for debugging purposes.
@@ -92,7 +92,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // Log an error if the `brew` command itself could not be spawned.
             // This usually means `brew` is not installed or not in the system's PATH.
             log_error!(
-                "[Brew] Failed to execute `brew` command for {}: {}. Is Homebrew installed and in your system's PATH?",
+                "[Brew Installer] Failed to execute `brew` command for {}: {}. Is Homebrew installed and in your system's PATH?",
                 name.red(),
                 err
             );
@@ -105,7 +105,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // If the command failed (non-zero exit code), log the error.
         // Include Homebrew's standard error output, as it typically contains detailed reasons for failure.
         log_error!(
-            "[Brew] Homebrew installation for {} failed with status: {}. stderr: \n{}",
+            "[Brew Installer] failed to install {} with status: {}. stderr: \n{}",
             name.red(),
             output.status, // Display the exit status code.
             String::from_utf8_lossy(&output.stderr).red() // Convert stderr bytes to a string and color it red.
@@ -113,7 +113,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         return None; // Indicate installation failure.
     }
 
-    log_info!("[Brew] Successfully installed {}!", name.green());
+    log_info!("[Brew Installer] Successfully installed {}!", name.green());
 
     // 3. Determine the Installation Path
     // Homebrew installs binaries into a specific directory, which varies based on macOS architecture
@@ -123,7 +123,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         .arg("--prefix")
         .output()
         // If `brew --prefix` itself fails to execute, it's a critical error indicating Homebrew setup issues.
-        .expect("[Brew] Failed to execute `brew --prefix`. Is Homebrew installed?");
+        .expect("[Brew Installer] Failed to execute `brew --prefix`. Is Homebrew installed?");
 
     let brew_prefix = if brew_prefix_output.status.success() {
         // If `brew --prefix` was successful, take its stdout, trim whitespace, and convert to a String.
@@ -134,13 +134,16 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // If `brew --prefix` failed (e.g., even if `brew` is found, `--prefix` might error for some reason),
         // log a warning and default to a common, but potentially incorrect, path.
         log_warn!(
-            "[Brew] Could not reliably determine Homebrew prefix. Defaulting to `/usr/local`. \
+            "[Brew Installer] Could not reliably determine Homebrew prefix. Defaulting to `/usr/local`. \
              Installation path might be incorrect. Stderr from --prefix: {}",
             String::from_utf8_lossy(&brew_prefix_output.stderr)
         );
         "/usr/local".to_string() // Fallback path.
     };
-    log_debug!("[Brew] Homebrew prefix detected: {}", brew_prefix.blue());
+    log_debug!(
+        "[Brew Installer] Homebrew prefix detected: {}",
+        brew_prefix.blue()
+    );
 
     // Construct the expected full path to the installed binary.
     // Homebrew typically creates symlinks to installed binaries in a `bin` directory
@@ -150,7 +153,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     let install_path = PathBuf::from(format!("{}/bin/{}", brew_prefix, bin_name));
 
     log_debug!(
-        "[Brew] Expected final binary path for {}: {}",
+        "[Brew Installer] Expected final binary path for {}: {}",
         name.bold(),
         install_path.display().to_string().cyan()
     );

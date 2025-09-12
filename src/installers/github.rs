@@ -32,9 +32,7 @@ use crate::libs::utilities::{
     assets::{detect_file_type, download_file, install_pkg},
     binary::{find_executable, make_executable, move_and_rename_binary},
     compression,
-    platform::{
-        asset_matches_platform, detect_architecture, detect_os, execute_additional_commands,
-    },
+    platform::{asset_matches_platform, detect_architecture, detect_os},
 };
 // Internal module imports:
 // `Release`: Defines the structure for deserializing GitHub Release API responses.
@@ -44,6 +42,7 @@ use crate::libs::utilities::{
 //              to track installed tools, their versions, and paths.
 use crate::schema::{Release, ReleaseAsset, ToolEntry, ToolState};
 
+use crate::libs::tool_installer::execute_post_installation_commands;
 use crate::libs::utilities::assets::{current_timestamp, install_dmg};
 // Custom logging macros. These are used throughout the module to provide informative output
 // during the installation process, aiding in debugging and user feedback.
@@ -74,7 +73,7 @@ use tempfile::Builder as TempFileBuilder;
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Start the installation process with a debug log, clearly indicating which tool is being processed.
     log_debug!(
-        "[GitHub] Initiating installation process for tool: {}",
+        "[GitHub Installer] Initiating installation process for tool: {}",
         tool_entry.name.to_string().bold()
     );
 
@@ -87,7 +86,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         None => {
             // If OS detection fails, log an error and abort. This is a fundamental requirement.
             log_error!(
-                "[GitHub] Unable to detect the current operating system. Aborting installation for {}.",
+                "[GitHub Installer] Unable to detect the current operating system. Aborting installation for {}.",
                 tool_entry.name.to_string().red()
             );
             return None;
@@ -99,7 +98,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         None => {
             // Similarly, if architecture detection fails, log an error and abort.
             log_error!(
-                "[GitHub] Unable to detect the current machine architecture. Aborting installation for {}.",
+                "[GitHub Installer] Unable to detect the current machine architecture. Aborting installation for {}.",
                 tool_entry.name.to_string().red()
             );
             return None;
@@ -107,7 +106,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     };
 
     log_info!(
-        "[GitHub] Detected platform for {}: {}{}{}",
+        "[GitHub Installer] Detected platform for {}: {}{}{}",
         tool_entry.name.bold(),
         os.green(),
         "-".green(),
@@ -122,7 +121,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         Some(t) => t,
         None => {
             log_error!(
-                "[GitHub] Configuration error: 'tag' field is missing for tool {}. Cannot download from GitHub.",
+                "[GitHub Installer] Configuration error: 'tag' field is missing for tool {}. Cannot download from GitHub.",
                 tool_entry.name.to_string().red()
             );
             return None;
@@ -133,7 +132,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         Some(r) => r,
         None => {
             log_error!(
-                "[GitHub] Configuration error: 'repo' field is missing for tool {}. Cannot download from GitHub.",
+                "[GitHub Installer] Configuration error: 'repo' field is missing for tool {}. Cannot download from GitHub.",
                 tool_entry.name.to_string().red()
             );
             return None;
@@ -148,7 +147,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         repo, tag
     );
     log_debug!(
-        "[GitHub] Fetching release information from GitHub API: {}",
+        "[GitHub Installer] Fetching release information from GitHub API: {}",
         api_url.blue()
     );
 
@@ -163,7 +162,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         Err(e) => {
             // Log any network or ureq-specific error during the API call.
             log_error!(
-                "[GitHub] Failed to fetch GitHub release for {} ({}): {}",
+                "[GitHub Installer] Failed to fetch GitHub release for {} ({}): {}",
                 tool_entry.name.to_string().red(),
                 repo.to_string().red(),
                 e
@@ -176,7 +175,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // indicates an API-level error, such as a non-existent repository or tag (404 Not Found).
     if response.status() >= 400 {
         log_error!(
-            "[GitHub] GitHub API returned an error status (HTTP {}) for {} release {}. Check if the repo and tag are correct.",
+            "[GitHub Installer] GitHub API returned an error status (HTTP {}) for {} release {}. Check if the repo and tag are correct.",
             response.status(),
             repo.to_string().red(),
             tag.to_string().red()
@@ -192,7 +191,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         Err(err) => {
             // Log if JSON parsing fails, indicating an unexpected API response format.
             log_error!(
-                "[GitHub] Failed to parse GitHub release JSON for {}: {}",
+                "[GitHub Installer] Failed to parse GitHub release JSON for {}: {}",
                 tool_entry.name.to_string().red(),
                 err
             );
@@ -218,7 +217,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             .map(|a| a.name.clone())
             .collect::<Vec<_>>();
         log_error!(
-            "[GitHub] No suitable release asset found for platform {}-{} in repo {} tag {}. \
+            "[GitHub Installer] No suitable release asset found for platform {}-{} in repo {} tag {}. \
          Please check the release assets on GitHub. Available assets: {}",
             os.to_string().red(),
             arch.to_string().red(),
@@ -249,7 +248,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         let selected_asset = platform_matching_assets.first().unwrap(); // Get the first (highest priority) asset
 
         log_debug!(
-            "[GitHub] Found matching asset: {}",
+            "[GitHub Installer]Found matching asset: {}",
             selected_asset.name.bold()
         );
         selected_asset
@@ -258,7 +257,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Once the correct asset is identified, extract its download URL.
     let download_url = &asset.browser_download_url;
     log_debug!(
-        "[GitHub] Download URL for selected asset: {}",
+        "[GitHub Installer] Download URL for selected asset: {}",
         download_url.dimmed()
     );
 
@@ -275,7 +274,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         Ok(dir) => dir,
         Err(e) => {
             log_error!(
-                "[GitHub] Failed to create temporary directory for installation: {}. Aborting for {}.",
+                "[GitHub Installer] Failed to create temporary directory for installation: {}. Aborting for {}.",
                 e,
                 tool_entry.name.to_string().red()
             );
@@ -287,14 +286,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     let downloaded_asset_path = install_temp_root.path().join(filename); // Construct the full path for the downloaded file.
 
     log_debug!(
-        "[GitHub] Downloading {} to temporary location: {}",
+        "[GitHub Installer] Downloading {} to temporary location: {}",
         tool_entry.name.to_string().bold(),
         downloaded_asset_path.display().to_string().cyan()
     );
     if let Err(err) = download_file(download_url, &downloaded_asset_path) {
         // Log specific download errors (e.g., network issues during download).
         log_error!(
-            "[GitHub] Failed to download tool {} from {}: {}",
+            "[GitHub Installer] Failed to download tool {} from {}: {}",
             tool_entry.name.to_string().red(),
             download_url.to_string().red(),
             err
@@ -302,7 +301,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         return None;
     }
     log_info!(
-        "[GitHub] Download completed for {}.",
+        "[GitHub Installer] Download completed for {}.",
         tool_entry.name.to_string().bright_blue()
     );
 
@@ -314,7 +313,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // `file` command output for archives.
     let file_type = detect_file_type(&downloaded_asset_path);
     log_debug!(
-        "[GitHub] Detected downloaded file type (from filename): {}",
+        "[GitHub Installer] Detected downloaded file type (from filename): {}",
         file_type.to_string().magenta()
     );
 
@@ -326,7 +325,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         Err(_) => {
             // The `$HOME` variable is fundamental for user-specific installations.
             log_error!(
-                "[GitHub] The $HOME environment variable is not set. Cannot determine installation path for {}.",
+                "[GitHub Installer] The $HOME environment variable is not set. Cannot determine installation path for {}.",
                 tool_entry.name.to_string().red()
             );
             return None;
@@ -342,7 +341,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Construct the full absolute path where the tool's executable will be placed.
     let install_path = PathBuf::from(format!("{}/bin/{}", home_dir, bin_name));
     log_debug!(
-        "[GitHub] Target installation path for {}: {}",
+        "[GitHub Installer] Target installation path for {}: {}",
         tool_entry.name.to_string().bright_blue(),
         install_path.display().to_string().cyan()
     );
@@ -364,7 +363,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     match file_type.as_str() {
         "pkg" => {
             log_info!(
-                "[GitHub] Installing .pkg file for {}.",
+                "[GitHub Installer] Installing .pkg file for {}.",
                 tool_entry.name.to_string().bold()
             );
             // Call install_pkg and capture its returned installation path.
@@ -379,7 +378,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 }
                 Err(err) => {
                     log_error!(
-                        "[GitHub] Failed to install .pkg for {}: {}",
+                        "[GitHub Installer] Failed to install .pkg for {}: {}",
                         tool_entry.name.to_string().red(),
                         err
                     );
@@ -389,7 +388,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         }
         "dmg" => {
             log_info!(
-                "[GitHub] Installing .dmg file for {}.",
+                "[GitHub Installer] Installing .dmg file for {}.",
                 tool_entry.name.to_string().bold()
             );
             // Call install_dmg and capture its returned installation path.
@@ -403,7 +402,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 }
                 Err(err) => {
                     log_error!(
-                        "[GitHub] Failed to install .dmg for {}: {}",
+                        "[GitHub Installer] Failed to install .dmg for {}: {}",
                         tool_entry.name.to_string().red(),
                         err
                     );
@@ -415,24 +414,24 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // Handles direct executable files (e.g., a single `.exe` or uncompressed binary).
             // These files don't need extraction; they just need to be moved and made executable.
             log_debug!(
-                "[GitHub] Moving standalone binary for {}.",
+                "[GitHub Installer] Moving standalone binary for {}.",
                 tool_entry.name.to_string().bold()
             );
             if let Err(err) = move_and_rename_binary(&downloaded_asset_path, &install_path) {
                 log_error!(
-                    "[GitHub] Failed to move binary for {}: {}",
+                    "[GitHub Installer] Failed to move binary for {}: {}",
                     tool_entry.name.to_string().red(),
                     err
                 );
                 return None;
             }
             log_debug!(
-                "[GitHub] Making binary executable for {}.",
+                "[GitHub Installer] Making binary executable for {}.",
                 tool_entry.name.to_string().bold()
             );
             if let Err(err) = make_executable(&install_path) {
                 log_error!(
-                    "[GitHub] Failed to make binary executable for {}: {}",
+                    "[GitHub Installer] Failed to make binary executable for {}: {}",
                     tool_entry.name.to_string().red(),
                     err
                 );
@@ -445,7 +444,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // finding the actual executable within the extracted contents.
         "zip" | "tar.gz" | "gz" | "tar.bz2" | "tar" | "tar.xz" | "tar.bz" | "txz" | "tbz2" => {
             log_debug!(
-                "[GitHub] Extracting archive for {}.",
+                "[GitHub Installer] Extracting archive for {}.",
                 tool_entry.name.to_string().blue()
             );
             // Extract the downloaded archive to the temporary installation root.
@@ -457,7 +456,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 Ok(path) => path,
                 Err(err) => {
                     log_error!(
-                        "[GitHub] Failed to extract archive for {}: {}",
+                        "[GitHub Installer] Failed to extract archive for {}: {}",
                         tool_entry.name.to_string().red(),
                         err
                     );
@@ -466,7 +465,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             };
 
             log_debug!(
-                "[GitHub] Searching for executable in extracted contents for {} in {}",
+                "[GitHub Installer] Searching for executable in extracted contents for {} in {}",
                 tool_entry.name.to_string().blue(),
                 extracted_path.display().to_string().cyan()
             );
@@ -475,7 +474,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // or the root of the extracted content, whichever contains the actual tool files
             let content_root_path = extracted_path.clone();
             log_debug!(
-                "[GitHub] Archived assets root path is {}",
+                "[GitHub Installer] Archived assets root path is {}",
                 content_root_path.display().to_string().cyan()
             );
 
@@ -490,7 +489,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 Some(path) => path,
                 None => {
                     log_error!(
-                        "[GitHub] No executable found in the extracted archive for {}. Manual intervention may be required.",
+                        "[GitHub Installer] No executable found in the extracted archive for {}. Manual intervention may be required.",
                         tool_entry.name.to_string().red()
                     );
                     return None;
@@ -512,7 +511,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                         // Use the grandparent (e.g., helix-25.07.1/) as the content root
                         additional_cmd_working_dir = grandparent.to_path_buf();
                         log_debug!(
-                            "[GitHub] Using grandparent directory for additional commands: {}",
+                            "[GitHub Installer] Using grandparent directory for additional commands: {}",
                             additional_cmd_working_dir.display().to_string().cyan()
                         );
                     } else {
@@ -522,7 +521,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     // Executable is not in a bin/ directory, use its parent directory
                     additional_cmd_working_dir = parent_dir.to_path_buf();
                     log_debug!(
-                        "[GitHub] Using parent directory for additional commands: {}",
+                        "[GitHub Installer] Using parent directory for additional commands: {}",
                         additional_cmd_working_dir.display().to_string().cyan()
                     );
                 }
@@ -530,32 +529,32 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 // Fallback to the extraction root if we can't determine the parent
                 additional_cmd_working_dir = content_root_path;
                 log_debug!(
-                    "[GitHub] Using extraction root for additional commands: {}",
+                    "[GitHub Installer] Using extraction root for additional commands: {}",
                     additional_cmd_working_dir.display().to_string().cyan()
                 );
             }
             log_debug!(
-                "[GitHub] Moving and renaming executable for {}.",
+                "[GitHub Installer] Moving and renaming executable for {}.",
                 tool_entry.name.to_string().blue()
             );
             // Move the located executable to its final destination and apply any `rename_to` rule.
             if let Err(err) = move_and_rename_binary(&executable_path, &install_path) {
                 log_error!(
-                    "[GitHub] Failed to move extracted binary for {}: {}",
+                    "[GitHub Installer] Failed to move extracted binary for {}: {}",
                     tool_entry.name.to_string().red(),
                     err
                 );
                 return None;
             }
             log_debug!(
-                "[GitHub] Making extracted binary executable for {}.",
+                "[GitHub Installer] Making extracted binary executable for {}.",
                 tool_entry.name.to_string().blue()
             );
             // Ensure the final binary has executable permissions set. This is crucial for Unix-like
             // systems to allow the user to run the installed tool directly.
             if let Err(err) = make_executable(&install_path) {
                 log_error!(
-                    "[GitHub] Failed to make extracted binary executable for {}: {}",
+                    "[GitHub Installer] Failed to make extracted binary executable for {}: {}",
                     tool_entry.name.to_string().red(),
                     err
                 );
@@ -568,7 +567,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // Catch-all for unsupported or unrecognized file types. If we download something
             // we don't know how to handle, we log an error and abort.
             log_error!(
-                "[GitHub] Unsupported or unknown file type '{}' for tool {}. Cannot install.",
+                "[GitHub Installer] Unsupported or unknown file type '{}' for tool {}. Cannot install.",
                 unknown.to_string().red(),
                 tool_entry.name.to_string().red()
             );
@@ -580,60 +579,15 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // After the main installation is complete, execute any additional commands specified
     // in the tool configuration. These commands are often used for post-installation setup,
     // such as copying configuration files, creating directories, or setting up symbolic links.
-    let executed_additional_commands = if let Some(ref additional_commands) =
-        tool_entry.additional_cmd
-    {
-        if !additional_commands.is_empty() {
-            log_info!(
-                "[GitHub] Tool {} has {} additional command(s) to execute",
-                tool_entry.name.bold(),
-                additional_commands.len().to_string().yellow()
-            );
-
-            log_debug!(
-                "[GitHub] Additional commands will execute from working directory: {}",
-                additional_cmd_working_dir.display().to_string().cyan()
-            );
-
-            match execute_additional_commands(
-                additional_commands,
-                &additional_cmd_working_dir,
-                &tool_entry.name,
-            ) {
-                Ok(executed_cmds) => {
-                    log_info!(
-                        "[GitHub] Successfully completed all additional commands for {}",
-                        tool_entry.name.to_string().green()
-                    );
-                    Some(executed_cmds)
-                }
-                Err(err) => {
-                    log_error!(
-                        "[GitHub] Failed to execute additional commands for {}: {}. Installation aborted.",
-                        tool_entry.name.to_string().red(),
-                        err.red()
-                    );
-                    return None;
-                }
-            }
-        } else {
-            log_debug!(
-                "[GitHub] Tool {} has additional_cmd field but it's empty, skipping",
-                tool_entry.name.dimmed()
-            );
-            None
-        }
-    } else {
-        log_debug!(
-            "[GitHub] No additional commands specified for {}",
-            tool_entry.name.dimmed()
-        );
-        None
-    };
-
+    // Optional - failure won't stop installation
+    let executed_additional_commands = execute_post_installation_commands(
+        "[GitHub Installer]",
+        tool_entry,
+        &additional_cmd_working_dir,
+    );
     // If execution reaches this point, the installation was successful.
     log_info!(
-        "[GitHub] Installation of {} completed successfully at {}!",
+        "[GitHub Installer] Installation of {} completed successfully at {}!",
         tool_entry.name.to_string().bold(),
         final_install_path_for_state.display().to_string().green()
     );
