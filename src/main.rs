@@ -21,7 +21,21 @@ use commands::{generate, now, sync, version};
 /// `#[derive(Parser)]` automatically generates argument parsing code via `clap`.
 #[derive(Parser)]
 #[command(name = "setup-devbox")]
-#[command(about = "Setup development environment with ease", long_about = None)]
+#[command(about = "Setup development environment with ease
+
+Supported Installers:
+  • brew      - Package manager for macOS/Linux (Homebrew)
+  • cargo     - Rust package manager for crates and binaries
+  • fonts     - Nerd Fonts installer from GitHub releases
+  • github    - Download tools from GitHub releases
+  • go        - Go package installer using 'go install'
+  • pip       - Python package installer using pip
+  • rustup    - Rust toolchain installer and manager
+  • shell     - Shell configs (.zshrc, .bashrc) and aliases
+  • url       - Download and install from direct URLs
+  • uv        - Ultra-fast Python package installer (tool/pip/python modes)
+
+Use 'setup-devbox installers --detailed' for comprehensive installer information.")]
 struct Cli {
     // Global argument to enable debug logging.
     /// Enables detailed debug output.

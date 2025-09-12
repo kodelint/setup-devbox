@@ -3,8 +3,10 @@
 // and the installation/application of tools, fonts, shell configs, and system settings.
 
 use crate::installers::shell_run_commands::apply_shell_configs;
-use crate::schema::DevBoxState; // Application state structure.
-use crate::{log_debug, log_info}; // Custom logging macros.
+use crate::schema::DevBoxState;
+// Application state structure.
+use crate::{log_debug, log_info};
+// Custom logging macros.
 use colored::Colorize;
 // For colored terminal output.
 
@@ -13,12 +15,11 @@ use crate::libs::{
         load_master_configs, // Loads configurations from `config.yaml`.
         load_single_config,  // Loads a single configuration file.
     },
-    font_installer::install_fonts, // Handles font installation.
-    paths,                         // Path resolution utilities.
-    settings_applier::apply_system_settings, // Applies macOS system settings.
-    // Applies shell configurations and aliases.
-    state_management, // Module for loading and saving application state.
-    tool_installer::install_tools, // Handles tool installation.
+    font_installer::install_fonts,
+    settings_applier::apply_system_settings,
+    state_management,
+    tool_installer::install_tools,
+    utilities,
 };
 
 /// Main entry point for the `now` command.
@@ -45,7 +46,7 @@ pub fn run(config_path: Option<String>, state_path: Option<String>, update_lates
 
     // Resolve configuration and state file paths.
     let (config_path_resolved, config_filename, state_path_resolved) =
-        match paths::resolve_paths(config_path, state_path) {
+        match utilities::misc_utils::resolve_paths(config_path, state_path) {
             Some(paths) => paths,
             None => return, // Exit if path resolution fails.
         };

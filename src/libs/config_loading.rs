@@ -30,7 +30,7 @@ use crate::{log_debug, log_error, log_info, log_warn};
 use crate::schema::{FontConfig, MainConfig, SettingsConfig, ShellConfig, ToolConfig};
 
 // Imports a utility function to expand the `~` character in paths.
-use crate::libs::utilities::path_helpers::expand_tilde;
+use crate::libs::utilities::misc_utils::expand_tilde;
 
 /// A composite struct designed to hold all the parsed configuration data.
 ///
@@ -73,7 +73,11 @@ pub struct ParsedConfigs {
 /// * `Option<T>`:
 ///   - `Some(T)` if the file is successfully read, parsed, and deserialized into the type `T`.
 ///   - `None` if `path_option` is `None`, the file is not found, or any I/O or parsing error occurs.
-pub fn load_individual_config<T>(path_option: Option<&String>, config_name: &str, bold_name: &str) -> Option<T>
+pub fn load_individual_config<T>(
+    path_option: Option<&String>,
+    config_name: &str,
+    bold_name: &str,
+) -> Option<T>
 where
     T: serde::de::DeserializeOwned + std::fmt::Debug, // Trait bounds for deserialization and debugging.
 {
@@ -82,7 +86,11 @@ where
         // Expand the `~` character in the path to the actual home directory path.
         let path = expand_tilde(path_str);
         // Log the attempt to load the configuration, including the resolved path.
-        log_debug!("Attempting to load {} config from: {}", config_name, path.display());
+        log_debug!(
+            "Attempting to load {} config from: {}",
+            config_name,
+            path.display()
+        );
 
         // Attempt to read the file content into a string.
         match fs::read_to_string(&path) {
@@ -91,25 +99,43 @@ where
                 match serde_yaml::from_str::<T>(&contents) {
                     Ok(cfg) => {
                         // Log success message with bolded prefix and colored path.
-                        log_debug!("{} Successfully loaded {} configuration from {}", bold_name.bold(), config_name, path.display().to_string().green());
+                        log_debug!(
+                            "{} Successfully loaded {} configuration from {}",
+                            bold_name.bold(),
+                            config_name,
+                            path.display().to_string().green()
+                        );
                         Some(cfg) // Return the successfully parsed configuration.
-                    },
+                    }
                     Err(e) => {
                         // Log a detailed error message if YAML parsing fails (e.g., syntax errors).
-                        log_error!("Failed to parse {}.yaml at {}: {}. Please check its YAML syntax.", config_name, path.display().to_string().red(), e);
+                        log_error!(
+                            "Failed to parse {}.yaml at {}: {}. Please check its YAML syntax.",
+                            config_name,
+                            path.display().to_string().red(),
+                            e
+                        );
                         None // Return None on parsing failure.
                     }
                 }
-            },
+            }
             Err(_) => {
                 // Log a warning if the file is not found or is unreadable. This is not critical,
                 // as not all configurations are mandatory.
-                log_warn!("{} configuration file not found or unreadable at {}. Skipping {} setup.", config_name.yellow(), path.display().to_string().yellow(), config_name);
+                log_warn!(
+                    "{} configuration file not found or unreadable at {}. Skipping {} setup.",
+                    config_name.yellow(),
+                    path.display().to_string().yellow(),
+                    config_name
+                );
                 None // Return None if the file cannot be read.
             }
         }
     } else {
-        log_debug!("No path provided for {} config. Skipping load.", config_name); // Log if no path was provided.
+        log_debug!(
+            "No path provided for {} config. Skipping load.",
+            config_name
+        ); // Log if no path was provided.
         None // No path was provided, so nothing to load.
     }
 }
@@ -136,7 +162,10 @@ where
 pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
     log_debug!("Entering load_master_configs() function.");
     // Inform the user about which master config file is being loaded.
-    log_info!("Loading configurations as per master config file: {}", config_path_resolved.display().to_string().blue());
+    log_info!(
+        "Loading configurations as per master config file: {}",
+        config_path_resolved.display().to_string().blue()
+    );
 
     // Attempt to read the contents of the main `config.yaml` file.
     let main_cfg_content = match fs::read_to_string(config_path_resolved) {
@@ -184,9 +213,11 @@ pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
     // The `as_ref()` is used to convert `Option<String>` into `Option<&String>`,
     // which is required by `load_individual_config`. This avoids consuming the `String` within the `Option`.
     let tools_config = load_individual_config(main_cfg.tools.as_ref(), "tools", "[Tools]");
-    let settings_config = load_individual_config(main_cfg.settings.as_ref(), "settings", "[Settings]");
+    let settings_config =
+        load_individual_config(main_cfg.settings.as_ref(), "settings", "[Settings]");
     // Note: `shellrc` is the field name in `MainConfig`, but "shell config" is used for clarity in logs.
-    let shell_config = load_individual_config(main_cfg.shellrc.as_ref(), "shell config", "[Shell Config]");
+    let shell_config =
+        load_individual_config(main_cfg.shellrc.as_ref(), "shell config", "[Shell Config]");
     let fonts_config = load_individual_config(main_cfg.fonts.as_ref(), "fonts", "[Fonts]");
 
     log_debug!("Exiting load_master_configs() function.");
@@ -222,8 +253,14 @@ pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
 pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str) -> ParsedConfigs {
     log_debug!("Entering load_single_config() function.");
     // Inform the user that a single config file is being loaded.
-    log_info!("Loading configuration from single file: {}", config_path_resolved.display().to_string().blue());
-    log_debug!("Attempting to load configuration directly from: {}", config_path_resolved.display());
+    log_info!(
+        "Loading configuration from single file: {}",
+        config_path_resolved.display().to_string().blue()
+    );
+    log_debug!(
+        "Attempting to load configuration directly from: {}",
+        config_path_resolved.display()
+    );
 
     // Attempt to read the content of the single configuration file.
     let contents = match fs::read_to_string(config_path_resolved) {
@@ -254,34 +291,59 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
             log_debug!("Identified as tools.yaml. Attempting to parse...");
             // Attempt to deserialize as `ToolConfig`.
             parsed_configs.tools = match serde_yaml::from_str(&contents) {
-                Ok(cfg) => { log_info!("[Tools] Successfully parsed tools.yaml."); Some(cfg) },
-                Err(e) => { log_error!("Failed to parse tools.yaml: {}", e); None },
+                Ok(cfg) => {
+                    log_info!("[Tools] Successfully parsed tools.yaml.");
+                    Some(cfg)
+                }
+                Err(e) => {
+                    log_error!("Failed to parse tools.yaml: {}", e);
+                    None
+                }
             }
-        },
+        }
         "settings.yaml" => {
             log_debug!("Identified as settings.yaml. Attempting to parse...");
             // Attempt to deserialize as `SettingsConfig`.
             parsed_configs.settings = match serde_yaml::from_str(&contents) {
-                Ok(cfg) => { log_info!("[Settings] Successfully parsed settings.yaml."); Some(cfg) },
-                Err(e) => { log_error!("Failed to parse settings.yaml: {}", e); None },
+                Ok(cfg) => {
+                    log_info!("[Settings] Successfully parsed settings.yaml.");
+                    Some(cfg)
+                }
+                Err(e) => {
+                    log_error!("Failed to parse settings.yaml: {}", e);
+                    None
+                }
             }
-        },
-        "shellrc.yaml" | "shellac.yaml" => { // Support for both common shell config filenames.
+        }
+        "shellrc.yaml" | "shellac.yaml" => {
+            // Support for both common shell config filenames.
             log_debug!("Identified as shell config file. Attempting to parse...");
             // Attempt to deserialize as `ShellConfig`.
             parsed_configs.shell = match serde_yaml::from_str(&contents) {
-                Ok(cfg) => { log_info!("[ShellRC] Successfully parsed shell config."); Some(cfg) },
-                Err(e) => { log_error!("Failed to parse shell config: {}", e); None },
+                Ok(cfg) => {
+                    log_info!("[ShellRC] Successfully parsed shell config.");
+                    Some(cfg)
+                }
+                Err(e) => {
+                    log_error!("Failed to parse shell config: {}", e);
+                    None
+                }
             }
-        },
+        }
         "fonts.yaml" => {
             log_debug!("Identified as fonts.yaml. Attempting to parse...");
             // Attempt to deserialize as `FontConfig`.
             parsed_configs.fonts = match serde_yaml::from_str(&contents) {
-                Ok(cfg) => { log_info!("[Fonts] Successfully parsed fonts.yaml."); Some(cfg) },
-                Err(e) => { log_error!("Failed to parse fonts.yaml: {}", e); None },
+                Ok(cfg) => {
+                    log_info!("[Fonts] Successfully parsed fonts.yaml.");
+                    Some(cfg)
+                }
+                Err(e) => {
+                    log_error!("Failed to parse fonts.yaml: {}", e);
+                    None
+                }
             }
-        },
+        }
         other => {
             // If the filename does not match any recognized single config type, it's an error.
             log_error!(

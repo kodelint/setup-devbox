@@ -64,7 +64,7 @@ use crate::libs::utilities::compression::extract_archive;
 ///   - `None` if the installation failed at any step, with detailed errors logged.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_info!(
-        "[URL] Attempting to install tool from direct URL: {}",
+        "[URL Installer] Attempting to install tool from direct URL: {}",
         tool_entry.name.green()
     );
 
@@ -73,7 +73,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         Some(url) => url.clone(),
         None => {
             log_error!(
-                "[URL] Tool '{}' is configured for direct URL installation but no URL was provided.",
+                "[URL Installer] Tool '{}' is configured for direct URL installation but no URL was provided.",
                 tool_entry.name.red()
             );
             return None;
@@ -84,7 +84,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Get the user's home directory to construct the base path for devbox tools.
     let home_dir_path = home_dir()
         .ok_or_else(|| {
-            log_error!("[URL] Could not determine home directory.");
+            log_error!("[URL Installer] Could not determine home directory.");
             io::Error::new(io::ErrorKind::NotFound, "Home directory not found")
         })
         .ok()?; // Propagate error if home_dir is not found
@@ -98,7 +98,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // `fs::create_dir_all` creates all necessary parent directories if they don't exist.
     if let Err(e) = fs::create_dir_all(&tool_install_dir) {
         log_error!(
-            "[URL] Failed to create tool installation directory {}: {}",
+            "[URL Installer] Failed to create tool installation directory {}: {}",
             tool_install_dir.display().to_string().red(),
             e
         );
@@ -111,7 +111,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         Ok(dir) => dir,
         Err(e) => {
             log_error!(
-                "[URL] Failed to create temporary directory for download: {}",
+                "[URL Installer] Failed to create temporary directory for download: {}",
                 e
             );
             return None;
@@ -125,21 +125,24 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     let temp_download_path = temp_dir.path().join(filename);
 
     log_info!(
-        "[URL] Downloading '{}' from {} to temporary location: {}",
+        "[URL Installer] Downloading '{}' from {} to temporary location: {}",
         tool_entry.name.green(),
         download_url_str.blue(),
         temp_download_path.display().to_string().yellow()
     );
     if let Err(e) = download_file(&download_url_str, &temp_download_path) {
         log_error!(
-            "[URL] Failed to download '{}' from {}: {}",
+            "[URL Installer] Failed to download '{}' from {}: {}",
             tool_entry.name.red(),
             download_url_str.red(),
             e.to_string().red()
         );
         return None;
     }
-    log_info!("[URL] Download completed for: {}", tool_entry.name.green());
+    log_info!(
+        "[URL Installer] Download completed for: {}",
+        tool_entry.name.green()
+    );
 
     // 4. Determine file type and perform installation
     let final_install_path_for_state: PathBuf;
@@ -149,7 +152,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Use the more robust detect_file_type from assets.rs
     let detected_file_type = detect_file_type(&temp_download_path);
     log_debug!(
-        "[URL] Detected file type for {} is: {}",
+        "[URL Installer] Detected file type for {} is: {}",
         temp_download_path.display(),
         detected_file_type.yellow()
     );
@@ -161,7 +164,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // Handles various archive formats.
         "zip" | "tar.gz" | "tar.bz2" | "tar.xz" | "tar" | "gz" | "bz2" | "xz" | "7zip" => {
             log_info!(
-                "[URL] Extracting archive from URL: {}",
+                "[URL Installer] Extracting archive from URL: {}",
                 download_url_str.cyan()
             );
             // Call the `extract_archive` utility function to decompress and extract the contents
@@ -183,7 +186,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 }
                 Err(e) => {
                     log_error!(
-                        "[URL] Failed to extract archive from {}: {}",
+                        "[URL Installer] Failed to extract archive from {}: {}",
                         download_url_str.red(),
                         e.to_string().red()
                     );
@@ -194,7 +197,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         "pkg" => {
             // macOS-specific .pkg installer handling.
             log_info!(
-                "[URL] Detected .pkg installer for {}. Initiating macOS package installation...",
+                "[URL Installer] Detected .pkg installer for {}. Initiating macOS package installation...",
                 tool_entry.name.green()
             );
             // Call `install_pkg` to execute the macOS package installer. This function handles
@@ -223,7 +226,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         "dmg" => {
             // macOS-specific .dmg installer handling.
             log_info!(
-                "[URL] Detected .dmg installer for {}. Initiating macOS disk image installation...",
+                "[URL Installer] Detected .dmg installer for {}. Initiating macOS disk image installation...",
                 tool_entry.name.green()
             );
             // Call `install_dmg` to handle mounting the disk image and copying its contents.
@@ -239,7 +242,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 }
                 Err(e) => {
                     log_error!(
-                        "[URL] Failed to install .dmg for {}: {}",
+                        "[URL Installer] Failed to install .dmg for {}: {}",
                         tool_entry.name.red(),
                         e.to_string().red()
                     );
@@ -250,7 +253,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         "binary" => {
             // Handles cases where the downloaded file is a standalone executable binary.
             log_info!(
-                "[URL] Detected direct binary for {}. Copying to install directory...",
+                "[URL Installer] Detected direct binary for {}. Copying to install directory...",
                 tool_entry.name.green()
             );
             // Construct the target path for the binary within the tool's installation directory.
@@ -259,7 +262,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             match fs::copy(&temp_download_path, &target_path) {
                 Ok(_) => {
                     log_info!(
-                        "[URL] Binary copied to: {}",
+                        "[URL Installer] Binary copied to: {}",
                         target_path.display().to_string().green()
                     );
                     // Ensure executable permissions on Unix-like systems.
@@ -272,7 +275,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                             Ok(md) => md,
                             Err(e) => {
                                 log_error!(
-                                    "[URL] Failed to get metadata for binary {}: {}",
+                                    "[URL Installer] Failed to get metadata for binary {}: {}",
                                     target_path.display().to_string().red(),
                                     e.to_string().red()
                                 );
@@ -284,14 +287,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                         permissions.set_mode(0o755);
                         if let Err(e) = fs::set_permissions(&target_path, permissions) {
                             log_error!(
-                                "[URL] Failed to set permissions for binary {}: {}",
+                                "[URL Installer] Failed to set permissions for binary {}: {}",
                                 target_path.display().to_string().red(),
                                 e.to_string().red()
                             );
                             return None;
                         }
                         log_debug!(
-                            "[URL] Executable permissions set for: {}",
+                            "[URL Installer] Executable permissions set for: {}",
                             target_path.display()
                         );
                     }
@@ -304,7 +307,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 }
                 Err(e) => {
                     log_error!(
-                        "[URL] Failed to copy binary for {}: {}",
+                        "[URL Installer] Failed to copy binary for {}: {}",
                         tool_entry.name.red(),
                         e.to_string().red()
                     );
@@ -315,7 +318,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         _ => {
             // Fallback for any unsupported or unrecognized file types.
             log_error!(
-                "[URL] Unsupported file type detected for {}: '{}'.",
+                "[URL Installer] Unsupported file type detected for {}: '{}'.",
                 tool_entry.name.red(),
                 detected_file_type.red()
             );
@@ -326,7 +329,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // 5. Clean up the temporary downloaded file
     if let Err(e) = fs::remove_file(&temp_download_path) {
         log_warn!(
-            "[URL] Failed to remove temporary download file {}: {}",
+            "[URL Installer] Failed to remove temporary download file {}: {}",
             temp_download_path.display(),
             e
         );
