@@ -3,7 +3,7 @@
 // internal state file (`state.json`), or vice-versa.
 
 use crate::libs::state_management::read_devbox_state; // Function to read application state.
-use crate::libs::utilities::path_helpers::get_devbox_dir;
+use crate::libs::utilities::misc_utils::get_devbox_dir;
 use crate::schema::{
     FontConfig, FontEntry, MainConfig, OsSpecificSettings, SettingEntry, SettingsConfig,
     ToolConfig, ToolEntry,
