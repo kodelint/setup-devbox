@@ -3,7 +3,7 @@
 // re-exports their public items, making them accessible from `crate::utils::*`.
 
 // Declare the `path_helpers` module.
-pub mod path_helpers;
+pub mod misc_utils;
 // Declare the `compression` module.
 pub mod assets;
 pub mod binary;
