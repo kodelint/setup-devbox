@@ -49,3 +49,4 @@ pub(crate) mod pip;
 /// by directly downloading files from a specified URL. This is used for
 /// binaries or installers not managed by other package managers or GitHub releases.
 pub(crate) mod url;
+pub(crate) mod uv;

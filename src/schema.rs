@@ -367,7 +367,9 @@ impl ToolEntry {
     // Validates the ToolEntry based on its specified source.
     // This ensures that the configuration has all required fields and no conflicting fields.
     pub fn validate(&self) -> Result<(), ToolEntryError> {
-        let supported_sources = ["github", "brew", "cargo", "rustup", "pip", "go", "url"];
+        let supported_sources = [
+            "github", "brew", "cargo", "rustup", "pip", "go", "url", "uv",
+        ];
         let source_lower = self.source.to_lowercase();
 
         if !supported_sources.contains(&source_lower.as_str()) {
