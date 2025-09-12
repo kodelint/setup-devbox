@@ -10,16 +10,19 @@ use colored::Colorize;
 use crate::{log_debug, log_error, log_info, log_warn};
 // Imports individual installer modules. Each module is expected to provide
 // functions for installing a specific type of tool (e.g., Homebrew packages, Cargo crates).
-use crate::installers::{brew, cargo, github, go, pip, rustup, url};
+use crate::installers::{brew, cargo, github, go, pip, rustup, url, uv};
 // Imports schema definitions for application state (`DevBoxState`) and tool configurations (`ToolConfig`).
 // `DevBoxState` holds the persistent record of installed items, and `ToolConfig` defines
 // the structure of the `tools.yaml` file.
-use crate::schema::{DevBoxState, ToolConfig, ToolEntryError};
+use crate::schema::{DevBoxState, ToolConfig, ToolEntry, ToolEntryError};
 // Imports the function for saving the application state, usually defined in `state_management.rs`.
 // This is crucial for persisting changes made during the tool installation process.
 use crate::libs::state_management::save_devbox_state;
 use crate::libs::utilities::assets::{is_timestamp_older_than, parse_duration, time_since};
-use crate::libs::utilities::platform::check_installer_command_available;
+use crate::libs::utilities::misc_utils::format_duration;
+use crate::libs::utilities::platform::{
+    check_installer_command_available, execute_additional_commands,
+};
 
 /// Installs tools based on the provided configuration and updates the application state.
 ///
@@ -141,7 +144,7 @@ pub fn install_tools(
         // require a separate pre-check for an installer executable in the PATH.
         let needs_installer_check = matches!(
             installer_name_for_check.as_str(),
-            "brew" | "go" | "cargo" | "rustup" | "pip"
+            "brew" | "go" | "cargo" | "rustup" | "pip" | "uv"
         );
 
         if needs_installer_check {
@@ -292,6 +295,7 @@ pub fn install_tools(
             "cargo" => cargo::install(tool),
             "rustup" => rustup::install(tool),
             "pip" => pip::install(tool),
+            "uv" => uv::install(tool),
             "url" => url::install(tool),
             other => {
                 // Handle unsupported or unrecognized source types.
@@ -373,47 +377,76 @@ pub fn install_tools(
     log_debug!("Exiting install_tools() function.");
 }
 
-/// Converts a Chrono `Duration` object into a human-readable string representation.
-///
-/// This function formats time durations for display purposes, selecting the most
-/// appropriate time unit (days, hours, or minutes) based on the duration's magnitude.
-/// It's particularly useful for user-facing messages, logs, and configuration displays
-/// where raw duration values would be less intuitive.
+/// Executes additional commands after the main installation is complete.
+/// These commands are often used for post-installation setup, such as copying
+/// configuration files, creating directories, or setting up symbolic links.
 ///
 /// # Arguments
-/// * `duration` - A reference to a Chrono `Duration` object to be formatted
+/// * `installer_prefix` - The prefix for log messages (e.g., "[GitHub]", "[Cargo]")
+/// * `tool_entry` - Reference to the ToolEntry containing the tool configuration
+/// * `working_dir` - The working directory where commands should be executed
 ///
 /// # Returns
-/// A `String` containing the formatted duration in the most appropriate time unit:
-/// - Days for durations ≥ 1 day
-/// - Hours for durations ≥ 1 hour but less than 1 day
-/// - Minutes for durations ≥ 1 minute but less than 1 hour
-/// - "0 minutes" for durations less than 1 minute
-///
-/// # Unit Selection Logic
-/// The function uses a hierarchical approach to determine the best unit:
-/// 1. **Days**: If the duration contains any complete days (≥ 86400 seconds)
-/// 2. **Hours**: If no days but contains complete hours (≥ 3600 seconds)
-/// 3. **Minutes**: If no hours but contains complete minutes (≥ 60 seconds)
-/// 4. **Fallback**: "0 minutes" for sub-minute durations
-fn format_duration(duration: &Duration) -> String {
-    // Check if the duration contains any complete days
-    // Using num_days() which returns the total number of whole days in the duration
-    if duration.num_days() > 0 {
-        format!("{} days", duration.num_days())
-    }
-    // If no days, check for complete hours
-    // num_hours() returns total whole hours, including those that might be part of days
-    else if duration.num_hours() > 0 {
-        format!("{} hours", duration.num_hours())
-    }
-    // If no hours, check for complete minutes
-    // num_minutes() returns total whole minutes in the duration
-    else if duration.num_minutes() > 0 {
-        format!("{} minutes", duration.num_minutes())
+/// * `Option<Vec<String>>` - Some with executed commands if successful, None if no commands to execute or if commands failed
+/// * The function continues execution even if commands fail, only logging warnings instead of errors
+pub(crate) fn execute_post_installation_commands(
+    installer_prefix: &str,
+    tool_entry: &ToolEntry,
+    working_dir: &std::path::Path,
+) -> Option<Vec<String>> {
+    if let Some(ref additional_commands) = tool_entry.additional_cmd {
+        if !additional_commands.is_empty() {
+            log_info!(
+                "{} Tool {} has {} additional command(s) to execute",
+                installer_prefix,
+                tool_entry.name.bold(),
+                additional_commands.len().to_string().yellow()
+            );
+
+            log_debug!(
+                "{} Additional commands will execute from working directory: {}",
+                installer_prefix,
+                working_dir.display().to_string().cyan()
+            );
+
+            match execute_additional_commands(
+                installer_prefix,
+                additional_commands,
+                working_dir,
+                &tool_entry.name,
+            ) {
+                Ok(executed_cmds) => {
+                    log_info!(
+                        "{} Successfully completed all additional commands for {}",
+                        installer_prefix,
+                        tool_entry.name.to_string().green()
+                    );
+                    Some(executed_cmds)
+                }
+                Err(err) => {
+                    log_warn!(
+                        "{} Failed to execute additional commands for {}: {}. Continuing with installation.",
+                        installer_prefix,
+                        tool_entry.name.to_string().yellow(),
+                        err.yellow()
+                    );
+                    None
+                }
+            }
+        } else {
+            log_debug!(
+                "{} Tool {} has additional_cmd field but it's empty, skipping",
+                installer_prefix,
+                tool_entry.name.dimmed()
+            );
+            None
+        }
     } else {
-        // Fallback for durations less than 1 minute
-        // This ensures we always return a meaningful string, even for very short durations
-        "0 minutes".to_string()
+        log_debug!(
+            "{} No additional commands specified for {}",
+            installer_prefix,
+            tool_entry.name.dimmed()
+        );
+        None
     }
 }
