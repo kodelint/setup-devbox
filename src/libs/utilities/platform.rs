@@ -352,12 +352,14 @@ pub fn check_installer_command_available(command_name: &str) -> Result<(), Insta
 /// - Input validation should be performed by the caller to prevent command injection
 /// - Consider the security implications of executing user-provided commands
 pub(crate) fn execute_additional_commands(
+    installer_prefix: &str,
     commands: &[String],
     working_dir: &std::path::Path,
     tool_name: &str,
 ) -> Result<Vec<String>, String> {
     log_info!(
-        "[GitHub] Executing {} additional command(s) for {}",
+        "{} Executing {} additional command(s) for {}",
+        installer_prefix,
         commands.len().to_string().yellow(),
         tool_name.bold()
     );
@@ -366,7 +368,8 @@ pub(crate) fn execute_additional_commands(
 
     for (index, command) in commands.iter().enumerate() {
         log_debug!(
-            "[GitHub] Executing command {}/{} for {}: {}",
+            "{} Executing command {}/{} for {}: {}",
+            installer_prefix,
             (index + 1).to_string().cyan(),
             commands.len().to_string().cyan(),
             tool_name.bold(),
@@ -384,7 +387,8 @@ pub(crate) fn execute_additional_commands(
                 // Check if the command succeeded (exit status 0)
                 if output.status.success() {
                     log_debug!(
-                        "[GitHub] Command {}/{} executed successfully for {}",
+                        "{} Command {}/{} executed successfully for {}",
+                        installer_prefix,
                         (index + 1).to_string().green(),
                         commands.len().to_string().green(),
                         tool_name.bold()
@@ -407,7 +411,8 @@ pub(crate) fn execute_additional_commands(
                     let stdout = String::from_utf8_lossy(&output.stdout);
 
                     log_error!(
-                        "[GitHub] Command {}/{} failed for {} with exit code {}: {}",
+                        "{} Command {}/{} failed for {} with exit code {}: {}",
+                        installer_prefix,
                         (index + 1).to_string().red(),
                         commands.len().to_string().red(),
                         tool_name.red(),
@@ -417,7 +422,8 @@ pub(crate) fn execute_additional_commands(
 
                     if !stderr.is_empty() {
                         log_error!(
-                            "[GitHub] Command stderr for {}: {}",
+                            "{} Command stderr for {}: {}",
+                            installer_prefix,
                             tool_name.red(),
                             stderr.trim().red()
                         );
@@ -425,7 +431,8 @@ pub(crate) fn execute_additional_commands(
 
                     if !stdout.is_empty() {
                         log_debug!(
-                            "[GitHub] Command stdout for {}: {}",
+                            "{} Command stdout for {}: {}",
+                            installer_prefix,
                             tool_name.dimmed(),
                             stdout.trim().dimmed()
                         );
@@ -442,7 +449,8 @@ pub(crate) fn execute_additional_commands(
             Err(e) => {
                 // Failed to execute the command (e.g., command not found, permission denied)
                 log_error!(
-                    "[GitHub] Failed to execute command {}/{} for {}: {} - Error: {}",
+                    "{} Failed to execute command {}/{} for {}: {} - Error: {}",
+                    installer_prefix,
                     (index + 1).to_string().red(),
                     commands.len().to_string().red(),
                     tool_name.red(),
@@ -456,7 +464,8 @@ pub(crate) fn execute_additional_commands(
     }
 
     log_info!(
-        "[GitHub] Successfully executed all {} additional command(s) for {}",
+        "{} Successfully executed all {} additional command(s) for {}",
+        installer_prefix,
         executed_commands.len().to_string().green(),
         tool_name.bold()
     );
