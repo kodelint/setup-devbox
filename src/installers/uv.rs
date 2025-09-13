@@ -183,7 +183,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             version: match subcommand.as_str() {
                 "python" => {
                     // For Python installations, the "version" is the Python version itself
-                    tool_entry.name.clone()
+                    tool_entry.version.clone()?
                 }
                 _ => {
                     // For packages, use the specified version or "latest"
