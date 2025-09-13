@@ -11,14 +11,13 @@ use crate::libs::state_management::save_devbox_state; // Imports the function to
 // Imports schema definitions. `DevBoxState` for application's runtime state,
 // `SettingState` for representing the state of an individual setting, and `SettingsConfig`
 // for the configuration parsed from `settings.yaml`.
-use crate::schema::{DevBoxState, SettingState, SettingsConfig};
+use crate::schemas::sdb_schema::{DevBoxState, SettingState, SettingsConfig};
 use crate::{log_debug, log_error, log_info, log_warn}; // Custom logging macros for various log levels.
 
 // External crate imports:
 use colored::Colorize; // Imports the `Colorize` trait for adding color to console output.
 use std::path::PathBuf; // Provides `PathBuf` for working with file paths.
 use std::process::Command; // Provides `Command` for spawning and managing child processes (e.g., `defaults` command).
-
 
 /// Applies system settings based on the provided configuration and updates the application state.
 ///
@@ -35,7 +34,11 @@ use std::process::Command; // Provides `Command` for spawning and managing child
 ///            to update with newly applied settings.
 /// * `state_path_resolved`: The `PathBuf` to the `state.json` file, used for saving the
 ///                          updated application state.
-pub fn apply_system_settings(settings_cfg: SettingsConfig, state: &mut DevBoxState, state_path_resolved: &PathBuf) {
+pub fn apply_system_settings(
+    settings_cfg: SettingsConfig,
+    state: &mut DevBoxState,
+    state_path_resolved: &PathBuf,
+) {
     eprintln!("\n"); // Print a newline for better console formatting.
     log_info!("[OS Settings] Applying System Settings..."); // Informative log that the settings application process has started.
     log_debug!("Entering apply_system_settings() function."); // Debug log for function entry.
@@ -49,16 +52,28 @@ pub fn apply_system_settings(settings_cfg: SettingsConfig, state: &mut DevBoxSta
         for entry in settings_cfg.settings.macos {
             // Construct the full key string (e.g., "com.apple.finder.ShowStatusBar").
             let full_key = format!("{}.{}", entry.domain, entry.key);
-            let desired_value = entry.value;     // The value to be set.
+            let desired_value = entry.value; // The value to be set.
             let setting_type = entry.value_type; // The data type of the setting (e.g., "bool", "string").
 
-            log_debug!("[OS Settings] Considering setting: {} = {} (type: {})", full_key.bold(), desired_value.blue(), setting_type.cyan());
+            log_debug!(
+                "[OS Settings] Considering setting: {} = {} (type: {})",
+                full_key.bold(),
+                desired_value.blue(),
+                setting_type.cyan()
+            );
 
             // Check if the setting needs to be applied:
             // 1. If the setting is not in the `state` yet (first time application).
             // 2. If the setting is in the `state` but its recorded value or type differs from the desired one.
-            if state.settings.get(&full_key).map_or(true, |s_state| s_state.value != desired_value || s_state.value_type != setting_type) {
-                log_info!("[OS Settings] Attempting to apply setting: {} = {} (type: {})", full_key.bold().cyan(), desired_value.yellow(), setting_type.magenta());
+            if state.settings.get(&full_key).map_or(true, |s_state| {
+                s_state.value != desired_value || s_state.value_type != setting_type
+            }) {
+                log_info!(
+                    "[OS Settings] Attempting to apply setting: {} = {} (type: {})",
+                    full_key.bold().cyan(),
+                    desired_value.yellow(),
+                    setting_type.magenta()
+                );
 
                 // Determine the correct `defaults` command flag based on the `setting_type`.
                 let type_flag = match setting_type.as_str() {
@@ -82,10 +97,10 @@ pub fn apply_system_settings(settings_cfg: SettingsConfig, state: &mut DevBoxSta
                 // Create a new `Command` to execute `defaults write`.
                 let mut command = Command::new("defaults");
                 command
-                    .arg("write")      // Subcommand for writing a default.
+                    .arg("write") // Subcommand for writing a default.
                     .arg(&entry.domain) // The domain (e.g., "com.apple.finder").
-                    .arg(&entry.key)    // The key within the domain.
-                    .arg(type_flag);   // The type flag (e.g., "-bool", "-string").
+                    .arg(&entry.key) // The key within the domain.
+                    .arg(type_flag); // The type flag (e.g., "-bool", "-string").
 
                 // Add the value argument(s) based on the setting type.
                 match type_flag {
@@ -126,7 +141,11 @@ pub fn apply_system_settings(settings_cfg: SettingsConfig, state: &mut DevBoxSta
                 match command.output() {
                     Ok(output) => {
                         if output.status.success() {
-                            log_info!("[OS Settings] Successfully applied '{}' to domain '{}'.", entry.key, entry.domain);
+                            log_info!(
+                                "[OS Settings] Successfully applied '{}' to domain '{}'.",
+                                entry.key,
+                                entry.domain
+                            );
                             // Store the new `SettingState` in `DevBoxState`, including the value and its type.
                             state.settings.insert(
                                 full_key.clone(),
@@ -150,7 +169,10 @@ pub fn apply_system_settings(settings_cfg: SettingsConfig, state: &mut DevBoxSta
                                 stderr.red()
                             );
                             if !output.stdout.is_empty() {
-                                log_debug!("[OS Settings] Stdout (on failure): {}", String::from_utf8_lossy(&output.stdout));
+                                log_debug!(
+                                    "[OS Settings] Stdout (on failure): {}",
+                                    String::from_utf8_lossy(&output.stdout)
+                                );
                             }
                         }
                     }
@@ -164,7 +186,10 @@ pub fn apply_system_settings(settings_cfg: SettingsConfig, state: &mut DevBoxSta
                     }
                 }
             } else {
-                log_debug!("[OS Settings] Setting '{}' already matches desired value. Skipping application.", full_key.blue());
+                log_debug!(
+                    "[OS Settings] Setting '{}' already matches desired value. Skipping application.",
+                    full_key.blue()
+                );
             }
         }
     }
@@ -178,20 +203,28 @@ pub fn apply_system_settings(settings_cfg: SettingsConfig, state: &mut DevBoxSta
                 "[OS Settings] macOS specific settings were found in config but this is not a macOS system. Skipping macOS settings application. Support for other operating systems is planned."
             );
         } else {
-            log_debug!("[OS Settings] No macOS settings found in config for non-macOS system. Skipping settings application phase.");
+            log_debug!(
+                "[OS Settings] No macOS settings found in config for non-macOS system. Skipping settings application phase."
+            );
         }
     }
 
     // If any settings were updated during the session, save the `DevBoxState`.
     if settings_updated_in_session {
-        log_info!("[OS Settings] One or more settings were applied or updated. Saving current DevBox state...");
+        log_info!(
+            "[OS Settings] One or more settings were applied or updated. Saving current DevBox state..."
+        );
         if !save_devbox_state(state, state_path_resolved) {
-            log_error!("[StateSave] Failed to save state after settings application. Data loss risk!"); // Error if state saving fails.
+            log_error!(
+                "[StateSave] Failed to save state after settings application. Data loss risk!"
+            ); // Error if state saving fails.
         } else {
             log_info!("[StateSave] State saved successfully after settings updates."); // Success if state saved.
         }
     } else {
-        log_info!("[OS Settings] No new settings applied or state changes detected for settings in this run."); // Informative log if no changes.
+        log_info!(
+            "[OS Settings] No new settings applied or state changes detected for settings in this run."
+        ); // Informative log if no changes.
     }
 
     eprintln!(); // Print a newline for final console formatting.

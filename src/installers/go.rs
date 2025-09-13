@@ -6,7 +6,7 @@
 // Imports necessary schema definitions for tools.
 // `ToolEntry`: Defines the structure for how a Go tool is configured in `tools.yaml`.
 // `ToolState`: Defines the structure for how the state of an installed Go tool is recorded in `state.json`.
-use crate::schema::{ToolEntry, ToolState};
+use crate::schemas::sdb_schema::{ToolEntry, ToolState};
 // Imports custom logging macros from the crate root.
 // These macros (`log_debug`, `log_error`, `log_info`, `log_warn`) provide
 // a standardized way to output messages to the console with different severity levels,

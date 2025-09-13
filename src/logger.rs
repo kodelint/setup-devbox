@@ -3,8 +3,8 @@
 // and handles conditional output, especially for debug messages, with colored terminal output.
 
 use colored::*; // Used for adding color to log messages.
-use std::sync::atomic::{AtomicBool, Ordering}; // For thread-safe, atomic control of the debug flag.
-use std::sync::OnceLock; // Ensures the DEBUG_ENABLED flag is initialized exactly once.
+use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering}; // For thread-safe, atomic control of the debug flag. // Ensures the DEBUG_ENABLED flag is initialized exactly once.
 
 /// Provides convenient logging macros.
 /// `#[macro_export]` makes these macros globally available within the crate.
@@ -53,8 +53,6 @@ pub fn init(debug: bool) {
 
     if debug {
         log_debug!("Logger initialized in DEBUG mode");
-    } else {
-        log_info!("Logger initialized in INFO mode");
     }
 }
 

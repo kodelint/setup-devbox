@@ -16,7 +16,6 @@ const FONTS_FILE: &str = "fonts.yaml";
 const CONFIG_FILE: &str = "config.yaml";
 
 // Default YAML content for configuration templates.
-
 /// Default content for `tools.yaml`.
 const TOOLS_TEMPLATE: &str = r#"tools:
   ############################################################

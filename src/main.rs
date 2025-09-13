@@ -6,7 +6,8 @@ mod commands; // Handles individual subcommand logic (e.g., 'now', 'generate', '
 mod installers; // Contains logic for software installation.
 mod libs;
 mod logger; // Manages application logging.
-mod schema; // Defines configuration file structures. // General utility functions/libraries.
+mod schemas;
+// Defines configuration file structures. // General utility functions/libraries.
 
 use colored::Colorize;
 use std::path::PathBuf; // Used for colored terminal output in logs.
@@ -15,27 +16,48 @@ use std::path::PathBuf; // Used for colored terminal output in logs.
 // Use 'clap' for command-line argument parsing.
 use clap::{Parser, Subcommand};
 // Import specific `run` functions from the `commands` module.
+use crate::commands::help;
 use commands::{generate, now, sync, version};
 
 /// Defines the command-line interface (CLI) for 'setup-devbox'.
 /// `#[derive(Parser)]` automatically generates argument parsing code via `clap`.
 #[derive(Parser)]
 #[command(name = "setup-devbox")]
-#[command(about = "Setup development environment with ease
-
-Supported Installers:
-  • brew      - Package manager for macOS/Linux (Homebrew)
-  • cargo     - Rust package manager for crates and binaries
-  • fonts     - Nerd Fonts installer from GitHub releases
-  • github    - Download tools from GitHub releases
-  • go        - Go package installer using 'go install'
-  • pip       - Python package installer using pip
-  • rustup    - Rust toolchain installer and manager
-  • shell     - Shell configs (.zshrc, .bashrc) and aliases
-  • url       - Download and install from direct URLs
-  • uv        - Ultra-fast Python package installer (tool/pip/python modes)
-
-Use 'setup-devbox installers --detailed' for comprehensive installer information.")]
+#[command(disable_help_subcommand = true)]
+#[command(disable_help_flag = true)]
+// #[command(about = "
+// Purpose:
+//   Helps orchestrating development environments with automated tool installation,
+//   standardized configurations, and reproducible setup workflows.
+//
+// Scope:
+//   • User-level operations only - no system-wide installations.
+//   • Development environment foundation, not project dependencies.
+//   • Project packages managed by dedicated tools (cargo, pip, uv, etc.).
+//   • Clean separation between tool installation and package management.
+//
+// Supported Installers:
+//   • brew      - Package manager for macOS/Linux (Homebrew).
+//   • cargo     - Rust package manager for crates and binaries.
+//   • fonts     - Nerd Fonts installer from GitHub releases.
+//   • github    - Download tools from GitHub releases.
+//   • go        - Go package installer using 'go install'.
+//   • pip       - Python package installer using pip.
+//   • rustup    - Rust toolchain installer and manager.
+//   • shell     - Shell configs (.zshrc, .bashrc) and aliases.
+//   • url       - Download and install from direct URLs.
+//   • uv        - Ultra-fast Python package installer (tool/pip/python modes).
+//
+// Supported Environment Variables:
+//   • SDB_CONFIG_DIR          - Path for SDB Configuration directory.
+//   • SDB_RESET_SHELLRC_FILE  - \"true\" or \"false\" (see: \"setup-devbox help installers\" more details)
+//
+// For comprehensive commands and installer information:
+//   • setup-devbox help generate --detailed
+//   • setup-devbox help installers --detailed (optional: --filter <<installer_name>>)
+//   • setup-devbox help now --detailed
+//   • setup-devbox help sync-config --detailed",
+// )]
 struct Cli {
     // Global argument to enable debug logging.
     /// Enables detailed debug output.
@@ -82,21 +104,55 @@ enum Commands {
         #[arg(long)]
         output_dir: Option<PathBuf>,
     },
+    /// Show detailed help for commands and installers.
+    Help {
+        /// The command or topic to show help for (e.g., 'now', 'installers').
+        topic: Option<String>,
+        /// Show detailed information with examples and advanced usage.
+        #[arg(long)]
+        detailed: bool,
+        /// Filter results by installer type or category.
+        #[arg(long)]
+        filter: Option<String>,
+    },
 }
 
 // Main entry point of the application.
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+
+    // Check if help flag is anywhere in the arguments
+    if let Some(help_index) = args.iter().position(|arg| arg == "--help" || arg == "-h") {
+        logger::init(false);
+
+        // Determine if help is requested for a specific topic
+        let topic = if help_index > 1 {
+            // Check if there's a subcommand before the help flag
+            let potential_topic = &args[help_index - 1];
+            if !potential_topic.starts_with('-') && potential_topic != "help" {
+                Some(potential_topic.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        log_debug!("[SDB] Help flag detected, topic: {:?}", topic);
+        help::run(topic, false, None);
+        std::process::exit(0);
+    }
     // Parse command-line arguments into the `Cli` structure.
     let cli = Cli::parse();
     // Initialize the logger based on the debug flag.
     logger::init(cli.debug);
-    log_debug!("[main] Command line arguments successfully parsed.");
-    log_debug!("[main] Debug mode requested: {}", cli.debug);
+    log_debug!("[SDB] Command line arguments successfully parsed.");
+    log_debug!("[SDB] Debug mode requested: {}", cli.debug);
 
     // Dispatch control based on the detected subcommand.
     match cli.command {
         Commands::Version => {
-            log_debug!("[main] 'Version' subcommand detected. Calling version::run().");
+            log_debug!("[SFB] 'Version' subcommand detected. Calling version::run().");
             version::run();
         }
         Commands::Now {
@@ -104,19 +160,19 @@ fn main() {
             state,
             update_latest,
         } => {
-            log_debug!("[main] 'Now' subcommand detected.");
-            log_debug!("[main] 'Now' subcommand received config path: {:?}", config);
-            log_debug!("[main] 'Now' subcommand received state path: {:?}", state);
+            log_debug!("[SDB] 'Now' subcommand detected.");
+            log_debug!("[SDB] 'Now' subcommand received config path: {:?}", config);
+            log_debug!("[SDB] 'Now' subcommand received state path: {:?}", state);
             now::run(config, state, update_latest);
         }
         Commands::Generate { config, state } => {
-            log_debug!("[main] 'Generate' subcommand detected.");
+            log_debug!("[SDB] 'Generate' subcommand detected.");
             log_debug!(
-                "[main] 'Generate' subcommand received config path: {:?}",
+                "[SDB] 'Generate' subcommand received config path: {:?}",
                 config
             );
             log_debug!(
-                "[main] 'Generate' subcommand received state path: {:?}",
+                "[SDB] 'Generate' subcommand received state path: {:?}",
                 state
             );
             generate::run(config, state);
@@ -126,6 +182,17 @@ fn main() {
             let args = sync::SyncConfigArgs { state, output_dir };
             sync::run(args);
         }
+        Commands::Help {
+            topic,
+            detailed,
+            filter,
+        } => {
+            log_debug!("[main] 'Help' subcommand detected.");
+            log_debug!("[main] Help topic: {:?}", topic);
+            log_debug!("[main] Detailed mode: {}", detailed);
+            log_debug!("[main] Filter: {:?}", filter);
+            help::run(topic, detailed, filter);
+        }
     }
-    log_debug!("[main] Command execution completed. Exiting application.");
+    log_debug!("[SDB] Command execution completed. Exiting application.");
 }

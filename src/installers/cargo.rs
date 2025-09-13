@@ -25,7 +25,7 @@ use colored::Colorize;
 //                  like the crate name, desired version, and any extra `cargo` options.
 //   - `ToolState`: Represents the state of a tool after it has been installed. This struct's
 //                  data is persisted to a file (`state.json`) to track the installation.
-use crate::schema::{ToolEntry, ToolState};
+use crate::schemas::sdb_schema::{ToolEntry, ToolState};
 
 // `crate::libs::utilities::assets::current_timestamp`: A helper function to get the current
 //                                                       UNIX timestamp. Used for the `last_updated` field.

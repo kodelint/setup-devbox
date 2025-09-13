@@ -1,7 +1,7 @@
 // Imports necessary schema definitions for tools.
 // ToolEntry: Represents the configuration for a single tool as defined in tools.yaml.
 // ToolState: Represents the recorded state of an installed tool, stored in state.json.
-use crate::schema::{ToolEntry, ToolState};
+use crate::schemas::sdb_schema::{ToolEntry, ToolState};
 // Imports custom logging macros from the crate root.
 // These macros (`log_debug`, `log_error`, `log_info`, `log_warn`) provide
 // a standardized way to output messages to the console with different severity levels,

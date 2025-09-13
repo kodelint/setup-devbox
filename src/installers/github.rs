@@ -40,7 +40,7 @@ use crate::libs::utilities::{
 //              providing necessary details like repository name, tag, and desired tool name.
 // `ToolState`: Represents the state of an installed tool, which we persist in `state.json`
 //              to track installed tools, their versions, and paths.
-use crate::schema::{Release, ReleaseAsset, ToolEntry, ToolState};
+use crate::schemas::sdb_schema::{Release, ReleaseAsset, ToolEntry, ToolState};
 
 use crate::libs::tool_installer::execute_post_installation_commands;
 use crate::libs::utilities::assets::{current_timestamp, install_dmg};

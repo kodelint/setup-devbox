@@ -4,34 +4,60 @@ This document provides a comprehensive guide to the `setup-devbox` command-line 
 Setup development environment with ease
 setup-devbox is designed to automate the setup and configuration of your development environment. By leveraging declarative YAML files, it ensures a consistent and reproducible setup across different machines.
 
-#### Usage:
-```bash
-setup-devbox [OPTIONS] <COMMAND>
-```
+- #### Usage:
+  ```bash
+  setup-devbox [OPTIONS] <COMMAND>
+  ```
 
-### 🌐 Global Options
-These options can be used with any setup-devbox command.
+- ### 🌐 Global Options
+  These options can be used with any setup-devbox command.
 
-`-d`, `--debug`
-#### **Description**:
-This argument allows users to turn on debugging information. 
-When enabled, `setup-devbox` will output more verbose logs, including detailed internal operations, variable states, and more granular progress messages. This is extremely helpful for troubleshooting issues or understanding exactly what the tool is doing.
+#### `--debug` or `-d` run in debug mode:
+  - #### **Description**:
+    This argument allows users to turn on debugging information. 
+    When enabled, `setup-devbox` will output more verbose logs, including detailed internal operations, variable states, 
+    and more granular progress messages. This is extremely helpful for troubleshooting issues or understanding exactly what the tool is doing.
 
-**Usage:**
-```bash
-setup-devbox <COMMAND> --debug
-setup-devbox now -d
-```
 
-`-h`, `--help`
+  - **Usage:**
+    ```bash
+    setup-devbox <COMMAND> --debug
+    setup-devbox now -d
+    ```
+#### `help` Detailed information about `commands` and supported installers:
+  - ##### **Description:**
+    The `help` subcommand provides comprehensive documentation and guidance for using `setup-devbox`. It offers detailed
+    information about commands, installers, configuration options, and best practices.
 
-#### **Description**:
-Prints general help information for the `setup-devbox` tool, listing all available commands and global options. This is equivalent to setup-devbox help.
 
-**Usage:**
-```bash
-setup-devbox --help
-```
+  - **Usage:**
+    ```bash
+    setup-devbox help [TOPICS] {OPTIONS}
+    ```
+
+  - ##### Help Options
+  - `--detailed`                - Show comprehensive documentation with examples and advanced usage
+  - `--filter <INSTALLER_NAME>` - Filter installer-specific information
+
+  _Note: All Topics supports "--detailed" and installers optionally also support "--filter <<installer_name>>" for specific installer_
+
+  - ##### Available Help Topics:
+    ```
+    • installers    - Show all supported installers and their details
+    • now           - Show detailed help for installation command
+    • generate      - Show help for configuration generation
+    • sync-config   - Show help for configuration synchronization
+    • version       - Show version information
+    ```
+
+
+- ##### Help Examples:
+  ```
+  • setup-devbox help installers
+  • setup-devbox help installers --detailed
+  • setup-devbox help installers --filter brew --detailed
+  • setup-devbox help now --detailed
+  ```
 
 ### 🚀 Available Commands
 - #### `version` Show the current Version of the tool.

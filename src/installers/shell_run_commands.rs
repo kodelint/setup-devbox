@@ -6,7 +6,7 @@ use crate::libs::utilities::file_operations::{
     get_rc_file, read_rc_file, remove_rc_file, source_rc_file, write_rc_file,
 };
 use crate::libs::utilities::platform::is_env_var_set;
-use crate::schema::{AliasEntry, ConfigSection, RunCommandEntry, ShellConfig};
+use crate::schemas::sdb_schema::{AliasEntry, ConfigSection, RunCommandEntry, ShellConfig};
 use crate::{log_debug, log_error, log_info, log_warn};
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
