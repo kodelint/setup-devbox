@@ -7,7 +7,7 @@
 // `ToolState`: Represents the actual state of an *installed* tool. This struct is used to
 //              persist information about installed tools in the application's `state.json` file.
 //              It helps `setup-devbox` track what's installed, its version, and where it's located.
-use crate::schema::{ToolEntry, ToolState};
+use crate::schemas::sdb_schema::{ToolEntry, ToolState};
 // Custom logging macros:
 // These macros (`log_debug!`, `log_error!`, `log_info!`, `log_warn!`) provide a
 // consistent and structured way to output messages at different severity levels.

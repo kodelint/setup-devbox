@@ -14,7 +14,7 @@ use crate::installers::{brew, cargo, github, go, pip, rustup, url, uv};
 // Imports schema definitions for application state (`DevBoxState`) and tool configurations (`ToolConfig`).
 // `DevBoxState` holds the persistent record of installed items, and `ToolConfig` defines
 // the structure of the `tools.yaml` file.
-use crate::schema::{DevBoxState, ToolConfig, ToolEntry, ToolEntryError};
+use crate::schemas::sdb_schema::{DevBoxState, ToolConfig, ToolEntry, ToolEntryError};
 // Imports the function for saving the application state, usually defined in `state_management.rs`.
 // This is crucial for persisting changes made during the tool installation process.
 use crate::libs::state_management::save_devbox_state;

@@ -14,7 +14,7 @@ use std::process::Command; // For executing external commands (like `brew`) and 
 use colored::Colorize; // Used for adding color to terminal output, improving log readability.
 
 // Internal module imports:
-use crate::schema::{ToolEntry, ToolState};
+use crate::schemas::sdb_schema::{ToolEntry, ToolState};
 // `ToolEntry`: Defines the structure for a tool's configuration as read from `tools.yaml`,
 //              providing details specific to a Homebrew installation (e.g., formula name).
 // `ToolState`: Represents the state of an installed tool, which we persist in `state.json`

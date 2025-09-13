@@ -22,7 +22,7 @@ use crate::{log_debug, log_error, log_info, log_warn};
 
 // `FontEntry`: Defines the structure for how fonts are configured in your `fonts.yaml` file.
 // It contains metadata like font name, GitHub repository, release tag, and optional filters.
-use crate::schema::{FontEntry, FontState};
+use crate::schemas::sdb_schema::{FontEntry, FontState};
 
 // Utility functions from other parts of the crate:
 use crate::libs::utilities::assets::download_file; // For downloading files from URLs.

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 // For working with file paths in an OS-agnostic manner.
 use crate::libs::utilities::assets::current_timestamp;
 // Imports necessary schema definitions for tools.
-use crate::schema::{ToolEntry, ToolState};
+use crate::schemas::sdb_schema::{ToolEntry, ToolState};
 // Imports custom logging macros from the crate root.
 use crate::{log_debug, log_error, log_info, log_warn};
 // For adding color to terminal output.

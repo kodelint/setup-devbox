@@ -27,7 +27,7 @@ use crate::{log_debug, log_error, log_info, log_warn};
 // the expected data structure for each type of YAML configuration file, enabling `serde`
 // to correctly parse them. `MainConfig` specifically defines the structure of the primary
 // `config.yaml` file that links to other configuration files.
-use crate::schema::{FontConfig, MainConfig, SettingsConfig, ShellConfig, ToolConfig};
+use crate::schemas::sdb_schema::{FontConfig, MainConfig, SettingsConfig, ShellConfig, ToolConfig};
 
 // Imports a utility function to expand the `~` character in paths.
 use crate::libs::utilities::misc_utils::expand_tilde;
