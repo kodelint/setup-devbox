@@ -9,7 +9,7 @@ use colored::Colorize;
 use std::fmt::Write;
 // Assuming this schema is defined elsewhere and contains the InstallerRegistry.
 // The use of 'crate::' indicates it's a module within the same project.
-use crate::schemas::help_schema::InstallerRegistry;
+use crate::schemas::help_schema::{InstallerRegistry, format_yaml_content};
 
 /// Dispatches the main help command based on the provided topic.
 ///
@@ -62,9 +62,16 @@ fn show_unknown_topic_error(topic: &str) {
         ("version", "Show help for the 'version' command"),
     ];
 
+    // Find the longest topic name for padding
+    let max_width = TOPICS
+        .iter()
+        .map(|(topic, _)| topic.len())
+        .max()
+        .unwrap_or(0);
+
     // Iterate through the topics and print them in a formatted list.
     for (topic, desc) in &TOPICS {
-        println!("  • {} - {}", topic.cyan(), desc);
+        println!("  • {:width$} - {}", topic.cyan(), desc, width = max_width);
     }
 }
 
@@ -96,8 +103,8 @@ fn show_general_help() {
     writeln!(
         output,
         "  • {} - {}",
-        "User-level operations only".bold(),
-        "no system-wide installations.".dimmed()
+        "[User-level operations only]".bold(),
+        "no system-wide installations."
     )
     .unwrap();
     writeln!(
@@ -140,7 +147,6 @@ fn show_general_help() {
 fn add_supported_installers(output: &mut String) {
     writeln!(output, "{}", "Supported Installers:".bold().yellow()).unwrap();
 
-    // A constant array of installer information: (Name, Description, Extra Info).
     const INSTALLERS: [(&str, &str, &str); 10] = [
         ("Brew", "Package manager for macOS/Linux (Homebrew)", ""),
         ("Cargo", "Rust package manager for crates and binaries.", ""),
@@ -158,10 +164,22 @@ fn add_supported_installers(output: &mut String) {
         ),
     ];
 
-    // Iterate and format each installer entry.
+    // Find the longest installer name for padding
+    let max_width = INSTALLERS
+        .iter()
+        .map(|(name, _, _)| name.len())
+        .max()
+        .unwrap_or(0);
+
     for (name, desc, extra) in &INSTALLERS {
-        write!(output, "  • {} - {}", name.bold().cyan(), desc).unwrap();
-        // Append extra information if it exists, with specific formatting for certain installers.
+        write!(
+            output,
+            "  • {:width$} - {}",
+            name.bold().cyan(),
+            desc,
+            width = max_width
+        )
+        .unwrap();
         if !extra.is_empty() {
             if *name == "Go" {
                 write!(output, " '{}'.", extra.cyan()).unwrap();
@@ -191,20 +209,33 @@ fn add_environment_variables(output: &mut String) {
         "Supported Environment Variables:".bold().yellow()
     )
     .unwrap();
-    writeln!(
-        output,
-        "  • {} - Path for SDB Configuration directory.",
-        "SDB_CONFIG_DIR".bold().cyan()
-    )
-    .unwrap();
-    writeln!(
-        output,
-        "  • {} - \"{}\" or \"{}\" (see: \"setup-devbox help installers\" more details)\n",
-        "SDB_RESET_SHELLRC_FILE".bold().cyan(),
-        "true".cyan(),
-        "false".cyan()
-    )
-    .unwrap();
+
+    let env_vars = [
+        ("SDB_CONFIG_DIR", "Path for SDB Configuration directory."),
+        (
+            "SDB_RESET_SHELLRC_FILE",
+            "\"true\" or \"false\" (see: \"setup-devbox help installers\" more details)",
+        ),
+    ];
+
+    // Find the longest variable name for padding
+    let max_width = env_vars
+        .iter()
+        .map(|(name, _)| name.len())
+        .max()
+        .unwrap_or(0);
+
+    for (var_name, desc) in &env_vars {
+        writeln!(
+            output,
+            "  • {:width$} - {}",
+            var_name.bold().cyan(),
+            desc,
+            width = max_width
+        )
+        .unwrap();
+    }
+    writeln!(output).unwrap();
 }
 
 /// Adds the "Usage" and "Available Commands" sections to a mutable string.
@@ -235,21 +266,44 @@ fn add_usage_info(output: &mut String) {
         ("help", "Show detailed help for commands and installers"),
     ];
 
+    // Find the longest command name for padding
+    let max_width = commands.iter().map(|(cmd, _)| cmd.len()).max().unwrap_or(0);
+
     // Iterate and print each command.
     for (cmd, desc) in &commands {
-        writeln!(output, "  • {} - {}", cmd.green(), desc).unwrap();
+        writeln!(
+            output,
+            "  • {:width$} - {}",
+            cmd.green(),
+            desc,
+            width = max_width
+        )
+        .unwrap();
     }
     writeln!(output).unwrap();
 
     // Add global options section.
     writeln!(output, "{}", "Global Options:".bold().yellow()).unwrap();
-    writeln!(
-        output,
-        "  {} - Enables detailed debug output",
-        "-d, --debug".cyan()
-    )
-    .unwrap();
-    writeln!(output, "  {} - Print help\n", "-h, --help".cyan()).unwrap();
+
+    let options = [
+        ("-d, --debug", "Enables detailed debug output"),
+        ("-h, --help", "Print help"),
+    ];
+
+    // Find the longest option name for padding
+    let max_width = options.iter().map(|(opt, _)| opt.len()).max().unwrap_or(0);
+
+    for (opt, desc) in &options {
+        writeln!(
+            output,
+            "  {:width$} - {}",
+            opt.cyan(),
+            desc,
+            width = max_width + 2 // +2 for the bullet and space
+        )
+        .unwrap();
+    }
+    writeln!(output).unwrap();
 }
 
 /// Adds the "Detailed help information" section to a mutable string.
@@ -295,25 +349,51 @@ fn add_detailed_help_info(output: &mut String) {
         ("version", "Show version information"),
     ];
 
+    // Find the longest topic name for padding
+    let max_width = topics
+        .iter()
+        .map(|(topic, _)| topic.len())
+        .max()
+        .unwrap_or(0);
+
     for (topic, desc) in &topics {
-        writeln!(output, "  • {} - {}", topic.cyan(), desc).unwrap();
+        writeln!(
+            output,
+            "  • {:width$} - {}",
+            topic.cyan(),
+            desc,
+            width = max_width
+        )
+        .unwrap();
     }
     writeln!(output).unwrap();
 
     // Describe the available options for the help command itself.
     writeln!(output, "{}", "Help Options:".bold().white()).unwrap();
-    writeln!(
-        output,
-        "  {} - Show comprehensive information with examples",
-        "--detailed".cyan()
-    )
-    .unwrap();
-    writeln!(
-        output,
-        "  {} - Filter results (for installers topic)",
-        "--filter <type>".cyan()
-    )
-    .unwrap();
+
+    let help_options = [
+        ("--detailed", "Show comprehensive information with examples"),
+        ("--filter <type>", "Filter results (for installers topic)"),
+    ];
+
+    // Find the longest option name for padding
+    let max_width = help_options
+        .iter()
+        .map(|(opt, _)| opt.len())
+        .max()
+        .unwrap_or(0);
+
+    for (opt, desc) in &help_options {
+        writeln!(
+            output,
+            "  • {:width$} - {}",
+            opt.cyan(),
+            desc,
+            width = max_width
+        )
+        .unwrap();
+    }
+
     writeln!(output, "{}: All Topics supports \"{}\" and installers optionally also support \"{}\" for specific installer\n",
              "Note".italic(), "--detailed".cyan(), "--filter <<installer_name>>".cyan()).unwrap();
 
@@ -358,9 +438,10 @@ fn show_installers_help(detailed: bool, filter: Option<String>) {
     let installers = InstallerRegistry::get_all();
     // Normalize the filter string to lowercase for case-insensitive matching.
     let filter_str = filter.as_ref().map(|s| s.to_lowercase());
+    let mut matched_installers = Vec::new();
 
     // Iterate through the installers and display them, applying the filter if it exists.
-    for installer in installers {
+    for installer in &installers {
         if let Some(ref filter) = filter_str {
             // Skip installers that don't match the filter.
             if !installer.name.to_lowercase().contains(filter) {
@@ -370,14 +451,43 @@ fn show_installers_help(detailed: bool, filter: Option<String>) {
 
         // Call the `display` method on the installer object to print its details.
         installer.display(detailed);
+        matched_installers.push(installer);
     }
 
-    // Print a tip if a filter was used.
-    if filter.is_some() {
-        println!(
-            "\n{} Use without --filter to see all installers.",
-            "Tip:".yellow()
-        );
+    // If a filter was used but no installers matched, show available installers
+    if let Some(ref original_filter) = filter {
+        if matched_installers.is_empty() {
+            println!(
+                "{}: No installer found matching '{}'",
+                "Error".red(),
+                original_filter
+            );
+            println!("\n{}", "Available installers:".bold().yellow());
+
+            // Get all installers again to show the complete list
+            let all_installers = InstallerRegistry::get_all();
+
+            // Find the longest installer name for padding
+            let max_width = all_installers
+                .iter()
+                .map(|i| i.name.len())
+                .max()
+                .unwrap_or(0);
+
+            for installer in all_installers {
+                println!(
+                    "  • {:width$} - {}",
+                    installer.name.cyan(),
+                    installer.description,
+                    width = max_width
+                );
+            }
+        } else {
+            println!(
+                "\n{} Use without --filter to see all installers.",
+                "Tip:".yellow()
+            );
+        }
     }
 }
 
@@ -422,11 +532,11 @@ fn show_now_help(detailed: bool) {
     .unwrap();
     writeln!(
         output,
-        "  {} Force update all tools marked as '{}' version\n",
+        "  {} Force update all tools marked as '{}' version. Overrides the configuration \"update_latest_only_after\"\n",
         "--update-latest".cyan(),
         "@latest".cyan()
     )
-    .unwrap();
+        .unwrap();
 
     // Conditionally add detailed or basic information based on the flag.
     if detailed {
@@ -455,7 +565,7 @@ fn add_now_detailed_info(output: &mut String) {
     .unwrap();
     writeln!(
         output,
-        "  file and installs all specified tools, fonts, and configurations. It maintains"
+        "  files and installs all specified tools, fonts, and configurations. It maintains"
     )
     .unwrap();
     writeln!(
@@ -468,15 +578,18 @@ fn add_now_detailed_info(output: &mut String) {
     writeln!(output, "{}", "Configuration File:".bold().yellow()).unwrap();
     writeln!(
         output,
-        "The configuration file ({}) defines what should be installed:",
+        "The configuration file ({}) is collection other configuration files paths:",
         "config.yaml".cyan()
     )
     .unwrap();
     let config_items = [
-        ("tools.yaml", "Tools and their versions"),
+        (
+            "tools.yaml",
+            "Tools and their versions needs to be installed",
+        ),
         ("fonts.yaml", "Fonts to install"),
-        ("shellrc.yaml", "Shell configurations"),
-        ("settings.yaml", "OS-specific settings"),
+        ("shellrc.yaml", "Shell configurations to be applied"),
+        ("settings.yaml", "OS-specific settings changes to be made"),
     ];
 
     for (file, desc) in &config_items {
@@ -498,9 +611,9 @@ fn add_now_detailed_info(output: &mut String) {
     }
     writeln!(output).unwrap();
 
-    // Add examples and behavior information from other helper functions.
-    add_now_detailed_examples(output);
+    // Add behavior and examples information from other helper functions.
     add_now_behavior_info(output);
+    add_now_detailed_examples(output);
 }
 
 /// Adds detailed examples for the `now` command to a mutable string.
@@ -509,7 +622,7 @@ fn add_now_detailed_info(output: &mut String) {
 ///
 /// * `output` - A mutable reference to the `String` where the content will be appended.
 fn add_now_detailed_examples(output: &mut String) {
-    writeln!(output, "{}", "Examples:".bold().yellow()).unwrap();
+    writeln!(output, "\n{}", "Command Examples:".bold().yellow()).unwrap();
     let examples = [
         "setup-devbox now",
         "setup-devbox now --config ./my-config.yaml",
@@ -521,6 +634,122 @@ fn add_now_detailed_examples(output: &mut String) {
         writeln!(output, "  {}", example).unwrap();
     }
     writeln!(output).unwrap();
+
+    add_configuration_examples(output);
+}
+
+/// Adds configuration file examples to a mutable string.
+///
+/// This function provides detailed examples of what the configuration files look like,
+/// showing the structure and format users should follow.
+///
+/// # Arguments
+///
+/// * `output` - A mutable reference to the `String` where the content will be appended.
+///
+fn add_configuration_examples(output: &mut String) {
+    writeln!(output, "{}", "Configuration Examples:".bold().yellow()).unwrap();
+    writeln!(
+        output,
+        "Here are examples of the configuration files structure:\n"
+    )
+    .unwrap();
+
+    // Main config.yaml example
+    writeln!(output, "{}:\n", "config.yaml".bold().cyan()).unwrap();
+    writeln!(output, "{}", "```yaml".green()).unwrap();
+    let config_yaml = r#"# Tells SDB where to find the tools configuration
+tools: /Users/<<user>>/.config/setup-devbox/configs/tools.yaml
+# Tells SDB where to find the settings configuration
+settings: /Users/<<user>>/.config/setup-devbox/configs/settings.yaml
+# Tells SDB where to find the shell configuration
+shellrc: /Users/<<user>>/.config/setup-devbox/configs/shellrc.yaml
+# Tells SDB where to find the fonts configuration
+fonts: /Users/<<user>>/.config/setup-devbox/configs/fonts.yaml"#;
+    write!(output, "{}", format_yaml_content(config_yaml)).unwrap();
+    writeln!(output, "{}\n", "```".green()).unwrap();
+
+    // tools.yaml example
+    writeln!(output, "{}:\n", "tools.yaml".bold().cyan()).unwrap();
+    writeln!(output, "{}", "```yaml".green()).unwrap();
+    let tools_yaml = r#"update_latest_only_after: "7 days"
+tools:
+
+  # This will install rustup
+  - name: rustup
+    source: brew # Install rustup via Homebrew
+
+  # Example: Install pyenv
+  - name: pyenv
+    source: brew
+    options:
+      - --head"#;
+    write!(output, "{}", format_yaml_content(tools_yaml)).unwrap();
+    writeln!(output, "{}\n", "```".green()).unwrap();
+
+    // fonts.yaml example
+    writeln!(output, "{}:\n", "fonts.yaml".bold().cyan()).unwrap();
+    writeln!(output, "{}", "```yaml".green()).unwrap();
+    let fonts_yaml = r#"fonts:
+
+  # name: name of the font
+  # version: specific version of the font
+  # source: from where to download the fonts, (GitHub only)
+  # repo: repository name
+  # tag: the specific release tag for this font version
+  # install_only: only install the one mentioned, default is `all`
+  - name: 0xProto
+    version: "3.4.0"
+    source: github
+    repo: ryanoasis/nerd-fonts
+    tag: v3.4.0
+    install_only: ['regular', 'Mono']"#;
+    write!(output, "{}", format_yaml_content(fonts_yaml)).unwrap();
+    writeln!(output, "{}\n", "```".green()).unwrap();
+
+    // shellrc.yaml example
+    writeln!(output, "{}:\n", "shellrc.yaml".bold().cyan()).unwrap();
+    writeln!(output, "{}", "```yaml".green()).unwrap();
+    let shellrc_yaml = r#"run_commands:
+  # Supported Shells: `zsh` and `bash`
+  shell: "zsh" # or "bash"
+  run_commands:
+    # Exports Section - Environment variables
+    # Any environment variables which needs to be exported
+    - command: |
+        export EDITOR="zed"
+        export VISUAL="zed"
+      section: Exports
+
+    # Paths Section - PATH modifications
+    - command: export PATH="$HOME/bin:$PATH"
+      section: Paths
+
+    # Evals Section - Command evaluations
+    - command: eval "$(pyenv init - zsh)"
+      section: Evals
+  aliases:
+    # Alias Section - For all aliases
+    - name: sd
+      value: setup-devbox"#;
+    write!(output, "{}", format_yaml_content(shellrc_yaml)).unwrap();
+    writeln!(output, "{}\n", "```".green()).unwrap();
+
+    // settings.yaml example
+    writeln!(output, "{}:\n", "settings.yaml".bold().cyan()).unwrap();
+    writeln!(output, "{}", "```yaml".green()).unwrap();
+    let settings_yaml = r#"settings:
+  macos: # Settings specifically for macOS
+    # A common domain for global macOS settings
+    - domain: NSGlobalDomain
+      # The specific setting key: show file extensions
+      key: AppleShowAllExtensions
+      # Set its value to true
+      value: "true"
+      # This setting expects a boolean value
+      type: bool"#;
+    write!(output, "{}", format_yaml_content(settings_yaml)).unwrap();
+    writeln!(output, "{}\n", "```".green()).unwrap();
 }
 
 /// Adds behavior information for the `now` command to a mutable string.
@@ -610,6 +839,19 @@ fn show_generate_help(detailed: bool) {
 }
 
 /// Shows detailed help for the `generate` command.
+///
+/// The `generate` command creates template configuration files that you can
+/// customize for your development environment. It's the recommended way to
+/// get started with setup-devbox.
+///
+/// **Generated Files:**
+///   - `config.yaml`
+///   - `tools.yaml`
+///   - `fonts.yaml`
+///   - `settings.yaml`
+///   - `shellrc.yaml`
+///   - `state.json`
+///
 fn show_generate_detailed_help() {
     println!("{}", "Detailed Description:".bold());
     println!("The 'generate' command creates template configuration files that you can");
@@ -618,8 +860,16 @@ fn show_generate_detailed_help() {
 
     // List the files that are created.
     println!("{}", "Generated Files:".bold());
-    println!("  • config.yaml - Main configuration with example tools and settings");
-    println!("  • state.json  - Empty state file to track installations\n");
+    println!(
+        "  • config.yaml    - Main configuration with references to other configuration files"
+    );
+    println!("  • tools.yaml     - Tools configuration with example tools");
+    println!("  • fonts.yaml     - Fonts configuration with example fonts");
+    println!("  • shellrc.yaml   - Shell configuration with example shell configuration");
+    println!(
+        "  • settings.yaml  - OS Setting configuration with example configuration (Supported OS: macOS"
+    );
+    println!("  • state.json     - Empty state file to track installations\n");
 
     // Explain the contents of the generated configuration.
     println!("{}", "Configuration Structure:".bold());
@@ -686,6 +936,13 @@ fn show_sync_config_help(detailed: bool) {
 }
 
 /// Shows detailed help for the `sync-config` command.
+///
+/// The 'sync-config' command helps you recreate configuration files from an existing state file.
+/// This is useful for:
+///   1. Recovering lost configuration files
+///   2. Sharing your setup across multiple machines (state.json)
+///   3. Creating configuration templates from working setups
+///
 fn show_sync_config_detailed_help() {
     println!("{}", "Detailed Description:".bold());
     println!("The 'sync-config' command helps you recreate configuration files from");
