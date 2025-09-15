@@ -95,3 +95,4 @@ xz2 = "0.1.7"
 # This can be useful for inspecting executable files, understanding their structure,
 # or potentially for dynamic loading or analysis tasks within the setup process.
 goblin = "0.10.0"
+sha2 = "0.10.9"
