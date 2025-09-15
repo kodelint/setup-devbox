@@ -229,14 +229,23 @@ pub fn install_tools(
             // add the tool name to the skipped list and continue to the next tool in the loop.
             if !should_install_tool {
                 if let Some(reason) = skip_reason {
-                    log_info!(
-                        "[Tools] Skipping tool '{}': {}",
-                        tool.name.bright_green().bold(),
-                        reason.blue()
+                    log_debug!(
+                        "[Tools] {} '{}': {}",
+                        "Skipping tool".italic().dimmed(),
+                        tool.name.bright_green().bold().italic(),
+                        reason.italic().dimmed()
                     );
                 }
                 skipped_tools.push(tool.name.clone());
-                log_debug!("[Tools] Tool '{}' added to skipped list.", tool.name.blue());
+                log_debug!(
+                    "[Tools] {}",
+                    format!(
+                        "Tool '{}' added to skipped list.",
+                        tool.name.bright_green().bold().italic()
+                    )
+                    .italic()
+                    .dimmed()
+                );
                 continue;
             }
         } else {
@@ -343,10 +352,27 @@ pub fn install_tools(
     // Post-Installation Summary
     // After the loop, check if any tools were skipped.
     if !skipped_tools.is_empty() {
+        println!();
         // If there were skipped tools, format and print a summary.
-        let skipped_tools_str = skipped_tools.join(", ");
         log_info!("[Tools] Below tools were already up to date and were skipped:");
-        log_info!("[Tools] Up-to-date Tools: [ {} ]", skipped_tools_str.blue());
+        eprintln!(
+            "{}",
+            "====================================================================".blue()
+        );
+        // Print tools in chunks of 5 per line
+        for chunk in skipped_tools.chunks(5) {
+            let tools_line = chunk
+                .iter()
+                .map(|tool| tool.bright_yellow().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            eprintln!("[Skipped Tools] {}", tools_line);
+        }
+        eprintln!(
+            "{}",
+            "====================================================================".blue()
+        );
+        println!();
     } else {
         // If no tools were skipped, log a debug message to provide more context for a user looking at detailed logs.
         log_debug!(
