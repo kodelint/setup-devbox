@@ -344,8 +344,16 @@ pub struct MainConfig {
     pub fonts: Option<String>,
 }
 
-// Implementations for error types
+/// Structure representing the main config.yaml file that contains paths to other config files
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ConfigPaths {
+    pub(crate) tools: String,
+    pub(crate) settings: String,
+    pub(crate) shellrc: String,
+    pub(crate) fonts: String,
+}
 
+// Implementations for error types
 /// Implementation of Display trait for ToolEntryError to provide user-friendly error messages
 impl fmt::Display for ToolEntryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

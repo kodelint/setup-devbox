@@ -3,6 +3,7 @@
 
 // Import necessary internal modules.
 mod commands; // Handles individual subcommand logic (e.g., 'now', 'generate', 'sync').
+mod help_details;
 mod installers; // Contains logic for software installation.
 mod libs;
 mod logger; // Manages application logging.
@@ -16,7 +17,7 @@ use std::path::PathBuf; // Used for colored terminal output in logs.
 // Use 'clap' for command-line argument parsing.
 use clap::{Parser, Subcommand};
 // Import specific `run` functions from the `commands` module.
-use crate::commands::help;
+use crate::commands::{edit, help};
 use commands::{generate, now, sync, version};
 
 /// Defines the command-line interface (CLI) for 'setup-devbox'.
@@ -104,6 +105,15 @@ enum Commands {
         #[arg(long)]
         output_dir: Option<PathBuf>,
     },
+    /// Edit configuration files or state file in your preferred editor.
+    Edit {
+        /// Edit the state file (break glass mechanism - use with caution).
+        #[arg(long, conflicts_with = "config")]
+        state: bool,
+        /// Edit a specific configuration file [possible values: tools, fonts, shell, settings].
+        #[arg(long, value_parser = validate_config_type, conflicts_with = "state")]
+        config: Option<String>,
+    },
     /// Show detailed help for commands and installers.
     Help {
         /// The command or topic to show help for (e.g., 'now', 'installers').
@@ -115,6 +125,20 @@ enum Commands {
         #[arg(long)]
         filter: Option<String>,
     },
+}
+
+/// Validates that the config type is one of the allowed values.
+fn validate_config_type(s: &str) -> Result<String, String> {
+    let valid_types = ["tools", "fonts", "shell", "settings"];
+    if valid_types.contains(&s) {
+        Ok(s.to_string())
+    } else {
+        Err(format!(
+            "Invalid config type '{}'. Must be one of: {}",
+            s,
+            valid_types.join(", ")
+        ))
+    }
 }
 
 // Main entry point of the application.
@@ -151,19 +175,24 @@ fn main() {
 
     // Dispatch control based on the detected subcommand.
     match cli.command {
-        Commands::Version => {
-            log_debug!("[SFB] 'Version' subcommand detected. Calling version::run().");
-            version::run();
-        }
-        Commands::Now {
-            config,
-            state,
-            update_latest,
-        } => {
-            log_debug!("[SDB] 'Now' subcommand detected.");
-            log_debug!("[SDB] 'Now' subcommand received config path: {:?}", config);
-            log_debug!("[SDB] 'Now' subcommand received state path: {:?}", state);
-            now::run(config, state, update_latest);
+        Commands::Edit { state, config } => {
+            log_debug!("[SDB] 'Edit' subcommand detected.");
+            log_debug!("[SDB] Edit state flag: {}", state);
+            log_debug!("[SDB] Edit config type: {:?}", config);
+
+            // Ensure either --state or --config is provided, but not both
+            if !state && config.is_none() {
+                eprintln!(
+                    "{}",
+                    "Error: You must specify either --state or --config <type>".red()
+                );
+                eprintln!("Usage:");
+                eprintln!("  setup-devbox edit --state");
+                eprintln!("  setup-devbox edit --config <tools|fonts|shell|settings>");
+                std::process::exit(1);
+            }
+
+            edit::run(state, config);
         }
         Commands::Generate { config, state } => {
             log_debug!("[SDB] 'Generate' subcommand detected.");
@@ -177,11 +206,6 @@ fn main() {
             );
             generate::run(config, state);
         }
-        Commands::SyncConfig { state, output_dir } => {
-            log_debug!("[main] 'SyncConfig' subcommand detected.");
-            let args = sync::SyncConfigArgs { state, output_dir };
-            sync::run(args);
-        }
         Commands::Help {
             topic,
             detailed,
@@ -192,6 +216,25 @@ fn main() {
             log_debug!("[main] Detailed mode: {}", detailed);
             log_debug!("[main] Filter: {:?}", filter);
             help::run(topic, detailed, filter);
+        }
+        Commands::Now {
+            config,
+            state,
+            update_latest,
+        } => {
+            log_debug!("[SDB] 'Now' subcommand detected.");
+            log_debug!("[SDB] 'Now' subcommand received config path: {:?}", config);
+            log_debug!("[SDB] 'Now' subcommand received state path: {:?}", state);
+            now::run(config, state, update_latest);
+        }
+        Commands::SyncConfig { state, output_dir } => {
+            log_debug!("[main] 'SyncConfig' subcommand detected.");
+            let args = sync::SyncConfigArgs { state, output_dir };
+            sync::run(args);
+        }
+        Commands::Version => {
+            log_debug!("[SFB] 'Version' subcommand detected. Calling version::run().");
+            version::run();
         }
     }
     log_debug!("[SDB] Command execution completed. Exiting application.");
