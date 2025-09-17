@@ -3,6 +3,7 @@
 
 // Import necessary internal modules.
 mod commands; // Handles individual subcommand logic (e.g., 'now', 'generate', 'sync').
+mod help_details;
 mod installers; // Contains logic for software installation.
 mod libs;
 mod logger; // Manages application logging.
