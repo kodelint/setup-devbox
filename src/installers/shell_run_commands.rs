@@ -6,7 +6,9 @@ use crate::libs::utilities::file_operations::{
     get_rc_file, read_rc_file, remove_rc_file, source_rc_file, write_rc_file,
 };
 use crate::libs::utilities::platform::is_env_var_set;
-use crate::schemas::sdb_schema::{AliasEntry, ConfigSection, RunCommandEntry, ShellConfig};
+use crate::schemas::shell_configuration::{
+    AliasEntry, ConfigSection, RunCommandEntry, ShellConfig,
+};
 use crate::{log_debug, log_error, log_info, log_warn};
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
@@ -24,6 +26,8 @@ use std::path::Path;
 /// - Sources the updated RC file to apply changes immediately
 /// - Handles unsupported shells gracefully with warning messages
 pub fn apply_shell_configs(shell_cfg: ShellConfig) {
+    eprintln!("{}:", "Shell Configuration".bright_yellow().bold());
+    println!("{}\n", "=".repeat(20).bright_yellow());
     log_info!("[Shell Config] Applying Shell Configurations...");
 
     let Some(rc_path) = get_rc_file(&shell_cfg.run_commands.shell) else {

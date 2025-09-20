@@ -13,7 +13,7 @@ use std::{env, fs};
 use toml::Value as TomlValue;
 // The `expand_tilde` function is imported from a separate utilities library
 use crate::libs::utilities::misc_utils::expand_tilde;
-pub(crate) use crate::schemas::sdb_schema::{
+pub(crate) use crate::schemas::configuration_management::{
     ConfigurationManager, ConfigurationManagerProcessor, ConfigurationManagerState,
 };
 use crate::{log_debug, log_info, log_warn};

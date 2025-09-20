@@ -11,13 +11,16 @@ use crate::libs::state_management::save_devbox_state; // Imports the function to
 // Imports schema definitions. `DevBoxState` for application's runtime state,
 // `SettingState` for representing the state of an individual setting, and `SettingsConfig`
 // for the configuration parsed from `settings.yaml`.
-use crate::schemas::sdb_schema::{DevBoxState, SettingState, SettingsConfig};
+use crate::schemas::os_settings::SettingsConfig;
+use crate::schemas::state_file::{DevBoxState, SettingState};
 use crate::{log_debug, log_error, log_info, log_warn}; // Custom logging macros for various log levels.
 
 // External crate imports:
 use colored::Colorize; // Imports the `Colorize` trait for adding color to console output.
 use std::path::PathBuf; // Provides `PathBuf` for working with file paths.
-use std::process::Command; // Provides `Command` for spawning and managing child processes (e.g., `defaults` command).
+use std::process::Command;
+
+// Provides `Command` for spawning and managing child processes (e.g., `defaults` command).
 
 /// Applies system settings based on the provided configuration and updates the application state.
 ///
@@ -39,7 +42,9 @@ pub fn apply_system_settings(
     state: &mut DevBoxState,
     state_path_resolved: &PathBuf,
 ) {
-    eprintln!("\n"); // Print a newline for better console formatting.
+    eprintln!("\n");
+    eprintln!("{}:", "OS Settings".bright_yellow().bold());
+    println!("{}\n", "=".repeat(12).bright_yellow());
     log_info!("[OS Settings] Applying System Settings..."); // Informative log that the settings application process has started.
     log_debug!("Entering apply_system_settings() function."); // Debug log for function entry.
 

@@ -11,24 +11,24 @@
 
 // External crate imports:
 use colored::Colorize; // Imports the `Colorize` trait for adding color to console output.
-
 // Standard library module for interacting with the file system (e.g., reading files).
 // Provides `PathBuf` for working with file paths.
 use std::path::PathBuf;
 // Provides file system operations like `read_to_string`.
 // Standard library module for constructing and manipulating file paths in an OS-agnostic way.
 use std::fs;
-
 // Internal module imports:
 // Custom logging macros for consistent, level-based output (debug, error, info, warn).
 use crate::{log_debug, log_error, log_info, log_warn};
-
 // Importing schema definitions. These structs (e.g., `ToolConfig`, `FontConfig`) define
 // the expected data structure for each type of YAML configuration file, enabling `serde`
 // to correctly parse them. `MainConfig` specifically defines the structure of the primary
 // `config.yaml` file that links to other configuration files.
-use crate::schemas::sdb_schema::{FontConfig, MainConfig, SettingsConfig, ShellConfig, ToolConfig};
-
+use crate::schemas::common::MainConfig;
+use crate::schemas::fonts::FontConfig;
+use crate::schemas::os_settings::SettingsConfig;
+use crate::schemas::shell_configuration::ShellConfig;
+use crate::schemas::tools::ToolConfig;
 // Imports a utility function to expand the `~` character in paths.
 use crate::libs::utilities::misc_utils::expand_tilde;
 

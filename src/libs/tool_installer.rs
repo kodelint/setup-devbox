@@ -9,7 +9,6 @@
 use chrono::Duration;
 use colored::Colorize;
 use std::path::PathBuf;
-
 // Import all available installer modules
 use crate::installers::{brew, cargo, github, go, pip, rustup, url, uv};
 // Import utility functions for state and time management
@@ -19,64 +18,22 @@ use crate::libs::utilities::misc_utils::format_duration;
 use crate::libs::utilities::platform::{
     check_installer_command_available, execute_additional_commands,
 };
+use crate::schemas::configuration_management::ConfigurationManagerProcessor;
 // Import data schemas and the configuration processor
-use crate::schemas::sdb_schema::{
-    ConfigurationManagerProcessor, DevBoxState, ToolConfig, ToolEntry, ToolState,
+use crate::schemas::state_file::{DevBoxState, ToolState};
+use crate::schemas::tools::{
+    ConfigurationAction, InstallationConfiguration, InstallationSummary, ToolAction, ToolConfig,
+    ToolEntry, ToolInstallationOrchestrator, ToolProcessingResult, VersionAction,
 };
 // Import logging macros
 use crate::{log_debug, log_error, log_info, log_warn};
-
-/// ### Enums and Supporting Structs
-/// Represents the possible outcomes after processing a single tool.
-/// These results are used to build the final installation summary.
-#[derive(Debug)]
-pub enum ToolProcessingResult {
-    Installed,
-    Updated,
-    ConfigurationUpdated,
-    Skipped(String),
-    ConfigurationSkipped(String),
-    Failed(String),
-}
-
-/// Represents the high-level action to be taken for a tool.
-/// This enum simplifies the decision-making process within the orchestrator.
-#[derive(Debug, PartialEq)]
-enum ToolAction {
-    Install,
-    Update,
-    UpdateConfigurationOnly,
-    Skip(String),
-    SkipConfigurationOnly(String),
-}
-
-/// A sub-action related to a tool's version.
-#[derive(Debug, PartialEq)]
-enum VersionAction {
-    Update,
-    Skip(String),
-}
-
-/// A sub-action related to a tool's configuration.
-#[derive(Debug, PartialEq)]
-enum ConfigurationAction {
-    Update,
-    Skip(String),
-}
-
-/// Holds the parameters for the installation process, primarily the update policy.
-#[derive(Debug)]
-struct InstallationConfiguration {
-    update_threshold_duration: Duration,
-    force_update_enabled: bool,
-}
 
 impl InstallationConfiguration {
     /// Creates a new `InstallationConfiguration` instance.
     ///
     /// The `force_update` flag takes precedence and, if true, sets the update threshold
     /// to zero, effectively forcing an update on every run for tools with `latest` versions.
-    fn new(tools_config: &ToolConfig, force_update: bool) -> Self {
+    pub(crate) fn new(tools_config: &ToolConfig, force_update: bool) -> Self {
         let update_threshold_duration = if force_update {
             // If forced, the threshold is 0, so any tool update is always considered 'older'
             Duration::seconds(0)
@@ -94,18 +51,6 @@ impl InstallationConfiguration {
             force_update_enabled: force_update,
         }
     }
-}
-
-/// ### Main Orchestrator Logic
-/// The main orchestrator for the tool installation pipeline.
-/// It holds the shared state and configuration processor.
-pub struct ToolInstallationOrchestrator<'a> {
-    // A mutable reference to the shared state, allowing updates to be persisted.
-    state: &'a mut DevBoxState,
-    // A reference to the installation configuration parameters.
-    configuration: &'a InstallationConfiguration,
-    // The processor responsible for managing tool configurations.
-    config_processor: ConfigurationManagerProcessor,
 }
 
 impl<'a> ToolInstallationOrchestrator<'a> {
@@ -489,18 +434,6 @@ impl<'a> ToolInstallationOrchestrator<'a> {
             }
         }
     }
-}
-
-/// ### Installation Summary
-/// A struct to hold a summary of the installation results.
-/// This is used to present a clean, organized report to the user at the end.
-struct InstallationSummary {
-    installed_tools: Vec<String>,
-    updated_tools: Vec<String>,
-    configuration_updated_tools: Vec<String>,
-    skipped_tools: Vec<(String, String)>,
-    configuration_skipped_tools: Vec<(String, String)>,
-    failed_tools: Vec<(String, String)>,
 }
 
 impl InstallationSummary {

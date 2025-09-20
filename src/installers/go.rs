@@ -3,10 +3,15 @@
 // with the `setup-devbox` application, allowing users to define Go tools
 // in their `tools.yaml` configuration.
 
-// Imports necessary schema definitions for tools.
-// `ToolEntry`: Defines the structure for how a Go tool is configured in `tools.yaml`.
-// `ToolState`: Defines the structure for how the state of an installed Go tool is recorded in `state.json`.
-use crate::schemas::sdb_schema::{ToolEntry, ToolState};
+// Internal module imports:
+// `ToolEntry`: Represents a single tool's configuration as defined in your `tools.yaml` file.
+//              It's a struct that contains all possible configuration fields for a tool,
+//              such as name, version, source, URL, repository, etc.
+// `ToolState`: Represents the actual state of an *installed* tool. This struct is used to
+//              persist information about installed tools in the application's `state.json` file.
+//              It helps `setup-devbox` track what's installed, its version, and where it's located.
+use crate::schemas::state_file::ToolState;
+use crate::schemas::tools::ToolEntry;
 // Imports custom logging macros from the crate root.
 // These macros (`log_debug`, `log_error`, `log_info`, `log_warn`) provide
 // a standardized way to output messages to the console with different severity levels,
@@ -218,6 +223,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // Record any additional commands that were executed during installation.
             // This is useful for tracking what was done and potentially for cleanup during uninstall.
             additional_cmd_executed: tool_entry.additional_cmd.clone(),
+            configuration_manager: None,
         })
     } else {
         // Handle failed installation.

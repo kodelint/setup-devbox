@@ -3,7 +3,7 @@
 // and the installation/application of tools, fonts, shell configs, and system settings.
 
 use crate::installers::shell_run_commands::apply_shell_configs;
-use crate::schemas::sdb_schema::DevBoxState;
+use crate::schemas::state_file::DevBoxState;
 // Application state structure.
 use crate::{log_debug, log_info};
 // Custom logging macros.

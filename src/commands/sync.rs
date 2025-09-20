@@ -4,15 +4,15 @@
 
 use crate::libs::state_management::read_devbox_state; // Function to read application state.
 use crate::libs::utilities::misc_utils::get_devbox_dir;
-use crate::schemas::sdb_schema::{
-    FontConfig, FontEntry, MainConfig, OsSpecificSettings, SettingEntry, SettingsConfig,
-    ToolConfig, ToolEntry,
-}; // Schema definitions for config and state.
+use crate::schemas::common::MainConfig; // Schema definitions for config and state.
+use crate::schemas::fonts::{FontConfig, FontEntry};
+use crate::schemas::os_settings::{OsSpecificSettings, SettingEntry, SettingsConfig};
+use crate::schemas::tools::{ToolConfig, ToolEntry};
 use crate::{log_debug, log_error, log_info, log_warn}; // Custom logging macros.
 use clap::Args; // Clap macro for argument parsing.
 use colored::Colorize; // For colored terminal output.
 use std::fs; // File system operations.
-use std::path::{Path, PathBuf}; // Path manipulation utilities. // Helper to get the base DevBox directory.
+use std::path::{Path, PathBuf}; // Path manipulation utilities.
 
 /// Arguments for the `sync config` subcommand.
 #[derive(Debug, Args)]
@@ -144,6 +144,7 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
             options: tool_state.options,
             executable_path_after_extract: tool_state.executable_path_after_extract,
             additional_cmd: tool_state.additional_cmd_executed,
+            configuration_manager: Default::default(),
         };
         tool_entry
             .validate()

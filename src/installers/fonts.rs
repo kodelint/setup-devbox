@@ -20,13 +20,18 @@ use colored::Colorize; // Used for adding color to terminal output, enhancing re
 // and colored output throughout the application, aiding in debugging and user feedback.
 use crate::{log_debug, log_error, log_info, log_warn};
 
-// `FontEntry`: Defines the structure for how fonts are configured in your `fonts.yaml` file.
-// It contains metadata like font name, GitHub repository, release tag, and optional filters.
-use crate::schemas::sdb_schema::{FontEntry, FontState};
-
+// Internal module imports:
+// `ToolEntry`: Represents a single tool's configuration as defined in your `tools.yaml` file.
+//              It's a struct that contains all possible configuration fields for a tool,
+//              such as name, version, source, URL, repository, etc.
+// `ToolState`: Represents the actual state of an *installed* tool. This struct is used to
+//              persist information about installed tools in the application's `state.json` file.
+//              It helps `setup-devbox` track what's installed, its version, and where it's located.
+use crate::schemas::fonts::FontEntry;
+use crate::schemas::state_file::FontState;
 // Utility functions from other parts of the crate:
 use crate::libs::utilities::assets::download_file; // For downloading files from URLs.
-use crate::libs::utilities::compression::extract_archive; // For extracting various archive formats.
+use crate::libs::utilities::compression::extract_archive;
 
 /// Helper struct to hold validated font entry details, reducing redundancy.
 #[allow(dead_code)]

@@ -35,12 +35,18 @@ use crate::libs::utilities::{
     platform::{asset_matches_platform, detect_architecture, detect_os},
 };
 // Internal module imports:
-// `Release`: Defines the structure for deserializing GitHub Release API responses.
-// `ToolEntry`: Represents a single tool's configuration as defined in our `tools.yaml`,
-//              providing necessary details like repository name, tag, and desired tool name.
-// `ToolState`: Represents the state of an installed tool, which we persist in `state.json`
-//              to track installed tools, their versions, and paths.
-use crate::schemas::sdb_schema::{Release, ReleaseAsset, ToolEntry, ToolState};
+// `Release`:      Represents a single tool's configuration as defined in your `tools.yaml` file.
+// `ReleaseAsset`: Represents a downloadable asset associated with a GitHub release.
+use crate::schemas::common::{Release, ReleaseAsset};
+// Internal module imports:
+// `ToolEntry`: Represents a single tool's configuration as defined in your `tools.yaml` file.
+//              It's a struct that contains all possible configuration fields for a tool,
+//              such as name, version, source, URL, repository, etc.
+// `ToolState`: Represents the actual state of an *installed* tool. This struct is used to
+//              persist information about installed tools in the application's `state.json` file.
+//              It helps `setup-devbox` track what's installed, its version, and where it's located.
+use crate::schemas::state_file::ToolState;
+use crate::schemas::tools::ToolEntry;
 
 use crate::libs::tool_installer::execute_post_installation_commands;
 use crate::libs::utilities::assets::{current_timestamp, install_dmg};
@@ -635,5 +641,6 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // Record any additional commands that were executed during installation.
         // This is useful for tracking what was done and potentially for cleanup during uninstall.
         additional_cmd_executed: executed_additional_commands,
+        configuration_manager: None,
     })
 }
