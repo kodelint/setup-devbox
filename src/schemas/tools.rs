@@ -465,9 +465,8 @@ pub struct ToolEntry {
     /// ## Configuration Source Hierarchy
     ///
     /// The system searches for source configuration files in this priority order:
-    /// 1. `SDB_TOOLS_SOURCE_CONFIG_PATH` environment variable and looks for `{tool_name}.toml`
-    /// 2. `SDB_CONFIG_PATH` environment variable and builds `SDB_CONFIG_PATH/config/tools`
-    /// 3. `~/.setup-devbox/configs/tools` (default and fallback)
+    /// 1. `SDB_CONFIG_PATH` environment variable and builds `SDB_CONFIG_PATH/config/tools`
+    /// 2. `~/.setup-devbox/configs/tools` (default and fallback)
     ///
     /// ## Output Format Detection
     ///
