@@ -1,31 +1,108 @@
+//! # Help System and Installer Documentation
+//!
+//! This module provides comprehensive help and documentation for all supported
+//! installers in the `setup-devbox` system. It includes structured information
+//! about each installer, usage examples, configuration options, and environment
+//! variables, all formatted with colored output for enhanced readability.
+//!
+//! ## Features
+//!
+//! - **Colorized Output**: Syntax highlighting for YAML examples and structured formatting
+//! - **Detailed Documentation**: Comprehensive information for each installer type
+//! - **Environment Variable Support**: Documentation of relevant environment variables
+//! - **Configuration Options**: Clear explanation of all available configuration parameters
+//! - **Examples**: Practical usage examples for each installer
+//!
+//! ## Usage
+//!
+//! The help system can be accessed through command-line help commands:
+//! ```bash
+//! setup-devbox help now --detailed                         # Detailed help for Brew installer
+//! setup-devbox help installers --detailed --filter brew    # Detailed help for all installers
+//! ```
+
 use colored::Colorize;
+
+// ============================================================================
+// INSTALLER INFORMATION STRUCTURE
+// ============================================================================
 
 /// Represents the structured information for a single installer.
 ///
 /// This struct holds all the details required to display comprehensive help
 /// for a specific installer, including its name, description, usage examples,
-/// and available configuration options.
+/// and available configuration options. It serves as a complete documentation
+/// unit for each supported installation method.
+///
+/// ## Documentation Components
+/// - **Name**: Display name of the installer
+/// - **Description**: Overview of what the installer does
+/// - **Environment Variables**: Optional environment variable documentation
+/// - **Examples**: Formatted YAML usage examples with syntax highlighting
+/// - **Options**: Configuration options and their descriptions
+///
+/// ## Display Modes
+/// Supports both brief overview and detailed documentation modes,
+/// allowing users to get either a quick summary or comprehensive information.
 #[derive(Clone)]
 pub struct InstallerInfo {
     /// The display name of the installer (e.g., "Brew Installer").
+    ///
+    /// Used as the primary identifier in help output and should be
+    /// clear and descriptive while remaining concise.
     pub(crate) name: &'static str,
+
     /// A short description of what the installer does.
+    ///
+    /// Provides a brief overview of the installer's purpose, capabilities,
+    /// and typical use cases. Should be informative but concise.
     pub(crate) description: &'static str,
+
     /// Optional section for environment variables related to the installer.
+    ///
+    /// Contains documentation about environment variables that affect
+    /// the installer's behavior, including their purpose and usage.
     env_variables: Option<&'static str>,
+
     /// Function to generate formatted YAML examples with colors.
+    ///
+    /// A function pointer that returns YAML content demonstrating
+    /// typical usage patterns for the installer. The content is
+    /// automatically formatted with syntax highlighting.
     examples_fn: fn() -> String,
+
     /// A slice of strings describing the configuration options available.
+    ///
+    /// Each string describes a configuration option, typically in the
+    /// format "option_name: description". Lines starting with '#' are
+    /// treated as comments and formatted differently.
     options: &'static [&'static str],
 }
+
+// ============================================================================
+// YAML FORMATTING AND SYNTAX HIGHLIGHTING
+// ============================================================================
 
 /// Formats a given YAML content string for display with syntax highlighting.
 ///
 /// This function iterates through each line of the input `yaml_content` and applies
 /// specific text formatting (e.g., color, dimming) to different YAML elements
-/// such as keys, values, comments, and list items. The formatting is based on
-/// a hypothetical external library that provides methods like `.dimmed()`,
-/// `.blue()`, `.white()`, and `.cyan()`.
+/// such as keys, values, comments, and list items. The formatting uses the
+/// `colored` crate to provide visual distinction between different YAML constructs.
+///
+/// ## Syntax Highlighting Rules
+/// - **Comments** (`# comment`): Dimmed text
+/// - **Keys** (`key:`): Blue text
+/// - **Values**: White text
+/// - **List items** (`- item`): Cyan text
+/// - **Colons and punctuation**: White text for separation
+///
+/// ## Line Processing Logic
+/// The function processes lines in this order:
+/// 1. Comments (lines starting with `#`)
+/// 2. Key-value pairs (lines containing `:` not starting with `-`)
+/// 3. List items (lines starting with `-`)
+/// 4. Fallback for other content
 ///
 /// # Arguments
 ///
@@ -119,12 +196,26 @@ pub fn format_yaml_content(yaml_content: &str) -> String {
     formatted
 }
 
+// ============================================================================
+// INSTALLER INFORMATION DISPLAY
+// ============================================================================
+
 impl InstallerInfo {
     /// Displays the formatted installer information to the console.
     ///
     /// The output includes the installer's name and description. If the `detailed`
     /// flag is set to `true`, it also prints examples, environment variables,
-    /// and configuration options.
+    /// and configuration options with appropriate formatting and colors.
+    ///
+    /// ## Output Structure
+    /// - **Brief mode**: Name, description only
+    /// - **Detailed mode**: Name, description, examples, env vars, options
+    ///
+    /// ## Formatting Features
+    /// - Color-coded sections for better readability
+    /// - Syntax-highlighted YAML examples
+    /// - Proper indentation and section organization
+    /// - Dimmed comments and emphasized key information
     ///
     /// # Arguments
     ///
@@ -204,11 +295,27 @@ impl InstallerInfo {
     }
 }
 
+// ============================================================================
+// INSTALLER REGISTRY
+// ============================================================================
+
 /// A central registry for all supported installer information.
 ///
 /// This struct acts as a container for methods that return `InstallerInfo`
 /// for each installer type. It provides a single point of access to the
-/// help data for the `setup-devbox` application.
+/// help data for the `setup-devbox` application, ensuring consistent
+/// documentation across all installation methods.
+///
+/// ## Registry Benefits
+/// - Centralized documentation management
+/// - Consistent formatting and information structure
+/// - Easy addition of new installers
+/// - Comprehensive overview of all supported installation methods
+///
+/// ## Supported Installers
+/// Includes installers for package managers, language tools, direct downloads,
+/// and system configuration methods covering the complete tool installation
+/// ecosystem supported by `setup-devbox`.
 pub struct InstallerRegistry;
 
 impl InstallerRegistry {
@@ -217,6 +324,10 @@ impl InstallerRegistry {
     /// This function is the primary way for other modules to access the
     /// help data for all installer types. It calls a private function for
     /// each installer to build the complete list.
+    ///
+    /// ## Installer Coverage
+    /// Returns documentation for all currently supported installation methods,
+    /// providing users with a comprehensive overview of available options.
     ///
     /// # Returns
     ///
@@ -237,6 +348,9 @@ impl InstallerRegistry {
     }
 
     /// Returns the help information for the Homebrew installer.
+    ///
+    /// Provides documentation for installing tools using Homebrew, the
+    /// popular package manager for macOS and Linux.
     fn brew_installer() -> InstallerInfo {
         InstallerInfo {
             name: "Brew",
@@ -275,6 +389,9 @@ impl InstallerRegistry {
     }
 
     /// Returns the help information for the Cargo installer.
+    ///
+    /// Provides documentation for installing Rust crates and binaries using
+    /// Cargo, the Rust package manager and build system.
     fn cargo_installer() -> InstallerInfo {
         InstallerInfo {
             name: "Cargo",
@@ -308,15 +425,10 @@ impl InstallerRegistry {
         }
     }
 
-    // fonts:
-    // - name: 0xProto                    # The name of the font
-    // version: "3.4.0"                 # A specific version of the font
-    // source: github                   # Where to get it: GitHub releases
-    // repo: ryanoasis/nerd-fonts       # The GitHub repo for Nerd Fonts
-    // tag: v3.4.0                      # The specific release tag for this font version
-    // install_only: ['regular', 'Mono']
-
     /// Returns the help information for the Fonts installer.
+    ///
+    /// Provides documentation for installing Nerd Fonts from GitHub releases,
+    /// supporting programming fonts with icon glyphs for development environments.
     fn fonts_installer() -> InstallerInfo {
         InstallerInfo {
             name: "Fonts",
@@ -346,6 +458,9 @@ impl InstallerRegistry {
     }
 
     /// Returns the help information for the GitHub installer.
+    ///
+    /// Provides documentation for downloading and installing tools directly
+    /// from GitHub releases, supporting various archive formats and platforms.
     fn github_installer() -> InstallerInfo {
         InstallerInfo {
             name: "Github",
@@ -383,6 +498,9 @@ impl InstallerRegistry {
     }
 
     /// Returns the help information for the Go installer.
+    ///
+    /// Provides documentation for installing Go-based tools and applications
+    /// using the `go install` command with package import paths.
     fn go_installer() -> InstallerInfo {
         InstallerInfo {
             name: "Go",
@@ -416,6 +534,9 @@ impl InstallerRegistry {
     }
 
     /// Returns the help information for the Pip installer.
+    ///
+    /// Provides documentation for installing Python packages using pip,
+    /// supporting both libraries and command-line tools.
     fn pip_installer() -> InstallerInfo {
         InstallerInfo {
             name: "Pip",
@@ -451,6 +572,9 @@ impl InstallerRegistry {
     }
 
     /// Returns the help information for the Rustup installer.
+    ///
+    /// Provides documentation for managing Rust toolchains, components,
+    /// and versions using the rustup toolchain manager.
     fn rustup_installer() -> InstallerInfo {
         InstallerInfo {
             name: "Rustup",
@@ -485,6 +609,9 @@ impl InstallerRegistry {
     }
 
     /// Returns the help information for the Shell installer.
+    ///
+    /// Provides documentation for managing shell configuration files (.zshrc, .bashrc)
+    /// and shell aliases, including environment variable management and command organization.
     fn shell_installer() -> InstallerInfo {
         InstallerInfo {
             name: "Shell",
@@ -609,6 +736,9 @@ aliases:
     }
 
     /// Returns the help information for the URL installer.
+    ///
+    /// Provides documentation for installing software from direct download URLs,
+    /// supporting various download types including packages, scripts, and archives.
     fn url_installer() -> InstallerInfo {
         InstallerInfo {
             name: "URL",
@@ -646,6 +776,10 @@ aliases:
     }
 
     /// Returns the help information for the UV installer.
+    ///
+    /// Provides documentation for the UV Python package manager, supporting
+    /// multiple modes including tool installation, pip compatibility, and
+    /// Python version management.
     fn uv_installer() -> InstallerInfo {
         InstallerInfo {
             name: "UV",
