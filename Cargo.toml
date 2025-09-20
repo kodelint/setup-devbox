@@ -96,3 +96,5 @@ xz2 = "0.1.7"
 # or potentially for dynamic loading or analysis tasks within the setup process.
 goblin = "0.10.0"
 sha2 = "0.10.9"
+toml = "0.9.7"
+shellexpand = "3.1.1"
