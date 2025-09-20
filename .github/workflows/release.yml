@@ -276,7 +276,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Completed Checks:" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Code formatting (rustfmt)" >> $GITHUB_STEP_SUMMARY
-#          echo "- ✅ Linting (clippy)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Unused dependencies (cargo-machete)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Security audit (cargo-audit)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Outdated dependencies check" >> $GITHUB_STEP_SUMMARY
@@ -372,7 +371,6 @@ jobs:
           echo "## 🔬 Advanced Analysis Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Advanced Checks Completed:" >> $GITHUB_STEP_SUMMARY
-#          echo "- ✅ License and dependency policy (cargo-deny)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Unused dependencies analysis (cargo-udeps)" >> $GITHUB_STEP_SUMMARY  
           echo "- ✅ Feature usage analysis (cargo-pants)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Binary size analysis" >> $GITHUB_STEP_SUMMARY
