@@ -10,7 +10,7 @@
 //! The state file is typically located at:
 //! - `~/.setup-devbox/state.json` (user-specific state)
 //! - It also supports ENV Variables
-//!   - `SDB_CONFIG_PATH` -> `$SDB_CONFIG_PATH\state.json`
+//!   - `SDB_CONFIG_PATH` -> `$SDB_CONFIG_PATH/state.json`
 //!   - `SDB_STATE_FILE_PATH` -> `$SDB_STATE_FILE_PATH/state.json`
 //!
 //! ## Automatic Management
