@@ -1,4 +1,5 @@
 pub(crate) mod config_loading;
+pub(crate) mod configuration_manager;
 pub(crate) mod font_installer;
 pub(crate) mod settings_applier;
 pub(crate) mod shell_manager;
