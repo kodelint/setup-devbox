@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 // Used for key-value pair storage.
 use std::collections::HashMap;
 use std::fmt;
+use std::path::PathBuf;
 
 /// Represents a downloadable asset attached to a GitHub release.
 /// This is used when parsing GitHub API responses for release assets.
@@ -120,6 +121,8 @@ pub struct ToolEntry {
     /// - Use absolute paths when referencing locations outside the tool's directory
     #[serde(default)]
     pub additional_cmd: Option<Vec<String>>,
+    #[serde(default)]
+    pub configuration_manager: ConfigurationManager,
 }
 
 /// Represents Shell run commands configuration with section-based organization
@@ -240,6 +243,24 @@ pub struct SettingEntry {
     pub value_type: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ConfigurationManager {
+    pub enabled: bool,
+    pub tools_configuration_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ConfigurationManagerState {
+    pub enabled: bool,
+    pub tools_configuration_path: String,
+    pub source_configuration_sha: String,
+    pub destination_configuration_sha: String,
+}
+
+pub struct ConfigurationManagerProcessor {
+    pub(crate) config_base_path: PathBuf,
+}
+
 // Application State File Schema (`state.json`)
 // Defines the structure of `setup-devbox`'s internal state file,
 // used to track installed tools and applied configurations.
@@ -291,6 +312,20 @@ pub struct ToolState {
     /// This is stored for reference and potential cleanup/uninstall operations.
     #[serde(default)]
     pub additional_cmd_executed: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub configuration_manager: Option<ConfigurationManagerState>,
+}
+
+impl ToolState {
+    // Helper method to update configuration manager state
+    pub fn set_configuration_manager(&mut self, config_state: ConfigurationManagerState) {
+        self.configuration_manager = Some(config_state);
+    }
+
+    // Helper method to get configuration manager state
+    pub fn get_configuration_manager(&self) -> Option<&ConfigurationManagerState> {
+        self.configuration_manager.as_ref()
+    }
 }
 
 /// Records the state of an applied system setting.
