@@ -7,23 +7,38 @@ on:
     branches: [main, development]
 
 jobs:
-  # This job runs on every push to analyze what we should do
+  # Analyze what we should do based on branch and commits
   analyze:
     runs-on: ubuntu-latest
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
       should_build: ${{ steps.check.outputs.should_build }}
-      new_version: ${{ steps.semantic.outputs.new_release_version || steps.check.outputs.feature_version }}
-      release_type: ${{ steps.semantic.outputs.new_release_major_version != steps.semantic.outputs.last_release_major_version && 'major' || steps.semantic.outputs.new_release_minor_version != steps.semantic.outputs.last_release_minor_version && 'minor' || 'patch' }}
-      is_prerelease: ${{ github.ref_name == 'development' || contains(github.ref_name, 'feature/') || contains(github.ref_name, 'hotfix/') || contains(github.ref_name, 'bugfix/') }}
+      new_version: ${{ steps.version.outputs.new_version }}
+      is_prerelease: ${{ steps.check.outputs.is_prerelease }}
       branch_type: ${{ steps.check.outputs.branch_type }}
+      release_type: ${{ steps.version.outputs.release_type }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Need full history for semantic versioning
+          fetch-depth: 0 # Need full history for version analysis
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-tools-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Rust tools
+        run: |
+          cargo install cargo-release git-cliff --locked
 
       - name: Determine branch type and actions
         id: check
@@ -35,62 +50,121 @@ jobs:
             echo "branch_type=main" >> $GITHUB_OUTPUT
             echo "should_release=pending" >> $GITHUB_OUTPUT
             echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
           elif [[ "$branch" == "development" ]]; then
             echo "branch_type=development" >> $GITHUB_OUTPUT
             echo "should_release=pending" >> $GITHUB_OUTPUT
             echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
           elif [[ "$branch" == feature/* ]] || [[ "$branch" == hotfix/* ]] || [[ "$branch" == bugfix/* ]]; then
             echo "branch_type=feature" >> $GITHUB_OUTPUT
             echo "should_release=false" >> $GITHUB_OUTPUT
             echo "should_build=true" >> $GITHUB_OUTPUT
-            # Create a feature version for artifact naming
-            short_sha=$(echo "${{ github.sha }}" | cut -c1-7)
-            clean_branch=$(echo "$branch" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
-            echo "feature_version=${clean_branch}-${short_sha}" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
           else
             echo "branch_type=other" >> $GITHUB_OUTPUT
             echo "should_release=false" >> $GITHUB_OUTPUT
             echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Setup Node.js
+      - name: Analyze version changes
         if: steps.check.outputs.branch_type == 'main' || steps.check.outputs.branch_type == 'development'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Install semantic-release
-        if: steps.check.outputs.branch_type == 'main' || steps.check.outputs.branch_type == 'development'
+        id: version
         run: |
-          npm install -g semantic-release @semantic-release/changelog @semantic-release/git @semantic-release/github
-
-      - name: Run semantic-release (dry-run for analysis)
-        if: steps.check.outputs.branch_type == 'main' || steps.check.outputs.branch_type == 'development'
-        id: semantic
-        run: |
-          if [[ "${{ github.ref_name }}" == "main" ]]; then
-            npx semantic-release --dry-run --branches main
-          elif [[ "${{ github.ref_name }}" == "development" ]]; then
-            npx semantic-release --dry-run --branches '[{"name": "development", "prerelease": "beta"}]'
+          # Get current version from Cargo.toml
+          current_version=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "Current version: $current_version"
+          
+          # Analyze commits since last release to determine bump type
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [[ -z "$last_tag" ]]; then
+            echo "No previous tags found, this will be initial release"
+            release_type="minor"
+            should_release="true"
+          else
+            echo "Last tag: $last_tag"
+            # Get commits since last tag
+            commits=$(git log ${last_tag}..HEAD --oneline --grep="^feat" --grep="^fix" --grep="^build" --grep="^perf" --grep="^refactor" --grep="BREAKING CHANGE" || echo "")
+          
+            if [[ -z "$commits" ]]; then
+              echo "No release-worthy commits found"
+              should_release="false"
+              release_type="none"
+            elif git log ${last_tag}..HEAD --grep="BREAKING CHANGE" | grep -q "BREAKING CHANGE"; then
+              echo "Breaking changes detected"
+              release_type="major"
+              should_release="true"
+            elif git log ${last_tag}..HEAD --oneline | grep -E "^[a-f0-9]+ feat" | head -1; then
+              echo "Features detected"
+              release_type="minor"
+              should_release="true"
+            else
+              echo "Patches/fixes detected"
+              release_type="patch"  
+              should_release="true"
+            fi
           fi
           
-          # Update should_release based on semantic-release results
-          if [[ "${{ steps.semantic.outputs.new_release_published }}" == "true" ]]; then
-            echo "should_release=true" >> $GITHUB_OUTPUT
+          if [[ "$should_release" == "true" ]]; then
+            # Calculate new version based on release type and branch
+            if [[ "${{ steps.check.outputs.branch_type }}" == "development" ]]; then
+              # For development branch, create pre-release
+              if [[ "$release_type" == "major" ]]; then
+                new_version=$(cargo release version --execute major --no-confirm 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
+              elif [[ "$release_type" == "minor" ]]; then
+                new_version=$(cargo release version --execute minor --no-confirm 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
+              else
+                new_version=$(cargo release version --execute patch --no-confirm 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
+              fi
+              # Add beta suffix for development releases
+              if [[ -n "$new_version" ]]; then
+                new_version="${new_version}-beta.1"
+              fi
+            else
+              # For main branch, create stable release
+              if [[ "$release_type" == "major" ]]; then
+                new_version=$(cargo release version --dry-run major 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
+              elif [[ "$release_type" == "minor" ]]; then
+                new_version=$(cargo release version --dry-run minor 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
+              else
+                new_version=$(cargo release version --dry-run patch 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
+              fi
+            fi
+          
+            if [[ -z "$new_version" ]]; then
+              # Fallback: manual version calculation
+              IFS='.' read -ra VERSION_PARTS <<< "$current_version"
+              major=${VERSION_PARTS[0]}
+              minor=${VERSION_PARTS[1]:-0}
+              patch=${VERSION_PARTS[2]:-0}
+          
+              case "$release_type" in
+                major) new_version="$((major + 1)).0.0" ;;
+                minor) new_version="${major}.$((minor + 1)).0" ;;
+                patch) new_version="${major}.${minor}.$((patch + 1))" ;;
+              esac
+          
+              if [[ "${{ steps.check.outputs.branch_type }}" == "development" ]]; then
+                new_version="${new_version}-beta.1"
+              fi
+            fi
           else
-            echo "should_release=false" >> $GITHUB_OUTPUT
+            new_version="$current_version"
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+          echo "release_type=$release_type" >> $GITHUB_OUTPUT
+          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+          echo "should_release=$should_release" >> $GITHUB_OUTPUT
 
-      - name: Finalize release decision
-        id: finalize
+      - name: Set feature version for artifacts
+        if: steps.check.outputs.branch_type == 'feature'
         run: |
-          if [[ "${{ steps.check.outputs.branch_type }}" == "feature" ]]; then
-            echo "should_release=false" >> $GITHUB_OUTPUT
-          else
-            echo "should_release=${{ steps.semantic.outputs.new_release_published || 'false' }}" >> $GITHUB_OUTPUT
-          fi
+          current_version=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          short_sha=$(echo "${{ github.sha }}" | cut -c1-7)
+          clean_branch=$(echo "${{ github.ref_name }}" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
+          feature_version="${current_version}-${clean_branch}-${short_sha}"
+          echo "new_version=$feature_version" >> $GITHUB_OUTPUT
 
   build:
     needs: analyze
@@ -133,6 +207,7 @@ jobs:
           echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch Type**: ${{ needs.analyze.outputs.branch_type }}" >> $GITHUB_STEP_SUMMARY
           echo "**Version**: ${{ needs.analyze.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Release Type**: ${{ needs.analyze.outputs.release_type }}" >> $GITHUB_STEP_SUMMARY
           echo "**Will Release**: ${{ needs.analyze.outputs.should_release }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ needs.analyze.outputs.branch_type }}" == "feature" ]]; then
@@ -155,14 +230,25 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install semantic-release
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-tools-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Rust release tools
         run: |
-          npm install -g semantic-release @semantic-release/changelog @semantic-release/git @semantic-release/github
+          cargo install cargo-release git-cliff --locked
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
@@ -173,18 +259,38 @@ jobs:
       - name: Make binary executable
         run: chmod +x ./artifacts/setup-devbox
 
-      - name: Create release with semantic-release
+      - name: Update version and create changelog
         run: |
-          if [[ "${{ github.ref_name }}" == "main" ]]; then
-            npx semantic-release --branches main
-          elif [[ "${{ github.ref_name }}" == "development" ]]; then
-            npx semantic-release --branches '[{"name": "development", "prerelease": "beta"}]'
+          # Update Cargo.toml version
+          if [[ "${{ needs.analyze.outputs.release_type }}" == "major" ]]; then
+            cargo release version --execute major --no-confirm
+          elif [[ "${{ needs.analyze.outputs.release_type }}" == "minor" ]]; then
+            cargo release version --execute minor --no-confirm
+          elif [[ "${{ needs.analyze.outputs.release_type }}" == "patch" ]]; then
+            cargo release version --execute patch --no-confirm
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+          # Generate changelog
+          git-cliff --tag v${{ needs.analyze.outputs.new_version }} > CHANGELOG.md
+          
+          # Commit changes
+          git add Cargo.toml Cargo.lock CHANGELOG.md
+          git commit -m "chore(release): ${{ needs.analyze.outputs.new_version }} [skip ci]"
+          
+          # Create and push tag
+          git tag -a "v${{ needs.analyze.outputs.new_version }}" -m "Release v${{ needs.analyze.outputs.new_version }}"
+          git push origin ${{ github.ref_name }}
+          git push origin "v${{ needs.analyze.outputs.new_version }}"
 
-      - name: Upload binary to release
-        if: success()
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # Generate release notes for this version only
+          git-cliff --tag v${{ needs.analyze.outputs.new_version }} --strip header --unreleased > release_notes.md
+          echo "Generated release notes:"
+          cat release_notes.md
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ needs.analyze.outputs.new_version }}
@@ -192,11 +298,6 @@ jobs:
           name: |
             ${{ needs.analyze.outputs.is_prerelease == 'true' && format('🚧 Pre-release v{0}', needs.analyze.outputs.new_version) || format('📦 Release v{0}', needs.analyze.outputs.new_version) }}
           prerelease: ${{ needs.analyze.outputs.is_prerelease == 'true' }}
-          body: |
-            ${{ needs.analyze.outputs.branch_type == 'development' && '⚠️ This is a pre-release version from the development branch.' || 'Stable release ready for production use.' }}
-            
-            **Release Type**: ${{ needs.analyze.outputs.release_type }}
-            **Branch**: ${{ github.ref_name }}
-            **Binary**: `setup-devbox` (macOS x86_64)
+          body_path: release_notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

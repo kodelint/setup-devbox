@@ -98,3 +98,19 @@ goblin = "0.10.0"
 sha2 = "0.10.9"
 toml = "0.9.7"
 shellexpand = "3.1.1"
+
+
+[package.metadata.release]
+# Don't publish to crates.io during release process
+publish = false
+# Don't push to git during release (we handle this in CI)
+push = false
+# Don't create tags during release (we handle this in CI)
+tag = false
+# Allow dirty working directory since CI might have made changes
+allow-branch = ["main", "development"]
+# Custom pre-release replacements can be defined here
+pre-release-replacements = [
+    {file="CHANGELOG.md", search="## \\[Unreleased\\]", replace="## [Unreleased]\n\n## [{{version}}] - {{date}}"},
+    {file="README.md", search="setup-devbox/releases/download/v[0-9]+\\.[0-9]+\\.[0-9]+", replace="setup-devbox/releases/download/v{{version}}"},
+]
