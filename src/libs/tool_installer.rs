@@ -315,7 +315,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         tool: &ToolEntry,
         operation_type: &str,
     ) -> ToolProcessingResult {
-        log_info!("[Tools] Installing tools...");
+        log_info!("[Tools] Installing {}...", "Tools".bright_green());
         self.display_installation_header(tool, operation_type);
 
         // Invoke the correct installer based on the tool's `source`.
@@ -574,7 +574,7 @@ pub fn install_tools(
 ) {
     eprintln!("\n");
     eprintln!("{}:", "TOOLS".bright_yellow().bold());
-    println!("{}\n", "=".repeat(7).bright_yellow());
+    eprintln!("{}", "=".repeat(7).bright_yellow());
 
     // Create the installation configuration based on the provided parameters.
     let installation_config =

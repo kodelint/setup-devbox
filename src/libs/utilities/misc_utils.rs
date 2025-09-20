@@ -176,7 +176,11 @@ pub fn resolve_paths(
     let config_path_resolved = if let Some(user_config_path) = config_path {
         // User-provided config path takes highest priority
         expand_tilde(&user_config_path)
-    } else if let Ok(env_config_path) = std::env::var("SDB_CONFIG_PATH") {
+    } else if let Ok(env_config_path) = env::var("SDB_CONFIG_PATH") {
+        log_debug!(
+            "[SDB] Using \"{}\" as SDB Configuration folder",
+            "SDB_CONFIG_PATH".blue()
+        );
         // Environment variable SDB_CONFIG_PATH
         expand_tilde(&format!("{}/configs/config.yaml", env_config_path))
     } else {
@@ -188,10 +192,18 @@ pub fn resolve_paths(
     let state_path_resolved = if let Some(user_state_path) = state_path {
         // User-provided state path takes highest priority
         expand_tilde(&user_state_path)
-    } else if let Ok(env_state_path) = std::env::var("SDB_STATE_FILE_PATH") {
+    } else if let Ok(env_state_path) = env::var("SDB_STATE_FILE_PATH") {
+        log_debug!(
+            "[SDB] Using \"{}\" as SDB State file folder",
+            "SDB_STATE_FILE_PATH".blue()
+        );
         // Environment variable SDB_STATE_FILE_PATH
         expand_tilde(&format!("{}/state.json", env_state_path))
-    } else if let Ok(env_config_path) = std::env::var("SDB_CONFIG_PATH") {
+    } else if let Ok(env_config_path) = env::var("SDB_CONFIG_PATH") {
+        log_debug!(
+            "[SDB] Using \"{}\" as SDB State file folder",
+            "SDB_CONFIG_PATH".blue()
+        );
         // Fallback to SDB_CONFIG_PATH
         expand_tilde(&format!("{}/state.json", env_config_path))
     } else {

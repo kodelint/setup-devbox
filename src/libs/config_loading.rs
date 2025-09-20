@@ -161,12 +161,6 @@ where
 ///                    cannot be loaded.
 pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
     log_debug!("Entering load_master_configs() function.");
-    // Inform the user about which master config file is being loaded.
-    log_info!(
-        "Loading configurations as per master config file: {}",
-        config_path_resolved.display().to_string().blue()
-    );
-
     // Attempt to read the contents of the main `config.yaml` file.
     let main_cfg_content = match fs::read_to_string(config_path_resolved) {
         Ok(c) => c, // Successfully read the file.

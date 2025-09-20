@@ -43,7 +43,6 @@ pub fn run(config_path: Option<String>, state_path: Option<String>, update_lates
             "Update latest".bright_yellow()
         );
     }
-
     // Resolve configuration and state file paths.
     let (config_path_resolved, config_filename, state_path_resolved) =
         match utilities::misc_utils::resolve_paths(config_path, state_path) {

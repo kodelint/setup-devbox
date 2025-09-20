@@ -31,9 +31,9 @@ pub fn install_fonts(
     state: &mut DevBoxState,
     state_path_resolved: &PathBuf,
 ) {
-    // println!("{}", create_decorative_heading("FONTS", HeadingStyle::RoundedBox, Some(Color::BrightYellow), Some(50)));
+    eprintln!("\n");
     eprintln!("{}:", "FONTS".bright_yellow().bold());
-    println!("{}\n", "=".repeat(7).bright_yellow());
+    eprintln!("{}\n", "=".repeat(7).bright_yellow());
     log_debug!("Entering install_fonts() function."); // Debug log to indicate entry into the `install_fonts` function.
 
     // A boolean flag initialized to `false`. This flag will be set to `true`
