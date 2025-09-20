@@ -1,4 +1,4 @@
-use crate::schemas::help_schema::InstallerRegistry;
+use crate::schemas::help::InstallerRegistry;
 use colored::Colorize;
 use std::fmt::Write;
 

@@ -1,4 +1,4 @@
-use crate::schemas::help_schema::format_yaml_content;
+use crate::schemas::help::format_yaml_content;
 use colored::Colorize;
 use std::fmt::Write;
 
