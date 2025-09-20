@@ -11,12 +11,12 @@
 // - Error handling for file I/O and JSON parsing.
 // - Ensuring parent directories exist before writing.
 
-use crate::schemas::sdb_schema::DevBoxState;
+use crate::schemas::state_file::DevBoxState; // Imports `DevBoxState` schema definition for application's runtime state.
 use crate::{log_debug, log_error, log_info, log_warn}; // Custom logging macros for various log levels.
 use colored::Colorize; // Imports the `Colorize` trait for adding color to console output.
 use std::collections::HashMap; // Imports `HashMap` for storing key-value pairs (e.g., tool states).
 use std::path::{Path, PathBuf}; // Imports `Path` and `PathBuf` for working with file paths.
-use std::{fs, io}; // Imports standard library modules for file system operations and I/O. // Imports `DevBoxState` schema definition for application's runtime state.
+use std::{fs, io}; // Imports standard library modules for file system operations and I/O. 
 
 /// Loads the application's state from `state.json` or initializes a new one.
 ///
@@ -297,4 +297,15 @@ pub fn read_devbox_state(state_path: &Path) -> io::Result<DevBoxState> {
             format!("Failed to parse state file: {}", e),
         )
     })
+}
+
+/// Saves the current state to file if changes were made
+pub fn save_state_to_file(state: &DevBoxState, state_file_path: &PathBuf) {
+    log_info!("[Tools] Saving updated state...");
+
+    if save_devbox_state(state, state_file_path) {
+        log_info!("[StateSave] State saved successfully.");
+    } else {
+        log_error!("[StateSave] Failed to save state - data loss risk!");
+    }
 }
