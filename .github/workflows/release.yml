@@ -1,28 +1,120 @@
-name: Release
+name: Smart Release
 
 on:
   push:
-    tags:
-      - 'v*.*.*'  # Run only on version tags like v1.2.3
+    branches: [main, development, 'feature/**', 'hotfix/**', 'bugfix/**']
+  pull_request:
+    branches: [main, development]
 
 jobs:
-  build:
-    # We now only build for macOS, so the strategy matrix is simplified.
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        arch: [ x86_64 ] # Keep x86_64 for clarity, or remove if macos-latest implies it.
+  # This job runs on every push to analyze what we should do
+  analyze:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      should_build: ${{ steps.check.outputs.should_build }}
+      new_version: ${{ steps.semantic.outputs.new_release_version || steps.check.outputs.feature_version }}
+      release_type: ${{ steps.semantic.outputs.new_release_major_version != steps.semantic.outputs.last_release_major_version && 'major' || steps.semantic.outputs.new_release_minor_version != steps.semantic.outputs.last_release_minor_version && 'minor' || 'patch' }}
+      is_prerelease: ${{ github.ref_name == 'development' || contains(github.ref_name, 'feature/') || contains(github.ref_name, 'hotfix/') || contains(github.ref_name, 'bugfix/') }}
+      branch_type: ${{ steps.check.outputs.branch_type }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history for semantic versioning
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine branch type and actions
+        id: check
+        run: |
+          branch="${{ github.ref_name }}"
+          echo "Branch: $branch"
+          
+          if [[ "$branch" == "main" ]]; then
+            echo "branch_type=main" >> $GITHUB_OUTPUT
+            echo "should_release=pending" >> $GITHUB_OUTPUT
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          elif [[ "$branch" == "development" ]]; then
+            echo "branch_type=development" >> $GITHUB_OUTPUT
+            echo "should_release=pending" >> $GITHUB_OUTPUT
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          elif [[ "$branch" == feature/* ]] || [[ "$branch" == hotfix/* ]] || [[ "$branch" == bugfix/* ]]; then
+            echo "branch_type=feature" >> $GITHUB_OUTPUT
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            # Create a feature version for artifact naming
+            short_sha=$(echo "${{ github.sha }}" | cut -c1-7)
+            clean_branch=$(echo "$branch" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
+            echo "feature_version=${clean_branch}-${short_sha}" >> $GITHUB_OUTPUT
+          else
+            echo "branch_type=other" >> $GITHUB_OUTPUT
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.check.outputs.branch_type == 'main' || steps.check.outputs.branch_type == 'development'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install semantic-release
+        if: steps.check.outputs.branch_type == 'main' || steps.check.outputs.branch_type == 'development'
+        run: |
+          npm install -g semantic-release @semantic-release/changelog @semantic-release/git @semantic-release/github
+
+      - name: Run semantic-release (dry-run for analysis)
+        if: steps.check.outputs.branch_type == 'main' || steps.check.outputs.branch_type == 'development'
+        id: semantic
+        run: |
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            npx semantic-release --dry-run --branches main
+          elif [[ "${{ github.ref_name }}" == "development" ]]; then
+            npx semantic-release --dry-run --branches '[{"name": "development", "prerelease": "beta"}]'
+          fi
+          
+          # Update should_release based on semantic-release results
+          if [[ "${{ steps.semantic.outputs.new_release_published }}" == "true" ]]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Finalize release decision
+        id: finalize
+        run: |
+          if [[ "${{ steps.check.outputs.branch_type }}" == "feature" ]]; then
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=${{ steps.semantic.outputs.new_release_published || 'false' }}" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    needs: analyze
+    if: needs.analyze.outputs.should_build == 'true'
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
         with:
-          toolchain: stable
-          profile: minimal
-          override: true
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run tests
+        run: cargo test --release
 
       - name: Build release binary for macOS
         run: cargo build --release
@@ -30,41 +122,81 @@ jobs:
       - name: Upload artifact (macOS)
         uses: actions/upload-artifact@v4
         with:
-          # Name the artifact specifically for macOS to avoid confusion
-          name: setup-devbox-macos-${{ matrix.arch }}
+          name: setup-devbox-macos-x86_64-${{ needs.analyze.outputs.new_version }}
           path: target/release/setup-devbox
+          retention-days: ${{ needs.analyze.outputs.branch_type == 'feature' && '7' || '30' }}
+
+      - name: Add build summary
+        run: |
+          echo "## 🔨 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch Type**: ${{ needs.analyze.outputs.branch_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version**: ${{ needs.analyze.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Will Release**: ${{ needs.analyze.outputs.should_release }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.analyze.outputs.branch_type }}" == "feature" ]]; then
+            echo "✅ Feature branch build successful! Artifact uploaded for testing." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Download artifact**: Check the Actions tab to download the built binary." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ Build successful!" >> $GITHUB_STEP_SUMMARY
+          fi
 
   release:
-    needs: build
-    runs-on: ubuntu-latest # It's common to run the release step on Ubuntu for better runner availability/cost
+    needs: [analyze, build]
+    if: needs.analyze.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install semantic-release
+        run: |
+          npm install -g semantic-release @semantic-release/changelog @semantic-release/git @semantic-release/github
 
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
-          # Ensure the name matches the artifact name from the 'build' job
-          name: setup-devbox-macos-x86_64
-          path: ./artifact/macos-x86_64
+          name: setup-devbox-macos-x86_64-${{ needs.analyze.outputs.new_version }}
+          path: ./artifacts
 
-      - name: Create GitHub Release
-        id: create_release
+      - name: Make binary executable
+        run: chmod +x ./artifacts/setup-devbox
+
+      - name: Create release with semantic-release
+        run: |
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            npx semantic-release --branches main
+          elif [[ "${{ github.ref_name }}" == "development" ]]; then
+            npx semantic-release --branches '[{"name": "development", "prerelease": "beta"}]'
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload binary to release
+        if: success()
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false
+          tag_name: v${{ needs.analyze.outputs.new_version }}
+          files: ./artifacts/setup-devbox
+          name: |
+            ${{ needs.analyze.outputs.is_prerelease == 'true' && format('🚧 Pre-release v{0}', needs.analyze.outputs.new_version) || format('📦 Release v{0}', needs.analyze.outputs.new_version) }}
+          prerelease: ${{ needs.analyze.outputs.is_prerelease == 'true' }}
+          body: |
+            ${{ needs.analyze.outputs.branch_type == 'development' && '⚠️ This is a pre-release version from the development branch.' || 'Stable release ready for production use.' }}
+            
+            **Release Type**: ${{ needs.analyze.outputs.release_type }}
+            **Branch**: ${{ github.ref_name }}
+            **Binary**: `setup-devbox` (macOS x86_64)
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
-
-      - name: Upload macOS binary to release
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifact/macos-x86_64/setup-devbox
-          asset_name: setup-devbox-macos-x86_64
-          asset_content_type: application/octet-stream
-        env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
