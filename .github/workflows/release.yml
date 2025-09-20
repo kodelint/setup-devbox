@@ -228,7 +228,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.TOKEN }}
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -300,4 +300,4 @@ jobs:
           prerelease: ${{ needs.analyze.outputs.is_prerelease == 'true' }}
           body_path: release_notes.md
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
