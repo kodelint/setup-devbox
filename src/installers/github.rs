@@ -96,7 +96,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 tool_entry.name.to_string().red()
             );
             return None;
-        }
+        },
     };
 
     let arch = match detect_architecture() {
@@ -108,7 +108,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 tool_entry.name.to_string().red()
             );
             return None;
-        }
+        },
     };
 
     log_info!(
@@ -131,7 +131,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 tool_entry.name.to_string().red()
             );
             return None;
-        }
+        },
     };
 
     let repo = match tool_entry.repo.as_ref() {
@@ -142,16 +142,13 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 tool_entry.name.to_string().red()
             );
             return None;
-        }
+        },
     };
 
     // 3. Fetch GitHub Release Information via API
     // Construct the GitHub API endpoint URL for the specific repository and release tag.
     // Example: https://api.github.com/repos/cli/cli/releases/tags/v2.5.0
-    let api_url = format!(
-        "https://api.github.com/repos/{}/releases/tags/{}",
-        repo, tag
-    );
+    let api_url = format!("https://api.github.com/repos/{}/releases/tags/{}", repo, tag);
     log_debug!(
         "[GitHub Installer] Fetching release information from GitHub API: {}",
         api_url.blue()
@@ -174,7 +171,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 e
             );
             return None;
-        }
+        },
     };
 
     // Beyond network errors, we must check the HTTP status code. A 4xx or 5xx status
@@ -202,7 +199,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 err
             );
             return None;
-        }
+        },
     };
     // 4. Find the Correct Asset for the Current Platform
     // A GitHub release can have multiple assets (downloadable files). We need to identify
@@ -217,11 +214,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     let asset = if platform_matching_assets.is_empty() {
         // If no matching asset is found after filtering, this is a critical failure.
         // Provide informative error messages, including a list of available assets to help with debugging.
-        let available_assets = release
-            .assets
-            .iter()
-            .map(|a| a.name.clone())
-            .collect::<Vec<_>>();
+        let available_assets = release.assets.iter().map(|a| a.name.clone()).collect::<Vec<_>>();
         log_error!(
             "[GitHub Installer] No suitable release asset found for platform {}-{} in repo {} tag {}. \
          Please check the release assets on GitHub. Available assets: {}",
@@ -253,19 +246,13 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // We can safely unwrap here because we checked `is_empty()` above.
         let selected_asset = platform_matching_assets.first().unwrap(); // Get the first (highest priority) asset
 
-        log_debug!(
-            "[GitHub Installer]Found matching asset: {}",
-            selected_asset.name.bold()
-        );
+        log_debug!("[GitHub Installer]Found matching asset: {}", selected_asset.name.bold());
         selected_asset
     };
 
     // Once the correct asset is identified, extract its download URL.
     let download_url = &asset.browser_download_url;
-    log_debug!(
-        "[GitHub Installer] Download URL for selected asset: {}",
-        download_url.dimmed()
-    );
+    log_debug!("[GitHub Installer] Download URL for selected asset: {}", download_url.dimmed());
 
     // 5. Download the Asset
     // We download the asset to a temporary directory to avoid cluttering the user's system
@@ -285,7 +272,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 tool_entry.name.to_string().red()
             );
             return None;
-        }
+        },
     };
 
     let filename = &asset.name; // Use the original filename from the asset.
@@ -335,15 +322,12 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 tool_entry.name.to_string().red()
             );
             return None;
-        }
+        },
     };
 
     // The final executable name can be explicitly specified in `tools.yaml` via `rename_to`.
     // If not specified, we default to the tool's original `name`.
-    let bin_name = tool_entry
-        .rename_to
-        .clone()
-        .unwrap_or_else(|| tool_entry.name.clone());
+    let bin_name = tool_entry.rename_to.clone().unwrap_or_else(|| tool_entry.name.clone());
     // Construct the full absolute path where the tool's executable will be placed.
     let install_path = PathBuf::from(format!("{}/bin/{}", home_dir, bin_name));
     log_debug!(
@@ -381,7 +365,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     final_install_path_for_state = path;
                     // Set package_type to "macos-pkg-installer" to reflect the installation method.
                     package_type_for_state = "macos-pkg-installer".to_string();
-                }
+                },
                 Err(err) => {
                     log_error!(
                         "[GitHub Installer] Failed to install .pkg for {}: {}",
@@ -389,9 +373,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                         err
                     );
                     return None;
-                }
+                },
             }
-        }
+        },
         "dmg" => {
             log_info!(
                 "[GitHub Installer] Installing .dmg file for {}.",
@@ -405,7 +389,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     final_install_path_for_state = path;
                     // Set package_type to "macos-dmg-installer" to reflect the installation method.
                     package_type_for_state = "macos-dmg-installer".to_string();
-                }
+                },
                 Err(err) => {
                     log_error!(
                         "[GitHub Installer] Failed to install .dmg for {}: {}",
@@ -413,9 +397,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                         err
                     );
                     return None;
-                }
+                },
             }
-        }
+        },
         "binary" => {
             // Handles direct executable files (e.g., a single `.exe` or uncompressed binary).
             // These files don't need extraction; they just need to be moved and made executable.
@@ -445,7 +429,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             }
             // Set package_type to "binary" as it's a direct binary installation.
             package_type_for_state = "binary".to_string();
-        }
+        },
         // Handles common archive formats. For these, extraction is required, followed by
         // finding the actual executable within the extracted contents.
         "zip" | "tar.gz" | "gz" | "tar.bz2" | "tar" | "tar.xz" | "tar.bz" | "txz" | "tbz2" => {
@@ -467,7 +451,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                         err
                     );
                     return None;
-                }
+                },
             };
 
             log_debug!(
@@ -499,7 +483,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                         tool_entry.name.to_string().red()
                     );
                     return None;
-                }
+                },
             };
 
             // Determine the directory containing the actual tool content for additional commands
@@ -508,11 +492,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             if let Some(parent_dir) = executable_path.parent() {
                 // Check if the executable is in a bin/ subdirectory or similar
                 // If so, we want to go up one level to find sibling directories like 'runtime'
-                if parent_dir
-                    .file_name()
-                    .map(|name| name.to_str().unwrap_or(""))
-                    == Some("bin")
-                {
+                if parent_dir.file_name().map(|name| name.to_str().unwrap_or("")) == Some("bin") {
                     if let Some(grandparent) = parent_dir.parent() {
                         // Use the grandparent (e.g., helix-25.07.1/) as the content root
                         additional_cmd_working_dir = grandparent.to_path_buf();
@@ -568,7 +548,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             }
             // Set package_type to "binary" as it's a direct binary installation after extraction.
             package_type_for_state = "binary".to_string();
-        }
+        },
         unknown => {
             // Catch-all for unsupported or unrecognized file types. If we download something
             // we don't know how to handle, we log an error and abort.
@@ -578,7 +558,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 tool_entry.name.to_string().red()
             );
             return None;
-        }
+        },
     }
 
     // 9. Execute Additional Commands (if specified)
@@ -605,10 +585,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // for future operations like uninstallation, updates, or syncing.
     Some(ToolState {
         // The version field for tracking. Defaults to "latest" if not explicitly set in `tools.yaml`.
-        version: tool_entry
-            .version
-            .clone()
-            .unwrap_or_else(|| "latest".to_string()),
+        version: tool_entry.version.clone().unwrap_or_else(|| "latest".to_string()),
         // The canonical path where the tool's executable was installed. This is the path
         // that will be recorded in the `state.json` file.
         install_path: final_install_path_for_state.display().to_string(),

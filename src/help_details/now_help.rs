@@ -79,11 +79,8 @@ pub fn add_now_detailed_info(output: &mut String) {
         "  files and installs all specified tools, fonts, and configurations. It maintains"
     )
     .unwrap();
-    writeln!(
-        output,
-        "  a state file to track what's been installed and their versions.\n"
-    )
-    .unwrap();
+    writeln!(output, "  a state file to track what's been installed and their versions.\n")
+        .unwrap();
 
     // Explain the configuration file and its components.
     writeln!(output, "{}", "Configuration File:".bold().yellow()).unwrap();
@@ -94,10 +91,7 @@ pub fn add_now_detailed_info(output: &mut String) {
     )
     .unwrap();
     let config_items = [
-        (
-            "tools.yaml",
-            "Tools and their versions needs to be installed",
-        ),
+        ("tools.yaml", "Tools and their versions needs to be installed"),
         ("fonts.yaml", "Fonts to install"),
         ("shellrc.yaml", "Shell configurations to be applied"),
         ("settings.yaml", "OS-specific settings changes to be made"),
@@ -160,11 +154,7 @@ pub fn add_now_detailed_examples(output: &mut String) {
 ///
 pub fn add_configuration_examples(output: &mut String) {
     writeln!(output, "{}", "Configuration Examples:".bold().yellow()).unwrap();
-    writeln!(
-        output,
-        "Here are examples of the configuration files structure:\n"
-    )
-    .unwrap();
+    writeln!(output, "Here are examples of the configuration files structure:\n").unwrap();
 
     // Main config.yaml example
     writeln!(output, "{}:\n", "config.yaml".bold().cyan()).unwrap();
@@ -273,11 +263,7 @@ tools:
 /// * `output` - A mutable reference to the `String` where the content will be appended.
 pub fn add_now_behavior_info(output: &mut String) {
     writeln!(output, "{}", "Behavior:".bold().yellow()).unwrap();
-    writeln!(
-        output,
-        "  • Skips already installed tools unless versions differ"
-    )
-    .unwrap();
+    writeln!(output, "  • Skips already installed tools unless versions differ").unwrap();
     writeln!(
         output,
         "  • Updates tools marked with '{}' only after configured time period",
@@ -291,11 +277,7 @@ pub fn add_now_behavior_info(output: &mut String) {
         "@latest".cyan()
     )
     .unwrap();
-    writeln!(
-        output,
-        "  • Creates backup of state file before major changes"
-    )
-    .unwrap();
+    writeln!(output, "  • Creates backup of state file before major changes").unwrap();
 }
 
 /// Adds basic examples for the `now` command to a mutable string.
@@ -307,14 +289,7 @@ pub fn add_now_behavior_info(output: &mut String) {
 /// * `output` - A mutable reference to the `String` where the content will be appended.
 pub fn add_now_basic_examples(output: &mut String) {
     writeln!(output, "{}", "Examples:".bold().yellow()).unwrap();
-    writeln!(
-        output,
-        "  setup-devbox now                    # Use default config"
-    )
-    .unwrap();
-    writeln!(
-        output,
-        "  setup-devbox now --update-latest    # Force update latest versions"
-    )
-    .unwrap();
+    writeln!(output, "  setup-devbox now                    # Use default config").unwrap();
+    writeln!(output, "  setup-devbox now --update-latest    # Force update latest versions")
+        .unwrap();
 }

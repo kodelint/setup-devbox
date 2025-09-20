@@ -39,10 +39,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
 
     let state: DevBoxState = if state_path_resolved.exists() {
         // If the state file exists, attempt to load it.
-        log_debug!(
-            "State file found at {:?}. Attempting to load...",
-            state_path_resolved
-        );
+        log_debug!("State file found at {:?}. Attempting to load...", state_path_resolved);
         match fs::read_to_string(state_path_resolved) {
             Ok(contents) => {
                 // If file content is read successfully, attempt to deserialize the JSON.
@@ -60,7 +57,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
                         match serde_json::to_string_pretty(&parsed_state) {
                             Ok(pretty_json) => {
                                 log_debug!("Loaded DevBoxState:\n{}", pretty_json);
-                            }
+                            },
                             Err(e) => {
                                 log_warn!(
                                     "Failed to re-serialize loaded DevBoxState for pretty printing: {}",
@@ -70,10 +67,10 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
                                     "Loaded DevBoxState (raw debug format): {:?}",
                                     parsed_state
                                 );
-                            }
+                            },
                         }
                         parsed_state // Return the successfully parsed state.
-                    }
+                    },
                     Err(err) => {
                         // If JSON deserialization fails (e.g., corrupted file, schema mismatch).
                         log_error!(
@@ -82,9 +79,9 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
                             err
                         );
                         std::process::exit(1); // Exit due to critical error.
-                    }
+                    },
                 }
-            }
+            },
             Err(err) => {
                 // If the file cannot be read (e.g., permissions error).
                 log_error!(
@@ -93,7 +90,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
                     err
                 );
                 std::process::exit(1); // Exit due to critical error.
-            }
+            },
         }
     } else {
         // If the state file does not exist, initialize a new, empty state.
@@ -109,10 +106,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
 
         // Ensure the parent directory for the state file exists before attempting to write.
         if let Some(parent_dir) = state_path_resolved.parent() {
-            log_debug!(
-                "Checking/creating parent directory for state file: {:?}",
-                parent_dir
-            );
+            log_debug!("Checking/creating parent directory for state file: {:?}", parent_dir);
             if let Err(e) = fs::create_dir_all(parent_dir) {
                 // If directory creation fails, log error and exit.
                 log_error!(
@@ -140,7 +134,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
                         state_path_resolved.display().to_string().green()
                     ); // Success log for initial state creation.
                 }
-            }
+            },
             Err(err) => {
                 // If serialization fails, it's an internal application error.
                 log_error!(
@@ -148,7 +142,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
                     err
                 );
                 std::process::exit(1); // Exit due to critical error.
-            }
+            },
         }
         initial_state // Return the newly initialized state.
     };
@@ -173,10 +167,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
 ///   - `true` if the state was successfully serialized and written to the file.
 ///   - `false` otherwise (e.g., failed to create directories, failed to serialize, failed to write).
 pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
-    log_debug!(
-        "[StateSave] Attempting to save DevBoxState to: {:?}",
-        state_path.display()
-    ); // Debug log for save attempt.
+    log_debug!("[StateSave] Attempting to save DevBoxState to: {:?}", state_path.display()); // Debug log for save attempt.
 
     // Ensure the parent directory for the state file exists.
     // `state_path.parent()` returns `Some(Path)` if the path has a parent directory.
@@ -216,7 +207,7 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
                     ); // Success log for state saving.
                     log_debug!("[StateSave] State content written to disk."); // Debug log confirmation.
                     true // Indicate successful saving.
-                }
+                },
                 Err(err) => {
                     // If writing to the file fails (e.g., disk full, permission denied).
                     log_error!(
@@ -225,9 +216,9 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
                         err
                     );
                     false // Indicate failure to write.
-                }
+                },
             }
-        }
+        },
         Err(err) => {
             // If serialization itself fails, it indicates an internal application error
             // (e.g., `DevBoxState` struct cannot be serialized, or data is invalid).
@@ -236,7 +227,7 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
                 err
             );
             false // Indicate failure to serialize.
-        }
+        },
     }
 }
 
@@ -292,10 +283,7 @@ pub fn read_devbox_state(state_path: &Path) -> io::Result<DevBoxState> {
             state_path.display().to_string().red(),
             e
         );
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("Failed to parse state file: {}", e),
-        )
+        io::Error::new(io::ErrorKind::InvalidData, format!("Failed to parse state file: {}", e))
     })
 }
 

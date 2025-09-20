@@ -154,10 +154,7 @@ pub fn find_section_start(lines: &[String], section: &ConfigSection) -> Option<u
 /// * `String` - The formatted section header line
 
 pub fn create_section_header(section: &ConfigSection) -> String {
-    format!(
-        "# {} Section - Managed by setup-devbox",
-        section_header_name(section)
-    )
+    format!("# {} Section - Managed by setup-devbox", section_header_name(section))
 }
 
 /// Gets the display name for a section used in header creation
@@ -333,10 +330,8 @@ pub fn add_section_header(lines: &mut Vec<String>, section: &ConfigSection) {
 
     for (i, line) in lines.iter().enumerate() {
         if let Some(existing_section) = detect_section_from_header(line) {
-            let existing_index = section_order
-                .iter()
-                .position(|s| s == &existing_section)
-                .unwrap_or(99);
+            let existing_index =
+                section_order.iter().position(|s| s == &existing_section).unwrap_or(99);
             if existing_index > target_index {
                 insert_pos = i;
                 break;
@@ -351,10 +346,7 @@ pub fn add_section_header(lines: &mut Vec<String>, section: &ConfigSection) {
     }
 
     lines.insert(insert_pos, create_section_header(section));
-    log_debug!(
-        "[Shell Config] Created {} section",
-        section_header_name(section).cyan()
-    );
+    log_debug!("[Shell Config] Created {} section", section_header_name(section).cyan());
 }
 
 /// Helper function to log statistics about commands added to each section

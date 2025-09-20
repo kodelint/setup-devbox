@@ -71,10 +71,7 @@ fn get_latest_github_release() -> Result<String, Box<dyn std::error::Error>> {
     log_debug!("Constructing GitHub API URL for latest release.");
     // Construct the GitHub API URL for fetching the latest release.
     // Uses `REPO_OWNER` and `REPO_NAME` constants.
-    let url = format!(
-        "https://api.github.com/repos/{}/{}/releases/latest",
-        REPO_OWNER, REPO_NAME
-    );
+    let url = format!("https://api.github.com/repos/{}/{}/releases/latest", REPO_OWNER, REPO_NAME);
     log_debug!("GitHub API URL: {}", url.blue());
 
     // Create a `ureq` agent.
@@ -88,18 +85,12 @@ fn get_latest_github_release() -> Result<String, Box<dyn std::error::Error>> {
     // Execute the HTTP GET request. `call()?` sends the request and
     // propagates any `ureq::Error` if the request fails.
     let response = agent.get(&url).call()?;
-    log_debug!(
-        "Received response from GitHub API. Status: {}",
-        response.status()
-    );
+    log_debug!("Received response from GitHub API. Status: {}", response.status());
 
     // Validate the response content-type.
     // Ensures that we're actually receiving JSON before attempting to parse it.
     if !response.has("content-type")
-        || !response
-            .header("content-type")
-            .unwrap()
-            .contains("application/json")
+        || !response.header("content-type").unwrap().contains("application/json")
     {
         log_error!(
             "GitHub returned unexpected content type: {:?}",
@@ -113,10 +104,7 @@ fn get_latest_github_release() -> Result<String, Box<dyn std::error::Error>> {
     // `into_json()?` attempts to deserialize the response body.
     // Propagates any `serde_json::Error` or `ureq::Error` if deserialization fails.
     let release: GitHubRelease = response.into_json()?;
-    log_debug!(
-        "Successfully parsed GitHub release JSON. Tag: {}",
-        release.tag_name
-    );
+    log_debug!("Successfully parsed GitHub release JSON. Tag: {}", release.tag_name);
 
     Ok(release.tag_name) // Return the extracted `tag_name`.
 }
@@ -191,21 +179,18 @@ pub fn run() {
                             latest_version.bold()
                         );
                     } else {
-                        log_info!(
-                            "{}",
-                            "You are running the latest version.".bright_blue().bold()
-                        );
+                        log_info!("{}", "You are running the latest version.".bright_blue().bold());
                     }
-                }
+                },
                 Err(e) => {
                     // Log error if fetching the latest release fails.
                     log_error!("Failed to fetch the latest release from GitHub: {}", e);
-                }
+                },
             }
-        }
+        },
         Err(e) => {
             // Log error if reading local Cargo.toml fails.
             log_error!("Failed to read local Cargo.toml version: {}", e);
-        }
+        },
     }
 }

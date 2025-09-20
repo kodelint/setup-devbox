@@ -33,17 +33,12 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
     // 1. Check for OS match:
     // Iterate through all known aliases for the current OS. If any alias is found
     // as a substring within the asset filename, it's considered an OS match.
-    let os_matches = os_aliases(&os_normalized)
-        .iter()
-        .any(|alias| asset_name_lower.contains(alias));
+    let os_matches =
+        os_aliases(&os_normalized).iter().any(|alias| asset_name_lower.contains(alias));
 
     // If no OS match, immediately return false. No need to check architecture.
     if !os_matches {
-        log_debug!(
-            "[Utils] Asset '{}' does not match OS '{}'",
-            filename.dimmed(),
-            os
-        );
+        log_debug!("[Utils] Asset '{}' does not match OS '{}'", filename.dimmed(), os);
         return false;
     }
 
@@ -177,7 +172,7 @@ fn os_aliases(os: &str) -> Vec<String> {
                 .into_iter()
                 .map(|s| s.to_string())
                 .collect()
-        }
+        },
         "linux" => vec!["linux"] // Aliases for Linux (currently just "linux" itself).
             .into_iter()
             .map(|s| s.to_string())
@@ -247,7 +242,7 @@ pub fn normalize_os(os: &str) -> String {
                 other.purple()
             );
             other.to_string()
-        }
+        },
     }
 }
 
@@ -274,7 +269,7 @@ pub fn normalize_arch(arch: &str) -> String {
                 other.purple()
             );
             other.to_string()
-        }
+        },
     }
 }
 
@@ -291,10 +286,7 @@ pub fn normalize_arch(arch: &str) -> String {
 /// `Ok(())` if the command is found and appears to be executable.
 /// `Err(InstallerError::MissingCommand)` if the command is not found in PATH.
 pub fn check_installer_command_available(command_name: &str) -> Result<(), InstallerError> {
-    log_debug!(
-        "[Utils] Checking for installer command: '{}'",
-        command_name.cyan()
-    );
+    log_debug!("[Utils] Checking for installer command: '{}'", command_name.cyan());
 
     // Attempt to run the command. We use `output()` first with `--version` because
     // many commands support it as a lightweight way to check existence and print version info.
@@ -308,10 +300,7 @@ pub fn check_installer_command_available(command_name: &str) -> Result<(), Insta
         .is_ok(); // Or did it just exit with a status code (meaning it was found)?
 
     if command_found {
-        log_debug!(
-            "[Utils] Installer command '{}' found.",
-            command_name.green()
-        );
+        log_debug!("[Utils] Installer command '{}' found.", command_name.green());
         Ok(())
     } else {
         log_error!(
@@ -445,7 +434,7 @@ pub(crate) fn execute_additional_commands(
                         stderr.trim()
                     ));
                 }
-            }
+            },
             Err(e) => {
                 // Failed to execute the command (e.g., command not found, permission denied)
                 log_error!(
@@ -459,7 +448,7 @@ pub(crate) fn execute_additional_commands(
                 );
 
                 return Err(format!("Failed to execute command '{}': {}", command, e));
-            }
+            },
         }
     }
 
@@ -478,10 +467,7 @@ pub fn is_env_var_set(env_var_name: &str) -> bool {
     std::env::var(env_var_name)
         .map(|val| {
             let lower_val = val.to_lowercase();
-            matches!(
-                lower_val.as_str(),
-                "true" | "1" | "yes" | "y" | "on" | "enabled"
-            )
+            matches!(lower_val.as_str(), "true" | "1" | "yes" | "y" | "on" | "enabled")
         })
         .unwrap_or(false)
 }

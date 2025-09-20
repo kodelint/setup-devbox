@@ -75,10 +75,7 @@ pub fn install_fonts(
                 // which will trigger a state save later.
                 fonts_updated = true;
                 // Log a success message for the font installation, displaying the font's name in bold green.
-                log_info!(
-                    "[Fonts] Successfully installed {}.",
-                    font.name.bold().green()
-                );
+                log_info!("[Fonts] Successfully installed {}.", font.name.bold().green());
                 // Print another separator line to the standard error output, in bright blue,
                 // to visually close the font installation block.
                 eprintln!("{}", "===============================================================================================".bright_blue());

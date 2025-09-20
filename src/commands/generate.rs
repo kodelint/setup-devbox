@@ -173,10 +173,7 @@ pub fn run(config_dir: Option<String>, _state_path: Option<String>) {
     let base_dir = config_dir.as_deref().unwrap_or("~/.setup-devbox/configs/");
     let base_dir = expand_tilde(base_dir);
 
-    log_info!(
-        "[Generate] Using config directory: {}",
-        base_dir.to_string_lossy().green()
-    );
+    log_info!("[Generate] Using config directory: {}", base_dir.to_string_lossy().green());
 
     // Create the base configuration directory if it does not exist.
     if !base_dir.exists() {
@@ -188,7 +185,7 @@ pub fn run(config_dir: Option<String>, _state_path: Option<String>) {
             Err(e) => {
                 log_error!("[Generate] Failed to create config directory: {}", e);
                 return;
-            }
+            },
         }
     }
 
@@ -223,10 +220,7 @@ fn generate_file(base_dir: &Path, filename: &str, content: &str) {
         return;
     }
 
-    log_info!(
-        "[Generate] Creating new file {}",
-        file_path.to_string_lossy().bright_green()
-    );
+    log_info!("[Generate] Creating new file {}", file_path.to_string_lossy().bright_green());
 
     // Attempt to create and write content to the file.
     match fs::File::create(&file_path) {
@@ -243,13 +237,13 @@ fn generate_file(base_dir: &Path, filename: &str, content: &str) {
                     file_path.to_string_lossy().bright_green()
                 );
             }
-        }
+        },
         Err(e) => {
             log_error!(
                 "[Generate] Couldn't create file {}: {}",
                 file_path.to_string_lossy().red(),
                 e
             );
-        }
+        },
     }
 }

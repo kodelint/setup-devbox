@@ -46,10 +46,7 @@ impl InstallationConfiguration {
                 .unwrap_or_else(|| Duration::days(0))
         };
 
-        Self {
-            update_threshold_duration,
-            force_update_enabled: force_update,
-        }
+        Self { update_threshold_duration, force_update_enabled: force_update }
     }
 }
 
@@ -63,11 +60,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         // relying on its internal fallback logic to resolve the correct path.
         let config_processor = ConfigurationManagerProcessor::new(None);
 
-        Self {
-            state,
-            configuration,
-            config_processor,
-        }
+        Self { state, configuration, config_processor }
     }
 
     /// Determines the high-level action to be taken for a specific tool.
@@ -89,7 +82,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
 
                 // Combine the individual actions into a final `ToolAction`.
                 self.combine_actions(version_action, config_action)
-            }
+            },
         }
     }
 
@@ -176,7 +169,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                     e
                 );
                 ConfigurationAction::Update
-            }
+            },
         }
     }
 
@@ -196,7 +189,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
             // perform a configuration-only update.
             (VersionAction::Skip(_), ConfigurationAction::Update) => {
                 ToolAction::UpdateConfigurationOnly
-            }
+            },
             // If both version and configuration are up-to-date, determine the appropriate skip reason.
             (VersionAction::Skip(version_reason), ConfigurationAction::Skip(config_reason)) => {
                 // Check if the configuration was actually evaluated and found up-to-date.
@@ -209,7 +202,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                     // This is a regular skip, typically for tools with disabled configuration.
                     ToolAction::Skip(version_reason)
                 }
-            }
+            },
         }
     }
 
@@ -255,10 +248,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         let installer_name = tool.source.to_string().to_lowercase();
 
         // Only validate installers that require a system command to be present.
-        if matches!(
-            installer_name.as_str(),
-            "brew" | "go" | "cargo" | "rustup" | "pip" | "uv"
-        ) {
+        if matches!(installer_name.as_str(), "brew" | "go" | "cargo" | "rustup" | "pip" | "uv") {
             check_installer_command_available(&installer_name)
                 .map_err(|error| format!("Installer '{}' not available: {}", installer_name, error))
         } else {
@@ -273,7 +263,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
             ToolAction::Skip(reason) => ToolProcessingResult::Skipped(reason),
             ToolAction::SkipConfigurationOnly(reason) => {
                 ToolProcessingResult::ConfigurationSkipped(reason)
-            }
+            },
             ToolAction::Install => self.execute_installation(tool, "Installing"),
             ToolAction::Update => self.execute_installation(tool, "Updating"),
             ToolAction::UpdateConfigurationOnly => self.execute_configuration_update(tool),
@@ -285,10 +275,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     /// invoking the tool installer.
     fn execute_configuration_update(&mut self, tool: &ToolEntry) -> ToolProcessingResult {
         log_info!("[Tools] Configuration Management...");
-        log_info!(
-            "[Tools] Updating configuration for: {}",
-            tool.name.bright_green()
-        );
+        log_info!("[Tools] Updating configuration for: {}", tool.name.bright_green());
 
         // Get the existing state for the tool.
         if let Some(mut existing_state) = self.state.tools.get(&tool.name).cloned() {
@@ -297,10 +284,10 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                 Ok(()) => {
                     self.state.tools.insert(tool.name.clone(), existing_state);
                     ToolProcessingResult::ConfigurationUpdated
-                }
+                },
                 Err(error) => {
                     ToolProcessingResult::Failed(format!("Configuration update failed: {}", error))
-                }
+                },
             }
         } else {
             // This should not happen if the logic is correct, but it's a safe guard.
@@ -340,12 +327,12 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                     "Installing" => ToolProcessingResult::Installed,
                     _ => ToolProcessingResult::Updated,
                 }
-            }
+            },
             None => {
                 // If the installer returns `None`, it signifies a failure.
                 self.display_installation_failure(tool, operation_type);
                 ToolProcessingResult::Failed(format!("{} failed", operation_type))
-            }
+            },
         }
     }
 
@@ -401,7 +388,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                     tool.name.bold()
                 );
                 None
-            }
+            },
         }
     }
 
@@ -427,11 +414,11 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                 // If a new state is returned, update the tool's state.
                 tool_state.set_configuration_manager(new_config_state);
                 Ok(())
-            }
+            },
             None => {
                 // If `None` is returned, it means configuration was disabled or no update was needed.
                 Ok(())
-            }
+            },
         }
     }
 }
@@ -455,16 +442,16 @@ impl InstallationSummary {
                 ToolProcessingResult::Updated => summary.updated_tools.push(tool_name),
                 ToolProcessingResult::ConfigurationUpdated => {
                     summary.configuration_updated_tools.push(tool_name)
-                }
+                },
                 ToolProcessingResult::Skipped(reason) => {
                     summary.skipped_tools.push((tool_name, reason))
-                }
-                ToolProcessingResult::ConfigurationSkipped(reason) => summary
-                    .configuration_skipped_tools
-                    .push((tool_name, reason)),
+                },
+                ToolProcessingResult::ConfigurationSkipped(reason) => {
+                    summary.configuration_skipped_tools.push((tool_name, reason))
+                },
                 ToolProcessingResult::Failed(reason) => {
                     summary.failed_tools.push((tool_name, reason))
-                }
+                },
             }
         }
 
@@ -660,7 +647,7 @@ pub fn execute_post_installation_commands(
                 tool_entry.name.green()
             );
             Some(executed_commands)
-        }
+        },
         Err(execution_error) => {
             log_warn!(
                 "[Tools] {} Additional commands failed for {}: {}. Continuing.",
@@ -669,6 +656,6 @@ pub fn execute_post_installation_commands(
                 execution_error.yellow()
             );
             None
-        }
+        },
     }
 }

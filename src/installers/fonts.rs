@@ -90,19 +90,11 @@ fn validate_font_entry(font: &FontEntry) -> Option<ValidatedFontDetails> {
 
     // Construct the GitHub release download URL.
     // Example: https://github.com/ryanoasis/nerd-fonts/releases/download/v3.0.2/FiraCode.zip
-    let url = format!(
-        "https://github.com/{}/releases/download/{}/{}",
-        repo, tag, asset_name
-    );
+    let url = format!("https://github.com/{}/releases/download/{}/{}", repo, tag, asset_name);
 
     log_debug!("[Font Validation] Constructed download URL: {}", url.cyan());
 
-    Some(ValidatedFontDetails {
-        repo: repo.clone(),
-        tag: tag.clone(),
-        asset_name,
-        url,
-    })
+    Some(ValidatedFontDetails { repo: repo.clone(), tag: tag.clone(), asset_name, url })
 }
 
 /// Determines the correct font installation directory for the current operating system.
@@ -121,10 +113,7 @@ fn get_font_installation_dir() -> io::Result<PathBuf> {
         log_error!(
             "[Font Paths] Could not determine home directory. Cannot proceed with font installation."
         );
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "Home directory not found",
-        ));
+        return Err(io::Error::new(io::ErrorKind::NotFound, "Home directory not found"));
     };
 
     let font_dir = home_dir.join("Library").join("Fonts");
@@ -139,10 +128,7 @@ fn get_font_installation_dir() -> io::Result<PathBuf> {
         e // Propagate the io::Error
     })?;
 
-    log_debug!(
-        "[Font Paths] macOS font installation directory: {}",
-        font_dir.display()
-    );
+    log_debug!("[Font Paths] macOS font installation directory: {}", font_dir.display());
     Ok(font_dir)
 }
 
@@ -189,10 +175,7 @@ fn download_font_archive(
     // Use the centralized `download_file` utility.
     download_file(url, &temp_download_path)?; // `?` propagates the Box<dyn Error>
 
-    log_debug!(
-        "[Font Download] Download complete for '{}'.",
-        font_name.bold()
-    );
+    log_debug!("[Font Download] Download complete for '{}'.", font_name.bold());
     Ok(temp_download_path)
 }
 
@@ -229,10 +212,7 @@ fn extract_font_archive(
         e // Propagate the io::Error
     })?;
 
-    log_debug!(
-        "[Font Extraction] Archive extracted to: {}",
-        extracted_path.display()
-    );
+    log_debug!("[Font Extraction] Archive extracted to: {}", extracted_path.display());
 
     // Clean up the original downloaded archive file after successful extraction.
     if archive_path.is_file() {
@@ -289,10 +269,7 @@ fn copy_non_hidden_font_files(
 
         // Skip hidden files/directories (starting with '.') and non-files.
         if filename.starts_with('.') || (!path.is_file()) {
-            log_debug!(
-                "[Font Copy] Skipping hidden or non-file entry: {}",
-                filename.blue()
-            );
+            log_debug!("[Font Copy] Skipping hidden or non-file entry: {}", filename.blue());
             continue;
         }
 
@@ -367,10 +344,7 @@ fn determine_font_version(font: &FontEntry) -> String {
 /// * `None` if the font installation process failed for any reason (e.g., validation error,
 ///   download failure, no font files found/copied). Error details are logged internally.
 pub fn install(font: &FontEntry) -> Option<FontState> {
-    log_info!(
-        "[Font Installer] Starting installation for font: {}",
-        font.name.bold()
-    );
+    log_info!("[Font Installer] Starting installation for font: {}", font.name.bold());
 
     // 1. Validate the font entry and get download details.
     let font_details = validate_font_entry(font)?; // Returns None if validation fails
@@ -412,7 +386,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
             );
             cleanup_temp_dir(&temp_dir_clone_for_cleanup);
             return None;
-        }
+        },
     };
 
     // 4. Extract the font archive.
@@ -430,7 +404,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
             );
             cleanup_temp_dir(&temp_dir_clone_for_cleanup);
             return None;
-        }
+        },
     };
 
     // 5. Copy font files from extracted contents to the final installation directory.
@@ -449,7 +423,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
             );
             cleanup_temp_dir(&temp_dir_clone_for_cleanup);
             return None;
-        }
+        },
     };
 
     // 6. Clean up the main temporary directory.
@@ -458,10 +432,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
     // 7. Return FontState for Tracking (Conditional):
     // Only record the font's state if at least one file was successfully installed.
     if !installed_font_files.is_empty() {
-        log_debug!(
-            "[Font Installer] Constructing FontState for '{}'.",
-            font.name.bold()
-        );
+        log_debug!("[Font Installer] Constructing FontState for '{}'.", font.name.bold());
         Some(FontState {
             name: font.name.clone(),
             // Derive version using the helper function.
@@ -499,10 +470,7 @@ fn cleanup_temp_dir(temp_dir: &Path) {
                 e.to_string().yellow()
             );
         } else {
-            log_debug!(
-                "[Font Cleanup] Removed temporary directory '{}'.",
-                temp_dir.display()
-            );
+            log_debug!("[Font Cleanup] Removed temporary directory '{}'.", temp_dir.display());
         }
     }
 }

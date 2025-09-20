@@ -21,10 +21,7 @@ pub fn run(edit_state: bool, config_type: Option<String>) {
         log_debug!("[Edit] Handling state file edit request");
         handle_state_edit();
     } else if let Some(config_type) = config_type {
-        log_debug!(
-            "[Edit] Handling config file edit request for type: {}",
-            config_type
-        );
+        log_debug!("[Edit] Handling config file edit request for type: {}", config_type);
         handle_config_edit(&config_type);
     } else {
         // This should not happen due to clap validation, but adding as safety
@@ -46,9 +43,7 @@ fn handle_state_edit() {
     // Show warning about editing state file
     println!(
         "            {}",
-        "⚠️  WARNING: Editing state file directly"
-            .bright_yellow()
-            .bold()
+        "⚠️  WARNING: Editing state file directly".bright_yellow().bold()
     );
     println!(
         "{}",
@@ -70,9 +65,7 @@ fn handle_state_edit() {
     );
     println!(
         "  {}",
-        "Consider using configuration files instead when possible."
-            .yellow()
-            .dimmed()
+        "Consider using configuration files instead when possible.".yellow().dimmed()
     );
     println!(
         "{}",
@@ -97,10 +90,7 @@ fn handle_state_edit() {
             "Warning: State file does not exist at: {}",
             state_file_path.display().to_string().yellow()
         );
-        log_error!(
-            "{}",
-            "You may want to run 'setup-devbox now' first to create it.".yellow()
-        );
+        log_error!("{}", "You may want to run 'setup-devbox now' first to create it.".yellow());
         println!();
 
         // Ask user if they want to continue
@@ -146,16 +136,10 @@ fn handle_config_edit(config_type: &str) {
     log_debug!("[Edit] Starting config file edit for type: {}", config_type);
 
     let config_file_path = get_config_file_path(config_type);
-    log_debug!(
-        "[Edit] Config file path resolved to: {:?}",
-        config_file_path
-    );
+    log_debug!("[Edit] Config file path resolved to: {:?}", config_file_path);
 
     if !config_file_path.exists() {
-        log_warn!(
-            "[Edit] Config file does not exist at: {:?}",
-            config_file_path
-        );
+        log_warn!("[Edit] Config file does not exist at: {:?}", config_file_path);
         eprintln!(
             "{}",
             format!(
@@ -184,14 +168,9 @@ fn handle_config_edit(config_type: &str) {
 
     log_info!(
         "{}",
-        format!("Opening {} configuration for editing...", config_type)
-            .cyan()
-            .bold()
+        format!("Opening {config_type} configuration for editing...",).cyan().bold()
     );
-    log_info!(
-        "[Edit] Opening config file in editor: {:?}",
-        config_file_path
-    );
+    log_info!("[Edit] Opening config file in editor: {:?}", config_file_path);
 
     // Open the editor and wait for it to complete
     if let Err(e) = open_file_in_editor(&config_file_path) {
@@ -209,45 +188,32 @@ fn handle_config_edit(config_type: &str) {
             log_debug!("[Edit] Original hash: {}", original);
             log_debug!("[Edit] New hash: {}", new);
             original != new
-        }
+        },
         _ => {
             log_warn!("[Edit] Could not determine if file was modified, assuming it was");
             true // If we can't determine, assume it was modified
-        }
+        },
     };
 
     if !file_was_modified {
-        log_info!(
-            "[Edit] No changes detected in {} configuration.",
-            config_type.blue().bold()
-        );
+        log_info!("[Edit] No changes detected in {} configuration.", config_type.blue().bold());
         log_info!("[Edit] No changes detected in config file, skipping 'now' command");
         return;
     }
-    log_info!(
-        "{}",
-        format!("{} configuration editing completed.", config_type).green()
-    );
+    log_info!("{}", format!("{config_type} configuration editing completed.").green());
     println!();
 
     // Automatically run 'now' command after config edit if changes were detected
     log_info!(
         "{}",
-        "Automatically applying changes by running 'setup-devbox now'..."
-            .cyan()
-            .bold()
+        "Automatically applying changes by running 'setup-devbox now'...".cyan().bold()
     );
     log_info!("[Edit] Auto-running 'now' command to apply configuration changes");
 
     // Import and call the now command
     crate::commands::now::run(None, None, false);
 
-    log_info!(
-        "{}",
-        "Configuration changes have been applied successfully!"
-            .green()
-            .bold()
-    );
+    log_info!("{}", "Configuration changes have been applied successfully!".green().bold());
     log_debug!("[Edit] Config file editing and application completed successfully");
 }
 
@@ -269,11 +235,11 @@ fn get_file_content_hash(file_path: &PathBuf) -> Option<String> {
             let hash = format!("{:x}", hasher.finalize());
             log_debug!("[Edit] Content hash computed successfully");
             Some(hash)
-        }
+        },
         Err(e) => {
             log_warn!("[Edit] Failed to read file for hashing: {:?}", e);
             None
-        }
+        },
     }
 }
 
@@ -285,10 +251,7 @@ fn get_file_content_hash(file_path: &PathBuf) -> Option<String> {
 /// # Returns
 /// PathBuf pointing to the specific configuration file
 fn get_config_file_path(config_type: &str) -> PathBuf {
-    log_debug!(
-        "[Edit] Resolving config file path for type: {}",
-        config_type
-    );
+    log_debug!("[Edit] Resolving config file path for type: {}", config_type);
 
     // Read and parse the main config file to get paths to individual config files
     let main_config_path = get_main_config_path();
@@ -304,26 +267,20 @@ fn get_config_file_path(config_type: &str) -> PathBuf {
                 "settings" => &config_paths.settings,
                 _ => {
                     log_error!("[Edit] Invalid config type: {}", config_type);
-                    eprintln!(
-                        "{}",
-                        format!("Error: Invalid config type '{}'", config_type).red()
-                    );
+                    eprintln!("{}", format!("Error: Invalid config type '{config_type}'").red());
                     std::process::exit(1);
-                }
+                },
             };
 
             log_debug!("[Edit] Config file path for {}: {}", config_type, file_path);
             PathBuf::from(file_path)
-        }
+        },
         Err(e) => {
             log_error!("[Edit] Failed to read main config file: {:?}", e);
-            eprintln!("{}", format!("Error reading main config file: {}", e).red());
-            eprintln!(
-                "{}",
-                "You may want to run 'setup-devbox generate' first.".yellow()
-            );
+            eprintln!("{}", format!("Error reading main config file: {e}").red());
+            eprintln!("{}", "You may want to run 'setup-devbox generate' first.".yellow());
             std::process::exit(1);
-        }
+        },
     }
 }
 
@@ -344,16 +301,13 @@ where
 
     // Check for SDB_CONFIG_PATH environment variable first
     if let Ok(config_dir) = env::var("SDB_CONFIG_PATH") {
-        log_debug!(
-            "[Edit] Using SDB_CONFIG_PATH environment variable: {}",
-            config_dir
-        );
+        log_debug!("[Edit] Using SDB_CONFIG_PATH environment variable: {}", config_dir);
         let mut path = PathBuf::from(config_dir);
         if file_type == "config" {
             path.push("configs");
             path.push("config.yaml");
         } else {
-            path.push(format!("{}.json", file_type));
+            path.push(format!("{file_type}.json"));
         }
         return path;
     }
@@ -365,10 +319,7 @@ where
         std::process::exit(1);
     });
 
-    log_debug!(
-        "[Edit] Using default location in HOME directory: {}",
-        home_dir
-    );
+    log_debug!("[Edit] Using default location in HOME directory: {}", home_dir);
     let path = fallback_fn(&home_dir);
 
     log_debug!("[Edit] Final {} file path: {:?}", file_type, path);
@@ -438,16 +389,8 @@ fn open_file_in_editor(file_path: &PathBuf) -> Result<(), Box<dyn std::error::Er
     // Configure editor command with appropriate wait flags
     let (editor_cmd, editor_args) = get_editor_command_with_wait_flag(&editor_env);
 
-    log_debug!(
-        "[Edit] Using editor command: {} with args: {:?}",
-        editor_cmd,
-        editor_args
-    );
-    log_info!(
-        "Opening File: {} with editor: {}",
-        file_path.display(),
-        editor_cmd.cyan()
-    );
+    log_debug!("[Edit] Using editor command: {} with args: {:?}", editor_cmd, editor_args);
+    log_info!("Opening File: {} with editor: {}", file_path.display(), editor_cmd.cyan());
 
     // For GUI editors that may not block properly, show additional instructions
     if is_gui_editor(&editor_cmd) {
@@ -481,10 +424,7 @@ fn open_file_in_editor(file_path: &PathBuf) -> Result<(), Box<dyn std::error::Er
                     "[Edit] Editor returned very quickly ({:?}), it may not support waiting properly",
                     duration
                 );
-                println!(
-                    "{}",
-                    "⚠️  Warning: The editor returned very quickly.".yellow()
-                );
+                println!("{}", "⚠️  Warning: The editor returned very quickly.".yellow());
                 println!(
                     "{}",
                     "This might mean it doesn't support waiting for the file to be closed."
@@ -512,11 +452,11 @@ fn open_file_in_editor(file_path: &PathBuf) -> Result<(), Box<dyn std::error::Er
                 log_warn!("[Edit] Editor exited with status: {:?}", status);
                 Err(format!("Editor exited with status: {:?}", status).into())
             }
-        }
+        },
         Err(e) => {
             log_error!("[Edit] Failed to launch editor: {:?}", e);
-            Err(format!("Error launching editor '{}': {}", editor_cmd, e).into())
-        }
+            Err(format!("Error launching editor '{editor_cmd}': {e}").into())
+        },
     }
 }
 
@@ -546,15 +486,12 @@ fn get_editor_command_with_wait_flag(editor: &str) -> (String, Vec<String>) {
                 || editor.contains("atom")
                 || editor.contains("gedit")
             {
-                log_debug!(
-                    "[Edit] Unknown GUI editor '{}', trying with --wait flag",
-                    editor
-                );
+                log_debug!("[Edit] Unknown GUI editor '{}', trying with --wait flag", editor);
                 (editor.to_string(), vec!["--wait".to_string()])
             } else {
                 (editor.to_string(), vec![])
             }
-        }
+        },
     }
 }
 
@@ -566,10 +503,8 @@ fn get_editor_command_with_wait_flag(editor: &str) -> (String, Vec<String>) {
 /// # Returns
 /// True if it's likely a GUI editor
 fn is_gui_editor(editor: &str) -> bool {
-    matches!(
-        editor,
-        "code" | "zed" | "subl" | "sublime_text" | "atom" | "gedit" | "kate"
-    ) || editor.contains("code")
+    matches!(editor, "code" | "zed" | "subl" | "sublime_text" | "atom" | "gedit" | "kate")
+        || editor.contains("code")
         || editor.contains("zed")
         || editor.contains("subl")
         || editor.contains("atom")

@@ -146,10 +146,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         );
         // Log standard output if available, usually contains installation progress.
         if !output.stdout.is_empty() {
-            log_debug!(
-                "[Pip Installer] Stdout: {}",
-                String::from_utf8_lossy(&output.stdout)
-            );
+            log_debug!("[Pip Installer] Stdout: {}", String::from_utf8_lossy(&output.stdout));
         }
         // Log standard error if available. Pip sometimes prints warnings to stderr even on success.
         if !output.stderr.is_empty() {
@@ -170,10 +167,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // This is where many `pip --user` installed scripts/executables end up.
             home.push_str("/.local/bin/");
             // Construct the full path, joining the base path with the package name (assuming it might be an executable).
-            PathBuf::from(home)
-                .join(&tool_entry.name)
-                .to_string_lossy()
-                .into_owned()
+            PathBuf::from(home).join(&tool_entry.name).to_string_lossy().into_owned()
         } else {
             // If HOME directory cannot be determined, fall back to a generic system-wide bin path.
             // This is less accurate but provides a placeholder.
@@ -190,10 +184,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // for future operations like uninstallation, updates, or syncing.
         Some(ToolState {
             // Use the version specified in the config, or default to "latest" if not specified.
-            version: tool_entry
-                .version
-                .clone()
-                .unwrap_or_else(|| "latest".to_string()),
+            version: tool_entry.version.clone().unwrap_or_else(|| "latest".to_string()),
             // The canonical path where the tool's executable was installed. This is the path
             // that will be recorded in the `state.json` file.
             install_path,

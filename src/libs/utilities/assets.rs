@@ -24,7 +24,7 @@ use std::{fs, io};
 /// This is crucial for fetching tools and resources from the internet (e.g., GitHub releases).
 ///
 /// # Arguments
-/// * `url`: The URL (as a string slice) of the file to download (e.g., "https://example.com/file.zip").
+/// * `url`: The URL (as a string slice) of the file to download (e.g. [https://example.com/file.zip](https://example.com/file.zip)).
 /// * `dest`: The local file system path (`&Path`) where the downloaded file should be saved.
 ///           This should be a full file path, including the desired filename.
 ///
@@ -45,11 +45,8 @@ pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
             log_error!("[Utils] HTTP request failed for {}: {}", url.red(), e);
             // Convert the `ureq` error into a standard `io::Error` for consistent error handling
             // across the application. `io::ErrorKind::Other` is a generic error kind.
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("HTTP error: {}", e),
-            ));
-        }
+            return Err(io::Error::new(io::ErrorKind::Other, format!("HTTP error: {}", e)));
+        },
     };
 
     // Open the destination file for writing.
@@ -66,10 +63,7 @@ pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
     std::io::copy(&mut reader, &mut file)?;
 
     // Log a debug message upon successful download, coloring the destination path.
-    log_debug!(
-        "[Utils] File downloaded successfully to {}",
-        dest.to_string_lossy().green()
-    );
+    log_debug!("[Utils] File downloaded successfully to {}", dest.to_string_lossy().green());
     Ok(()) // Indicate success by returning `Ok(())`.
 }
 
@@ -125,12 +119,7 @@ pub fn detect_file_type(path: &Path) -> String {
     }
 
     // 2. Fallback to `file` command for deeper inspection (more accurate for binaries, etc.)
-    let output = match Command::new("file")
-        .arg("--mime-type")
-        .arg("--brief")
-        .arg(path)
-        .output()
-    {
+    let output = match Command::new("file").arg("--mime-type").arg("--brief").arg(path).output() {
         Ok(output) => output,
         Err(e) => {
             log_warn!(
@@ -138,7 +127,7 @@ pub fn detect_file_type(path: &Path) -> String {
                 e
             );
             return "binary".to_string(); // Default to binary if 'file' command fails
-        }
+        },
     };
 
     let mime_type = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -152,19 +141,19 @@ pub fn detect_file_type(path: &Path) -> String {
         "application/x-xz" => "xz".to_string(),
         // Specific handling for macOS installers based on MIME type, but confirm extension as a fallback
         "application/x-xar"
-            if path.extension().map_or(false, |ext| {
-                ext.to_string_lossy().eq_ignore_ascii_case("pkg")
-            }) =>
+            if path
+                .extension()
+                .map_or(false, |ext| ext.to_string_lossy().eq_ignore_ascii_case("pkg")) =>
         {
             "pkg".to_string()
-        }
+        },
         "application/x-apple-diskimage"
-            if path.extension().map_or(false, |ext| {
-                ext.to_string_lossy().eq_ignore_ascii_case("dmg")
-            }) =>
+            if path
+                .extension()
+                .map_or(false, |ext| ext.to_string_lossy().eq_ignore_ascii_case("dmg")) =>
         {
             "dmg".to_string()
-        }
+        },
         // Generic binary or unknown
         _ => "binary".to_string(), // Default fallback
     }
@@ -220,10 +209,7 @@ pub fn install_pkg(pkg_path: &Path, tool_name: &str) -> io::Result<PathBuf> {
     // 1. Check for application bundles in /Applications (common for GUI apps)
     let app_path = PathBuf::from(format!("/Applications/{}.app", tool_name));
     if app_path.exists() {
-        log_debug!(
-            "[macOS Installer] Found application bundle at: {}",
-            app_path.display()
-        );
+        log_debug!("[macOS Installer] Found application bundle at: {}", app_path.display());
         inferred_install_path = Some(app_path);
     }
 
@@ -240,10 +226,7 @@ pub fn install_pkg(pkg_path: &Path, tool_name: &str) -> io::Result<PathBuf> {
             // As a fallback, check if a binary directly exists in /usr/local/bin
             let cli_bin_path = PathBuf::from(format!("/usr/local/bin/{}", tool_name));
             if cli_bin_path.exists() {
-                log_debug!(
-                    "[macOS Installer] Found CLI binary at: {}",
-                    cli_bin_path.display()
-                );
+                log_debug!("[macOS Installer] Found CLI binary at: {}", cli_bin_path.display());
                 inferred_install_path = Some(cli_bin_path);
             }
         }
@@ -310,10 +293,7 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
     if !dmg_path.exists() || !dmg_path.is_file() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
-            format!(
-                "DMG file does not exist or is not a file: {}",
-                dmg_path.display()
-            ),
+            format!("DMG file does not exist or is not a file: {}", dmg_path.display()),
         ));
     }
 
@@ -362,10 +342,7 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
     } else {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            format!(
-                "Failed to parse mounted path from hdiutil output for {}",
-                dmg_path.display()
-            ),
+            format!("Failed to parse mounted path from hdiutil output for {}", dmg_path.display()),
         ));
     }
 
@@ -443,10 +420,7 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
                 log_info!("[macOS Installer] Existing app removed successfully.");
             }
 
-            log_debug!(
-                "[macOS Installer] Copying .app to: {}",
-                target_app_path.display()
-            );
+            log_debug!("[macOS Installer] Copying .app to: {}", target_app_path.display());
             let cp_output = Command::new("sudo")
                 .arg("cp")
                 .arg("-R")
@@ -499,7 +473,7 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
             if install_result.is_ok() {
                 return Err(e);
             }
-        }
+        },
     }
 
     log_info!(
@@ -529,10 +503,7 @@ pub fn install_dmg(_dmg_path: &Path, _app_name: &str) -> io::Result<PathBuf> {
 /// * `io::Result<()>`: `Ok(())` if the DMG was unmounted successfully,
 ///   `Err(io::Error)` otherwise.
 fn unmount_dmg(mount_path: &Path) -> io::Result<()> {
-    log_debug!(
-        "[macOS Installer] Attempting to unmount DMG from: {}",
-        mount_path.display()
-    );
+    log_debug!("[macOS Installer] Attempting to unmount DMG from: {}", mount_path.display());
     let detach_output = Command::new("sudo")
         .arg("hdiutil")
         .arg("detach")
@@ -609,7 +580,7 @@ pub fn current_timestamp() -> String {
 ///
 /// # Arguments
 /// * `duration_str` - A string slice containing the duration specification.
-///   Expected format: "<amount> <unit>" (e.g., "7 days", "1 hour", "30 minutes")
+///   Expected format: "`<amount>` `<unit>`" (e.g., "7 days", "1 hour", "30 minutes")
 ///
 /// # Returns
 /// * `Some(Duration)` - If parsing was successful

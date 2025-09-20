@@ -76,7 +76,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 tool_entry.name.red()
             );
             return None;
-        }
+        },
     };
 
     // 2. Determine installation directories
@@ -109,12 +109,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     let temp_dir = match tempdir() {
         Ok(dir) => dir,
         Err(e) => {
-            log_error!(
-                "[URL Installer] Failed to create temporary directory for download: {}",
-                e
-            );
+            log_error!("[URL Installer] Failed to create temporary directory for download: {}", e);
             return None;
-        }
+        },
     };
     // Construct the full path for the temporary downloaded file.
     let filename = Path::new(&download_url_str)
@@ -138,10 +135,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         );
         return None;
     }
-    log_info!(
-        "[URL Installer] Download completed for: {}",
-        tool_entry.name.green()
-    );
+    log_info!("[URL Installer] Download completed for: {}", tool_entry.name.green());
 
     // 4. Determine file type and perform installation
     let final_install_path_for_state: PathBuf;
@@ -162,17 +156,11 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     match detected_file_type.as_str() {
         // Handles various archive formats.
         "zip" | "tar.gz" | "tar.bz2" | "tar.xz" | "tar" | "gz" | "bz2" | "xz" | "7zip" => {
-            log_info!(
-                "[URL Installer] Extracting archive from URL: {}",
-                download_url_str.cyan()
-            );
+            log_info!("[URL Installer] Extracting archive from URL: {}", download_url_str.cyan());
             // Call the `extract_archive` utility function to decompress and extract the contents
             // of the downloaded archive into the tool's designated installation directory.
-            match extract_archive(
-                &temp_download_path,
-                &tool_install_dir,
-                Some(&detected_file_type),
-            ) {
+            match extract_archive(&temp_download_path, &tool_install_dir, Some(&detected_file_type))
+            {
                 Ok(path) => {
                     // `path` here refers to the directory where the archive was extracted (e.g., ~/.setup-devbox/tools/zed/extracted/).
                     final_install_path_for_state = path.clone();
@@ -182,7 +170,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     // we clone it for persistence in `ToolState`.
                     executable_path_after_extract_for_state =
                         tool_entry.executable_path_after_extract.clone();
-                }
+                },
                 Err(e) => {
                     log_error!(
                         "[URL Installer] Failed to extract archive from {}: {}",
@@ -190,9 +178,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                         e.to_string().red()
                     );
                     return None;
-                }
+                },
             }
-        }
+        },
         "pkg" => {
             // macOS-specific .pkg installer handling.
             log_info!(
@@ -211,7 +199,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     // For .pkg installs, the `install_path` typically points directly to the installed application
                     // or binary, so `executable_path_after_extract` is not applicable.
                     executable_path_after_extract_for_state = None;
-                }
+                },
                 Err(e) => {
                     log_error!(
                         "[URL] Failed to install .pkg for {}: {}",
@@ -219,9 +207,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                         e.to_string().red()
                     );
                     return None;
-                }
+                },
             }
-        }
+        },
         "dmg" => {
             // macOS-specific .dmg installer handling.
             log_info!(
@@ -238,7 +226,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     package_type = "macos-dmg-installer".to_string();
                     // Similar to .pkg, the `install_path` directly points to the installed app, so this is `None`.
                     executable_path_after_extract_for_state = None;
-                }
+                },
                 Err(e) => {
                     log_error!(
                         "[URL Installer] Failed to install .dmg for {}: {}",
@@ -246,9 +234,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                         e.to_string().red()
                     );
                     return None;
-                }
+                },
             }
-        }
+        },
         "binary" => {
             // Handles cases where the downloaded file is a standalone executable binary.
             log_info!(
@@ -279,7 +267,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                                     e.to_string().red()
                                 );
                                 return None;
-                            }
+                            },
                         };
                         let mut permissions = metadata.permissions();
                         // Set permissions to 0o755 (rwx for owner, rx for group and others).
@@ -303,7 +291,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     package_type = "binary".to_string();
                     // No extraction occurred, so this field is `None`.
                     executable_path_after_extract_for_state = None;
-                }
+                },
                 Err(e) => {
                     log_error!(
                         "[URL Installer] Failed to copy binary for {}: {}",
@@ -311,9 +299,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                         e.to_string().red()
                     );
                     return None;
-                }
+                },
             }
-        }
+        },
         _ => {
             // Fallback for any unsupported or unrecognized file types.
             log_error!(
@@ -322,7 +310,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 detected_file_type.red()
             );
             return None;
-        }
+        },
     };
 
     // 5. Clean up the temporary downloaded file
@@ -341,10 +329,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // for future operations like uninstallation, updates, or syncing.
     Some(ToolState {
         // The version field for tracking. Defaults to "latest" if not explicitly set in `tools.yaml`.
-        version: tool_entry
-            .version
-            .clone()
-            .unwrap_or_else(|| "unknown".to_string()),
+        version: tool_entry.version.clone().unwrap_or_else(|| "unknown".to_string()),
         // The canonical path where the tool's executable was installed. This is the path
         // that will be recorded in the `state.json` file.
         install_path: final_install_path_for_state.to_string_lossy().into_owned(),

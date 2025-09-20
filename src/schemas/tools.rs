@@ -6,9 +6,9 @@
 //!
 //! ## Core Concepts
 //!
-//! - **ToolConfig**: Top-level configuration containing all tool definitions
-//! - **ToolEntry**: Individual tool specification with installation and configuration details
-//! - **ToolInstallMethod**: Supported installation sources (brew, cargo, GitHub, etc.)
+//! - **`ToolConfig`**: Top-level configuration containing all tool definitions
+//! - **`ToolEntry`**: Individual tool specification with installation and configuration details
+//! - **`ToolInstallMethod`**: Supported installation sources (brew, cargo, GitHub, etc.)
 //! - **Configuration Management**: Automatic synchronization of tool configuration files
 //!
 //! ## Usage Example
@@ -601,7 +601,7 @@ pub enum ToolProcessingResult {
 /// This enum simplifies the decision-making process within the orchestrator
 /// by reducing complex state analysis into clear, actionable decisions.
 /// Each action corresponds to a specific execution path in the installer.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ToolAction {
     /// Install the tool for the first time.
     ///
@@ -640,7 +640,7 @@ pub enum ToolAction {
 /// Used internally by the decision engine to separate version-related
 /// decisions from configuration-related decisions, enabling more precise
 /// control flow and better error messaging.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum VersionAction {
     /// The tool version needs to be updated.
     ///
@@ -660,7 +660,7 @@ pub enum VersionAction {
 /// Used internally by the decision engine to make configuration-specific
 /// decisions independently of version decisions, enabling fine-grained
 /// control over when configuration files are updated.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ConfigurationAction {
     /// Tool configuration needs to be updated.
     ///
@@ -739,7 +739,7 @@ pub struct InstallationConfiguration {
     /// ## Duration Examples
     /// - `Duration::hours(1)` - Update at most once per hour
     /// - `Duration::days(7)` - Update at most once per week
-    /// - `Duration::seconds(0)` - Always update (when force_update_enabled is true)
+    /// - `Duration::seconds(0)` - Always update (when `force_update_enabled` is `true`)
     pub(crate) update_threshold_duration: Duration,
 
     /// Whether to ignore update thresholds and force updates of all "latest" tools.
@@ -856,9 +856,9 @@ impl ToolEntry {
     /// - `configuration_manager`: Configuration file management (optional, defaults to disabled)
     ///
     /// ## Error Types
-    /// - **InvalidSource**: Unsupported installation method specified
-    /// - **MissingField**: Required field for the specified source is absent
-    /// - **ConflictingFields**: Fields from different sources used together inappropriately
+    /// - **`InvalidSource`**: Unsupported installation method specified
+    /// - **`MissingField`**: Required field for the specified source is absent
+    /// - **`ConflictingFields`**: Fields from different sources used together inappropriately
     ///
     /// ## Examples
     ///
@@ -893,9 +893,7 @@ impl ToolEntry {
     /// - `Err(ToolEntryError)`: Specific validation error with description
     pub fn validate(&self) -> Result<(), ToolEntryError> {
         // Define all supported installation sources
-        let supported_sources = [
-            "github", "brew", "cargo", "rustup", "pip", "go", "url", "uv",
-        ];
+        let supported_sources = ["github", "brew", "cargo", "rustup", "pip", "go", "url", "uv"];
         let source_lower = self.source.to_lowercase();
 
         // Validate that the source is supported
@@ -920,7 +918,7 @@ impl ToolEntry {
                         "url or executable_path_after_extract should not be present for GitHub source".to_string(),
                     ));
                 }
-            }
+            },
             "url" => {
                 // URL sources require a download URL
                 if self.url.is_none() {
@@ -934,9 +932,9 @@ impl ToolEntry {
                     ));
                 }
                 // Note: executable_path_after_extract is allowed for URL sources (archives)
-            }
+            },
             // Package manager sources (brew, cargo, rustup, pip, go, uv)
-            "brew" | "cargo" | "rustup" | "pip" | "go" | "uv" => {
+            "brew" | "cargo" | "rustup" | "pip" | "uv" => {
                 // Package managers cannot use any source-specific fields
                 if self.repo.is_some()
                     || self.tag.is_some()
@@ -949,7 +947,18 @@ impl ToolEntry {
                     )));
                 }
                 // Note: additional_cmd is allowed for all sources for post-install flexibility
-            }
+            },
+            "go" => {
+                if self.repo.is_some()
+                    || self.tag.is_some()
+                    || self.executable_path_after_extract.is_some()
+                {
+                    return Err(ToolEntryError::ConflictingFields(format!(
+                        "repo, tag or executable_path_after_extract should not be present for '{}' source",
+                        self.source
+                    )));
+                }
+            },
             _ => {
                 // This shouldn't be reachable due to the supported_sources check above,
                 // but is included for completeness and future-proofing
@@ -957,7 +966,7 @@ impl ToolEntry {
                     "Source validation should have caught unsupported source: {}",
                     source_lower
                 );
-            }
+            },
         }
 
         // All validation checks passed
@@ -976,19 +985,18 @@ impl ToolEntry {
 impl fmt::Display for ToolEntryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ToolEntryError::MissingField(field) => {
-                write!(f, "Missing required field: {}", field)
-            }
-            ToolEntryError::InvalidSource(source) => {
+            Self::MissingField(field) => {
+                write!(f, "Missing required field: {field}")
+            },
+            Self::InvalidSource(source) => {
                 write!(
                     f,
-                    "Invalid tool source: '{}'. Supported sources are: github, brew, cargo, rustup, pip, go, url, uv",
-                    source
+                    "Invalid tool source: '{source}'. Supported sources are: github, brew, cargo, rustup, pip, go, url, uv"
                 )
-            }
-            ToolEntryError::ConflictingFields(msg) => {
-                write!(f, "Conflicting fields: {}", msg)
-            }
+            },
+            Self::ConflictingFields(msg) => {
+                write!(f, "Conflicting fields: {msg}")
+            },
         }
     }
 }
@@ -1006,7 +1014,7 @@ impl std::error::Error for ToolEntryError {}
 impl fmt::Display for InstallerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InstallerError::MissingCommand(cmd) => {
+            Self::MissingCommand(cmd) => {
                 write!(
                     f,
                     "Installer command '{}' not found in your system's PATH. Please install {} before proceeding.",
@@ -1020,7 +1028,7 @@ impl fmt::Display for InstallerError {
                         _ => cmd, // Generic fallback for unknown commands
                     }
                 )
-            }
+            },
         }
     }
 }

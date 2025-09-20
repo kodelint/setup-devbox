@@ -97,7 +97,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 err
             );
             return None;
-        }
+        },
     };
 
     // Check the exit status of the `brew install` command.
@@ -127,9 +127,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     let brew_prefix = if brew_prefix_output.status.success() {
         // If `brew --prefix` was successful, take its stdout, trim whitespace, and convert to a String.
-        String::from_utf8_lossy(&brew_prefix_output.stdout)
-            .trim()
-            .to_string()
+        String::from_utf8_lossy(&brew_prefix_output.stdout).trim().to_string()
     } else {
         // If `brew --prefix` failed (e.g., even if `brew` is found, `--prefix` might error for some reason),
         // log a warning and default to a common, but potentially incorrect, path.
@@ -140,10 +138,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         );
         "/usr/local".to_string() // Fallback path.
     };
-    log_debug!(
-        "[Brew Installer] Homebrew prefix detected: {}",
-        brew_prefix.blue()
-    );
+    log_debug!("[Brew Installer] Homebrew prefix detected: {}", brew_prefix.blue());
 
     // Construct the expected full path to the installed binary.
     // Homebrew typically creates symlinks to installed binaries in a `bin` directory
@@ -167,10 +162,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // The version field. Homebrew handles versions, so we can either use the `tool.version`
         // if specified (e.g., for specific formula@version syntax) or default to "latest"
         // to signify it's managed by Homebrew.
-        version: tool_entry
-            .version
-            .clone()
-            .unwrap_or_else(|| "latest".to_string()),
+        version: tool_entry.version.clone().unwrap_or_else(|| "latest".to_string()),
         // The canonical path where the tool's executable was installed. This is the path
         // that will be recorded in the `state.json` file.
         install_path: install_path.display().to_string(),

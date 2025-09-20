@@ -5,4 +5,4 @@ pub(crate) mod help;
 pub(crate) mod os_settings;
 pub(crate) mod shell_configuration;
 pub(crate) mod state_file;
-pub(crate) mod tools;
+pub mod tools;

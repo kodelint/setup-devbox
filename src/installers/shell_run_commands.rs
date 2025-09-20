@@ -38,30 +38,19 @@ pub fn apply_shell_configs(shell_cfg: ShellConfig) {
         return;
     };
 
-    log_debug!(
-        "[Shell Config] Target RC file: {}",
-        rc_path.display().to_string().cyan()
-    );
+    log_debug!("[Shell Config] Target RC file: {}", rc_path.display().to_string().cyan());
 
     // Process run commands and aliases
-    if let Err(e) = process_shell_config(
-        &rc_path,
-        &shell_cfg.run_commands.run_commands,
-        &shell_cfg.aliases,
-    ) {
-        log_error!(
-            "[Shell Config] Failed to process shell configuration: {}",
-            e
-        );
+    if let Err(e) =
+        process_shell_config(&rc_path, &shell_cfg.run_commands.run_commands, &shell_cfg.aliases)
+    {
+        log_error!("[Shell Config] Failed to process shell configuration: {}", e);
         return;
     }
 
     // Source the updated RC file
     if let Err(e) = source_rc_file(&shell_cfg.run_commands.shell, &rc_path) {
-        log_warn!(
-            "[Shell Config] Failed to source RC file: {}",
-            e.to_string().yellow()
-        );
+        log_warn!("[Shell Config] Failed to source RC file: {}", e.to_string().yellow());
     }
 }
 
@@ -101,10 +90,7 @@ fn process_shell_config(
 
         // Remove the file and start fresh
         if let Err(e) = remove_rc_file(rc_path) {
-            log_error!(
-                "[Shell Config] Failed to remove RC file before reset: {}",
-                e
-            );
+            log_error!("[Shell Config] Failed to remove RC file before reset: {}", e);
             return Err(Box::new(e));
         }
 
@@ -175,9 +161,7 @@ fn check_for_updates(
 
         let normalized_command = normalize_command(command);
         let empty_set = HashSet::new();
-        let existing_in_section = existing_content
-            .get(&run_command.section)
-            .unwrap_or(&empty_set);
+        let existing_in_section = existing_content.get(&run_command.section).unwrap_or(&empty_set);
 
         // Skip if exact command already exists
         if existing_in_section.contains(&normalized_command) {
@@ -192,9 +176,7 @@ fn check_for_updates(
 
     // Check aliases for actual updates (not exact duplicates)
     let empty_set = HashSet::new();
-    let existing_aliases = existing_content
-        .get(&ConfigSection::Aliases)
-        .unwrap_or(&empty_set);
+    let existing_aliases = existing_content.get(&ConfigSection::Aliases).unwrap_or(&empty_set);
 
     for alias in aliases {
         let alias_line = format!("alias {}='{}'", alias.name, alias.value);
@@ -245,10 +227,7 @@ fn process_run_commands_after_reset(lines: &mut Vec<String>, run_commands: &[Run
 
         // Check if we've already processed this exact command
         if processed_commands.contains(&normalized_command) {
-            log_debug!(
-                "[Shell Config] Skipping duplicate command: {}",
-                command.dimmed()
-            );
+            log_debug!("[Shell Config] Skipping duplicate command: {}", command.dimmed());
             continue;
         }
 
@@ -287,10 +266,7 @@ fn process_aliases_after_reset(lines: &mut Vec<String>, aliases: &[AliasEntry]) 
 
         // Check if we've already processed this exact alias
         if processed_aliases.contains(&normalized_alias) {
-            log_debug!(
-                "[Shell Config] Skipping duplicate alias: {}",
-                alias_line.dimmed()
-            );
+            log_debug!("[Shell Config] Skipping duplicate alias: {}", alias_line.dimmed());
             continue;
         }
 
@@ -302,10 +278,7 @@ fn process_aliases_after_reset(lines: &mut Vec<String>, aliases: &[AliasEntry]) 
     }
 
     if added > 0 {
-        log_info!(
-            "[Shell Config] Aliases section: {} added",
-            added.to_string().cyan()
-        );
+        log_info!("[Shell Config] Aliases section: {} added", added.to_string().cyan());
     }
 }
 
@@ -405,9 +378,7 @@ fn process_aliases(
     let mut added = 0;
 
     let empty_set = HashSet::new();
-    let existing_aliases = existing_content
-        .get(&ConfigSection::Aliases)
-        .unwrap_or(&empty_set);
+    let existing_aliases = existing_content.get(&ConfigSection::Aliases).unwrap_or(&empty_set);
 
     for alias in aliases {
         let alias_line = format!("alias {}='{}'", alias.name, alias.value);
@@ -415,10 +386,7 @@ fn process_aliases(
 
         // Check if this exact alias already exists
         if existing_aliases.contains(&normalized_alias) {
-            log_debug!(
-                "[Shell Config] Alias already exists: {}",
-                alias_line.dimmed()
-            );
+            log_debug!("[Shell Config] Alias already exists: {}", alias_line.dimmed());
             continue;
         }
 
@@ -444,10 +412,7 @@ fn process_aliases(
     }
 
     if added > 0 {
-        log_info!(
-            "[Shell Config] Aliases section: {} added",
-            added.to_string().cyan()
-        );
+        log_info!("[Shell Config] Aliases section: {} added", added.to_string().cyan());
     }
 
     changes_made
@@ -468,10 +433,7 @@ fn process_aliases(
 /// - Returns the IO error for proper error propagation
 fn final_write(rc_path: &Path, lines: &[String]) -> Result<(), std::io::Error> {
     write_rc_file(rc_path, lines).map_err(|e| {
-        log_warn!(
-            "[Shell Config] Failed to write RC file: {}",
-            e.to_string().red()
-        );
+        log_warn!("[Shell Config] Failed to write RC file: {}", e.to_string().red());
         e
     })?;
 

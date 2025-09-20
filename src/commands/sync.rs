@@ -59,20 +59,14 @@ pub fn run(args: SyncConfigArgs) {
     let state_path = args.state.unwrap_or(default_state_path);
     let output_dir = args.output_dir.unwrap_or(default_config_dir);
     log_debug!("[Sync] Syncing from state: {}", state_path.display());
-    log_debug!(
-        "[Sync] Outputting to config directory: {}",
-        output_dir.display()
-    );
+    log_debug!("[Sync] Outputting to config directory: {}", output_dir.display());
     sync_state_to_configs(&state_path, &output_dir);
     log_info!("[Sync] Synchronization process completed.");
 }
 
 /// Helper function to serialize data to YAML and write to a file.
 fn write_yaml_file<T: serde::Serialize>(path: &PathBuf, data: &T) -> Result<(), String> {
-    log_debug!(
-        "[Sync:File] Writing YAML file: {}",
-        path.display().to_string().cyan()
-    );
+    log_debug!("[Sync:File] Writing YAML file: {}", path.display().to_string().cyan());
     // Create parent directories if they don't exist.
     fs::create_dir_all(path.parent().unwrap_or(Path::new("."))).map_err(|e| {
         format!(
@@ -115,7 +109,7 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
                 e
             );
             return; // Exit if state cannot be read.
-        }
+        },
     };
     log_info!("[Sync:Config] DevBox state loaded.");
 
@@ -149,19 +143,12 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
         tool_entry
             .validate()
             .map_err(|e| {
-                log_warn!(
-                    "[Sync:Config] Validation warning for tool '{}': {}",
-                    tool_entry.name,
-                    e
-                );
+                log_warn!("[Sync:Config] Validation warning for tool '{}': {}", tool_entry.name, e);
             })
             .ok(); // Log validation warnings but continue.
         tool_entries.push(tool_entry);
     }
-    let tool_config = ToolConfig {
-        update_latest_only_after: None,
-        tools: tool_entries,
-    };
+    let tool_config = ToolConfig { update_latest_only_after: None, tools: tool_entries };
 
     let tools_yaml_path = output_dir.join("tools.yaml");
     if let Err(e) = write_yaml_file(&tools_yaml_path, &tool_config) {
@@ -189,11 +176,7 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
         };
         macos_settings.push(setting_entry);
     }
-    let settings_config = SettingsConfig {
-        settings: OsSpecificSettings {
-            macos: macos_settings,
-        },
-    };
+    let settings_config = SettingsConfig { settings: OsSpecificSettings { macos: macos_settings } };
 
     let settings_yaml_path = output_dir.join("settings.yaml");
     if let Err(e) = write_yaml_file(&settings_yaml_path, &settings_config) {
@@ -222,9 +205,7 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
         };
         font_entries.push(font_entry);
     }
-    let font_config = FontConfig {
-        fonts: font_entries,
-    };
+    let font_config = FontConfig { fonts: font_entries };
 
     let fonts_yaml_path = output_dir.join("fonts.yaml");
     if let Err(e) = write_yaml_file(&fonts_yaml_path, &font_config) {

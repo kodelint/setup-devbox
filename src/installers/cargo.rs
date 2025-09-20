@@ -59,10 +59,7 @@ use crate::{log_debug, log_error, log_info, log_warn};
 ///     is performed before returning `None` to provide context for the failure.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Start the installation process with a debug log, clearly indicating which tool (crate) is being processed.
-    log_debug!(
-        "[Cargo Installer] Attempting to install Cargo tool: {}",
-        tool_entry.name.bold()
-    );
+    log_debug!("[Cargo Installer] Attempting to install Cargo tool: {}", tool_entry.name.bold());
 
     // 1. Basic Validation: Check if `cargo` command is available.
     // Before attempting any installation, we must ensure that the Rust toolchain (specifically `cargo`)
@@ -80,9 +77,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // 2. Check if this is a git-based installation
     // We look at the `options` field in `tool_entry` to see if it contains the `--git` flag.
     // This determines which `cargo install` command variant to build.
-    let is_git_install = tool_entry.options.as_ref().map_or(false, |options| {
-        options.iter().any(|opt| opt.starts_with("--git"))
-    });
+    let is_git_install = tool_entry
+        .options
+        .as_ref()
+        .map_or(false, |options| options.iter().any(|opt| opt.starts_with("--git")));
 
     // 3. Prepare `cargo install` Command Arguments
     // We initialize a vector to hold the arguments for the `cargo` command.
@@ -161,10 +159,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             );
             "/usr/local/bin/".to_string()
         };
-        log_debug!(
-            "[Cargo Installer] Determined installation path: {}",
-            install_path.cyan()
-        );
+        log_debug!("[Cargo Installer] Determined installation path: {}", install_path.cyan());
 
         // 7. Return ToolState for Tracking
         // Construct a `ToolState` object to record the details of this successful installation.
@@ -246,10 +241,7 @@ fn prepare_crate_install_command(command_args: &mut Vec<String>, tool_entry: &To
     if let Some(version) = &tool_entry.version {
         command_args.push("--version".to_string());
         command_args.push(version.clone());
-        log_debug!(
-            "[Cargo Installer] Installing specific version: {}",
-            version.cyan()
-        );
+        log_debug!("[Cargo Installer] Installing specific version: {}", version.cyan());
     }
 
     // Add any additional, user-defined options (like `--features`, `--locked`, etc.).
@@ -306,10 +298,7 @@ fn prepare_git_install_command(command_args: &mut Vec<String>, tool_entry: &Tool
         if let Some(version) = &tool_entry.version {
             command_args.push("--tag".to_string());
             command_args.push(version.clone());
-            log_debug!(
-                "[Cargo Installer] Using version as git tag: {}",
-                version.cyan()
-            );
+            log_debug!("[Cargo Installer] Using version as git tag: {}", version.cyan());
         }
     } else {
         // If git options are explicitly set (e.g., `--branch`), the `version` field is ignored
@@ -408,9 +397,7 @@ fn get_updated_cargo_options_for_state(
     // If this is a git installation and version is specified, add --tag to options
     if let Some(version) = &tool_entry.version {
         // Check if git-specific options are already present
-        let has_branch = updated_options
-            .iter()
-            .any(|opt| opt.starts_with("--branch"));
+        let has_branch = updated_options.iter().any(|opt| opt.starts_with("--branch"));
         let has_tag = updated_options.iter().any(|opt| opt.starts_with("--tag"));
         let has_rev = updated_options.iter().any(|opt| opt.starts_with("--rev"));
 
