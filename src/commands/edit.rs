@@ -1,4 +1,4 @@
-use crate::schemas::sdb_schema::ConfigPaths;
+use crate::schemas::common::ConfigPaths;
 use crate::{log_debug, log_error, log_info, log_warn};
 use colored::Colorize;
 use sha2::{Digest, Sha256};
@@ -342,10 +342,10 @@ where
 {
     log_debug!("[Edit] Resolving {} file path", file_type);
 
-    // Check for SDB_CONFIG_DIR environment variable first
-    if let Ok(config_dir) = env::var("SDB_CONFIG_DIR") {
+    // Check for SDB_CONFIG_PATH environment variable first
+    if let Ok(config_dir) = env::var("SDB_CONFIG_PATH") {
         log_debug!(
-            "[Edit] Using SDB_CONFIG_DIR environment variable: {}",
+            "[Edit] Using SDB_CONFIG_PATH environment variable: {}",
             config_dir
         );
         let mut path = PathBuf::from(config_dir);
