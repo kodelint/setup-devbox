@@ -25,10 +25,16 @@ pub fn source_rc_file(shell_type: &str, rc_path: &Path) -> Result<(), Box<dyn st
 
     // Execute the source command using the specified shell
     // The "-c" flag tells the shell to execute the following command string
-    let output = std::process::Command::new(shell_type).arg("-c").arg(&source_command).output()?;
+    let output = std::process::Command::new(shell_type)
+        .arg("-c")
+        .arg(&source_command)
+        .output()?;
 
     if output.status.success() {
-        log_info!("[Shell Config] Successfully sourced {} file", shell_type.bold());
+        log_info!(
+            "[Shell Config] Successfully sourced {} file",
+            shell_type.bold()
+        );
         Ok(())
     } else {
         let error_msg = String::from_utf8_lossy(&output.stderr);
@@ -62,7 +68,7 @@ pub fn get_rc_file(shell: &str) -> Option<PathBuf> {
                 shell.red()
             );
             return None;
-        },
+        }
     };
 
     Some(home_dir.join(rc_file_name))
@@ -83,7 +89,10 @@ pub fn get_rc_file(shell: &str) -> Option<PathBuf> {
 pub fn remove_rc_file(rc_path: &Path) -> Result<(), std::io::Error> {
     if rc_path.exists() {
         fs::remove_file(rc_path)?;
-        log_info!("[Shell Config] Removed the '{}' file", rc_path.display().to_string().green());
+        log_info!(
+            "[Shell Config] Removed the '{}' file",
+            rc_path.display().to_string().green()
+        );
     }
     Ok(())
 }
@@ -138,7 +147,10 @@ pub fn read_rc_file(rc_path: &Path) -> Vec<String> {
     }
 
     match fs::File::open(rc_path) {
-        Ok(file) => BufReader::new(file).lines().filter_map(Result::ok).collect(),
+        Ok(file) => BufReader::new(file)
+            .lines()
+            .filter_map(Result::ok)
+            .collect(),
         Err(err) => {
             log_warn!(
                 "[Shell Config] Could not read RC file {}: {}. Using empty file.",
@@ -146,6 +158,6 @@ pub fn read_rc_file(rc_path: &Path) -> Vec<String> {
                 err.to_string().red()
             );
             vec![]
-        },
+        }
     }
 }

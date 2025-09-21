@@ -163,15 +163,24 @@ pub fn resolve_paths(
     state_path: Option<String>,  // User-provided path for the application state file.
 ) -> Option<(PathBuf, String, PathBuf)> {
     log_debug!("Entering resolve_paths() function.");
-    log_debug!("Initial config_path parameter: {}", config_path.as_deref().unwrap_or("None"));
-    log_debug!("Initial state_path parameter: {}", state_path.as_deref().unwrap_or("None"));
+    log_debug!(
+        "Initial config_path parameter: {}",
+        config_path.as_deref().unwrap_or("None")
+    );
+    log_debug!(
+        "Initial state_path parameter: {}",
+        state_path.as_deref().unwrap_or("None")
+    );
 
     // Resolve main configuration path
     let config_path_resolved = if let Some(user_config_path) = config_path {
         // User-provided config path takes highest priority
         expand_tilde(&user_config_path)
     } else if let Ok(env_config_path) = env::var("SDB_CONFIG_PATH") {
-        log_debug!("[SDB] Using \"{}\" as SDB Configuration folder", "SDB_CONFIG_PATH".blue());
+        log_debug!(
+            "[SDB] Using \"{}\" as SDB Configuration folder",
+            "SDB_CONFIG_PATH".blue()
+        );
         // Environment variable SDB_CONFIG_PATH
         expand_tilde(&format!("{}/configs/config.yaml", env_config_path))
     } else {
@@ -184,11 +193,17 @@ pub fn resolve_paths(
         // User-provided state path takes highest priority
         expand_tilde(&user_state_path)
     } else if let Ok(env_state_path) = env::var("SDB_STATE_FILE_PATH") {
-        log_debug!("[SDB] Using \"{}\" as SDB State file folder", "SDB_STATE_FILE_PATH".blue());
+        log_debug!(
+            "[SDB] Using \"{}\" as SDB State file folder",
+            "SDB_STATE_FILE_PATH".blue()
+        );
         // Environment variable SDB_STATE_FILE_PATH
         expand_tilde(&format!("{}/state.json", env_state_path))
     } else if let Ok(env_config_path) = env::var("SDB_CONFIG_PATH") {
-        log_debug!("[SDB] Using \"{}\" as SDB State file folder", "SDB_CONFIG_PATH".blue());
+        log_debug!(
+            "[SDB] Using \"{}\" as SDB State file folder",
+            "SDB_CONFIG_PATH".blue()
+        );
         // Fallback to SDB_CONFIG_PATH
         expand_tilde(&format!("{}/state.json", env_config_path))
     } else {
@@ -212,8 +227,14 @@ pub fn resolve_paths(
         "Managing application state in: {}",
         state_path_resolved.display().to_string().yellow()
     );
-    log_debug!("Resolved config_path: {}", config_path_resolved.to_string_lossy());
-    log_debug!("Resolved state_path: {}", state_path_resolved.to_string_lossy());
+    log_debug!(
+        "Resolved config_path: {}",
+        config_path_resolved.to_string_lossy()
+    );
+    log_debug!(
+        "Resolved state_path: {}",
+        state_path_resolved.to_string_lossy()
+    );
     log_debug!("Detected config filename: '{}'", config_filename.blue());
 
     // Basic check to ensure paths are not empty or invalid

@@ -37,7 +37,7 @@ pub fn run(topic: Option<String>, detailed: bool, filter: Option<String>) {
         Some(unknown) => {
             show_unknown_topic_error(unknown);
             std::process::exit(1);
-        },
+        }
         // If no topic is provided, display the default general help message.
         None => show_general_help(),
     }
@@ -66,7 +66,11 @@ fn show_unknown_topic_error(topic: &str) {
     ];
 
     // Find the longest topic name for padding
-    let max_width = TOPICS.iter().map(|(topic, _)| topic.len()).max().unwrap_or(0);
+    let max_width = TOPICS
+        .iter()
+        .map(|(topic, _)| topic.len())
+        .max()
+        .unwrap_or(0);
 
     // Iterate through the topics and print them in a formatted list.
     for (topic, desc) in &TOPICS {
@@ -91,7 +95,11 @@ fn show_general_help() {
         "  Helps orchestrating development environments with automated tool installation,"
     )
     .unwrap();
-    writeln!(output, "  standardized configurations, and reproducible setup workflows.\n").unwrap();
+    writeln!(
+        output,
+        "  standardized configurations, and reproducible setup workflows.\n"
+    )
+    .unwrap();
 
     // Add the tool's scope section.
     writeln!(output, "{}", "Scope:".bold().yellow()).unwrap();
@@ -140,7 +148,12 @@ fn show_general_help() {
 ///
 /// * `output` - A mutable reference to the `String` where the content will be appended.
 fn add_environment_variables(output: &mut String) {
-    writeln!(output, "{}", "Supported Environment Variables:".bold().yellow()).unwrap();
+    writeln!(
+        output,
+        "{}",
+        "Supported Environment Variables:".bold().yellow()
+    )
+    .unwrap();
 
     let env_vars = [
         ("SDB_CONFIG_DIR", "Path for SDB Configuration directory."),
@@ -151,11 +164,21 @@ fn add_environment_variables(output: &mut String) {
     ];
 
     // Find the longest variable name for padding
-    let max_width = env_vars.iter().map(|(name, _)| name.len()).max().unwrap_or(0);
+    let max_width = env_vars
+        .iter()
+        .map(|(name, _)| name.len())
+        .max()
+        .unwrap_or(0);
 
     for (var_name, desc) in &env_vars {
-        writeln!(output, "  • {:width$} - {}", var_name.bold().cyan(), desc, width = max_width)
-            .unwrap();
+        writeln!(
+            output,
+            "  • {:width$} - {}",
+            var_name.bold().cyan(),
+            desc,
+            width = max_width
+        )
+        .unwrap();
     }
     writeln!(output).unwrap();
 }
@@ -176,9 +199,15 @@ fn add_usage_info(output: &mut String) {
     // A constant array for commands and their descriptions.
     let commands = [
         ("version", "Show the current Version of the tool"),
-        ("now", "Installs and Configures Tools, Fonts, OS Settings and Shell Configs"),
+        (
+            "now",
+            "Installs and Configures Tools, Fonts, OS Settings and Shell Configs",
+        ),
         ("generate", "Generates default configuration files"),
-        ("sync-config", "Synchronizes or generates configurations from a state file"),
+        (
+            "sync-config",
+            "Synchronizes or generates configurations from a state file",
+        ),
         ("help", "Show detailed help for commands and installers"),
     ];
 
@@ -187,14 +216,24 @@ fn add_usage_info(output: &mut String) {
 
     // Iterate and print each command.
     for (cmd, desc) in &commands {
-        writeln!(output, "  • {:width$} - {}", cmd.green(), desc, width = max_width).unwrap();
+        writeln!(
+            output,
+            "  • {:width$} - {}",
+            cmd.green(),
+            desc,
+            width = max_width
+        )
+        .unwrap();
     }
     writeln!(output).unwrap();
 
     // Add global options section.
     writeln!(output, "{}", "Global Options:".bold().yellow()).unwrap();
 
-    let options = [("-d, --debug", "Enables detailed debug output"), ("-h, --help", "Print help")];
+    let options = [
+        ("-d, --debug", "Enables detailed debug output"),
+        ("-h, --help", "Print help"),
+    ];
 
     // Find the longest option name for padding
     let max_width = options.iter().map(|(opt, _)| opt.len()).max().unwrap_or(0);
@@ -224,13 +263,17 @@ fn add_detailed_help_info(output: &mut String) {
     writeln!(
         output,
         "{}",
-        "Detailed help information about SETUP-DEVBOX".bold().bright_blue()
+        "Detailed help information about SETUP-DEVBOX"
+            .bold()
+            .bright_blue()
     )
     .unwrap();
     writeln!(
         output,
         "{}",
-        "------------------------------------------------\n".blue().bright_blue()
+        "------------------------------------------------\n"
+            .blue()
+            .bright_blue()
     )
     .unwrap();
 
@@ -241,7 +284,10 @@ fn add_detailed_help_info(output: &mut String) {
     // List available help topics with descriptions.
     writeln!(output, "{}", "Available Help Topics:".bold().white()).unwrap();
     let topics = [
-        ("installers", "Show all supported installers and their details"),
+        (
+            "installers",
+            "Show all supported installers and their details",
+        ),
         ("now", "Show detailed help for installation command"),
         ("generate", "Show help for configuration generation"),
         ("sync-config", "Show help for configuration synchronization"),
@@ -249,10 +295,21 @@ fn add_detailed_help_info(output: &mut String) {
     ];
 
     // Find the longest topic name for padding
-    let max_width = topics.iter().map(|(topic, _)| topic.len()).max().unwrap_or(0);
+    let max_width = topics
+        .iter()
+        .map(|(topic, _)| topic.len())
+        .max()
+        .unwrap_or(0);
 
     for (topic, desc) in &topics {
-        writeln!(output, "  • {:width$} - {}", topic.cyan(), desc, width = max_width).unwrap();
+        writeln!(
+            output,
+            "  • {:width$} - {}",
+            topic.cyan(),
+            desc,
+            width = max_width
+        )
+        .unwrap();
     }
     writeln!(output).unwrap();
 
@@ -265,10 +322,21 @@ fn add_detailed_help_info(output: &mut String) {
     ];
 
     // Find the longest option name for padding
-    let max_width = help_options.iter().map(|(opt, _)| opt.len()).max().unwrap_or(0);
+    let max_width = help_options
+        .iter()
+        .map(|(opt, _)| opt.len())
+        .max()
+        .unwrap_or(0);
 
     for (opt, desc) in &help_options {
-        writeln!(output, "  • {:width$} - {}", opt.cyan(), desc, width = max_width).unwrap();
+        writeln!(
+            output,
+            "  • {:width$} - {}",
+            opt.cyan(),
+            desc,
+            width = max_width
+        )
+        .unwrap();
     }
 
     writeln!(output, "{}: All Topics supports \"{}\" and installers optionally also support \"{}\" for specific installer\n",

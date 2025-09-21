@@ -26,7 +26,10 @@ impl Default for ConfigurationManager {
     /// Provides a default state for the `ConfigurationManager`, with configuration
     /// disabled by default.
     fn default() -> Self {
-        Self { enabled: false, tools_configuration_path: String::new() }
+        Self {
+            enabled: false,
+            tools_configuration_path: String::new(),
+        }
     }
 }
 
@@ -60,7 +63,9 @@ impl ConfigurationManagerProcessor {
     /// the method will fall back to environment variables and default paths.
     pub fn new(config_base_path: Option<PathBuf>) -> Self {
         let base_path = Self::resolve_config_base_path(config_base_path);
-        Self { config_base_path: base_path }
+        Self {
+            config_base_path: base_path,
+        }
     }
 
     /// Resolves the configuration base path using a prioritized search order.
@@ -81,7 +86,7 @@ impl ConfigurationManagerProcessor {
                         "[Tools] Failed to expand \"{}\", using fallback",
                         "SDB_TOOLS_SOURCE_CONFIG_PATH".blue()
                     );
-                },
+                }
             }
         }
 
@@ -95,13 +100,13 @@ impl ConfigurationManagerProcessor {
                     );
                     // The tools configurations are located in a subdirectory
                     return expanded_path.join("configs").join("tools");
-                },
+                }
                 Err(_) => {
                     log_warn!(
                         "[Tools] Failed to expand \"{}\", using fallback",
                         "SDB_CONFIG_PATH".blue()
                     );
-                },
+                }
             }
         }
 
@@ -135,7 +140,10 @@ impl ConfigurationManagerProcessor {
     ) -> Result<Option<ConfigurationManagerState>, Box<dyn std::error::Error>> {
         // If configuration is disabled, there's nothing to do.
         if !config_manager.enabled {
-            log_debug!("[Tools] Configuration manager disabled for tool: {}", tool_name.cyan());
+            log_debug!(
+                "[Tools] Configuration manager disabled for tool: {}",
+                tool_name.cyan()
+            );
             return Ok(None);
         }
 
@@ -162,7 +170,10 @@ impl ConfigurationManagerProcessor {
             &destination_path,
             existing_state,
         )? {
-            log_info!("[Tools] Configuration for {} is up to date, skipping", tool_name.green());
+            log_info!(
+                "[Tools] Configuration for {} is up to date, skipping",
+                tool_name.green()
+            );
             // If no update is needed, return the existing state.
             return Ok(existing_state.cloned());
         }
@@ -200,7 +211,10 @@ impl ConfigurationManagerProcessor {
 
         // If there's no existing state, it's a new configuration, so an update is needed.
         if existing_state.is_none() {
-            log_debug!("[Tools] Configuration newly enabled for {} - change detected", tool_name);
+            log_debug!(
+                "[Tools] Configuration newly enabled for {} - change detected",
+                tool_name
+            );
             return Ok(true);
         }
 
@@ -208,21 +222,30 @@ impl ConfigurationManagerProcessor {
 
         // Check if the destination path has been changed in the tool's config.
         if existing_config.tools_configuration_path != config_manager.tools_configuration_path {
-            log_debug!("[Tools] Configuration path changed for {} - change detected", tool_name);
+            log_debug!(
+                "[Tools] Configuration path changed for {} - change detected",
+                tool_name
+            );
             return Ok(true);
         }
 
         // Check if the destination file exists. It might have been deleted externally.
         let destination_path = Self::expand_path(&config_manager.tools_configuration_path)?;
         if !destination_path.exists() {
-            log_debug!("[Tools] Destination file missing for {} - change detected", tool_name);
+            log_debug!(
+                "[Tools] Destination file missing for {} - change detected",
+                tool_name
+            );
             return Ok(true);
         }
 
         // Check if the source file exists. It's a required prerequisite.
         let source_path = self.build_source_path(tool_name);
         if !source_path.exists() {
-            log_debug!("[Tools] Source file missing for {} - no change needed", tool_name);
+            log_debug!(
+                "[Tools] Source file missing for {} - no change needed",
+                tool_name
+            );
             return Ok(false);
         }
 
@@ -262,7 +285,7 @@ impl ConfigurationManagerProcessor {
             None => {
                 log_debug!("[Tools] No existing configuration state, update needed");
                 return Ok(true);
-            },
+            }
         };
 
         // Condition 2: Check if source file changed by comparing SHAs.
@@ -350,17 +373,20 @@ impl ConfigurationManagerProcessor {
         toml_value: &TomlValue,
         destination_path: &Path,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        let extension = destination_path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+        let extension = destination_path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("");
 
         match extension.to_lowercase().as_str() {
             "json" => {
                 let json_value = self.toml_to_json(toml_value)?;
                 Ok(serde_json::to_string_pretty(&json_value)?)
-            },
+            }
             "yaml" | "yml" => {
                 let yaml_value = self.toml_to_yaml(toml_value)?;
                 Ok(serde_yaml::to_string(&yaml_value)?)
-            },
+            }
             "toml" => Ok(toml::to_string_pretty(toml_value)?),
             _ => Ok(self.toml_to_key_value(toml_value)),
         }
@@ -428,13 +454,13 @@ impl ConfigurationManagerProcessor {
                     };
                     self.flatten_toml_to_key_value(val, new_prefix, result);
                 }
-            },
+            }
             TomlValue::Array(arr) => {
                 for (i, val) in arr.iter().enumerate() {
                     let new_prefix = format!("{}_{}", prefix, i);
                     self.flatten_toml_to_key_value(val, new_prefix, result);
                 }
-            },
+            }
             _ => {
                 let value_str = match value {
                     TomlValue::String(s) => {
@@ -444,7 +470,7 @@ impl ConfigurationManagerProcessor {
                         } else {
                             s.clone()
                         }
-                    },
+                    }
                     TomlValue::Integer(i) => i.to_string(),
                     TomlValue::Float(f) => f.to_string(),
                     TomlValue::Boolean(b) => b.to_string(),
@@ -453,7 +479,7 @@ impl ConfigurationManagerProcessor {
                     _ => String::new(),
                 };
                 result.push(format!("{}={}", prefix, value_str));
-            },
+            }
         }
     }
 
@@ -477,7 +503,10 @@ impl ConfigurationManagerProcessor {
 
         // Check for special characters that might need quoting.
         if value.contains(|c: char| {
-            matches!(c, '=' | '#' | '"' | '\'' | '\\' | ':' | ';' | ',' | '[' | ']' | '{' | '}')
+            matches!(
+                c,
+                '=' | '#' | '"' | '\'' | '\\' | ':' | ';' | ',' | '[' | ']' | '{' | '}'
+            )
         }) {
             return true;
         }

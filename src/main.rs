@@ -149,7 +149,10 @@ fn main() {
 
             // Ensure either --state or --config is provided, but not both
             if !state && config.is_none() {
-                eprintln!("{}", "Error: You must specify either --state or --config <type>".red());
+                eprintln!(
+                    "{}",
+                    "Error: You must specify either --state or --config <type>".red()
+                );
                 eprintln!("Usage:");
                 eprintln!("  setup-devbox edit --state");
                 eprintln!("  setup-devbox edit --config <tools|fonts|shell|settings>");
@@ -157,35 +160,49 @@ fn main() {
             }
 
             edit::run(state, config);
-        },
+        }
         Commands::Generate { config, state } => {
             log_debug!("[SDB] 'Generate' subcommand detected.");
-            log_debug!("[SDB] 'Generate' subcommand received config path: {:?}", config);
-            log_debug!("[SDB] 'Generate' subcommand received state path: {:?}", state);
+            log_debug!(
+                "[SDB] 'Generate' subcommand received config path: {:?}",
+                config
+            );
+            log_debug!(
+                "[SDB] 'Generate' subcommand received state path: {:?}",
+                state
+            );
             generate::run(config, state);
-        },
-        Commands::Help { topic, detailed, filter } => {
+        }
+        Commands::Help {
+            topic,
+            detailed,
+            filter,
+        } => {
             log_debug!("[main] 'Help' subcommand detected.");
             log_debug!("[main] Help topic: {:?}", topic);
             log_debug!("[main] Detailed mode: {}", detailed);
             log_debug!("[main] Filter: {:?}", filter);
             help::run(topic, detailed, filter);
-        },
-        Commands::Now { config, state, update_latest } => {
+        }
+        Commands::Now {
+            config,
+            state,
+            update_latest,
+        } => {
             log_debug!("[SDB] 'Now' subcommand detected.");
             log_debug!("[SDB] 'Now' subcommand received config path: {:?}", config);
             log_debug!("[SDB] 'Now' subcommand received state path: {:?}", state);
             now::run(config, state, update_latest);
-        },
+        }
         Commands::SyncConfig { state, output_dir } => {
             log_debug!("[main] 'SyncConfig' subcommand detected.");
             let args = sync::SyncConfigArgs { state, output_dir };
             sync::run(args);
-        },
+        }
         Commands::Version => {
             log_debug!("[SFB] 'Version' subcommand detected. Calling version::run().");
             version::run();
-        },
+        }
     }
     log_debug!("[SDB] Command execution completed. Exiting application.");
 }

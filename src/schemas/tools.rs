@@ -893,7 +893,9 @@ impl ToolEntry {
     /// - `Err(ToolEntryError)`: Specific validation error with description
     pub fn validate(&self) -> Result<(), ToolEntryError> {
         // Define all supported installation sources
-        let supported_sources = ["github", "brew", "cargo", "rustup", "pip", "go", "url", "uv"];
+        let supported_sources = [
+            "github", "brew", "cargo", "rustup", "pip", "go", "url", "uv",
+        ];
         let source_lower = self.source.to_lowercase();
 
         // Validate that the source is supported
@@ -918,7 +920,7 @@ impl ToolEntry {
                         "url or executable_path_after_extract should not be present for GitHub source".to_string(),
                     ));
                 }
-            },
+            }
             "url" => {
                 // URL sources require a download URL
                 if self.url.is_none() {
@@ -932,7 +934,7 @@ impl ToolEntry {
                     ));
                 }
                 // Note: executable_path_after_extract is allowed for URL sources (archives)
-            },
+            }
             // Package manager sources (brew, cargo, rustup, pip, go, uv)
             "brew" | "cargo" | "rustup" | "pip" | "uv" => {
                 // Package managers cannot use any source-specific fields
@@ -947,7 +949,7 @@ impl ToolEntry {
                     )));
                 }
                 // Note: additional_cmd is allowed for all sources for post-install flexibility
-            },
+            }
             "go" => {
                 if self.repo.is_some()
                     || self.tag.is_some()
@@ -958,7 +960,7 @@ impl ToolEntry {
                         self.source
                     )));
                 }
-            },
+            }
             _ => {
                 // This shouldn't be reachable due to the supported_sources check above,
                 // but is included for completeness and future-proofing
@@ -966,7 +968,7 @@ impl ToolEntry {
                     "Source validation should have caught unsupported source: {}",
                     source_lower
                 );
-            },
+            }
         }
 
         // All validation checks passed
@@ -987,16 +989,16 @@ impl fmt::Display for ToolEntryError {
         match self {
             Self::MissingField(field) => {
                 write!(f, "Missing required field: {field}")
-            },
+            }
             Self::InvalidSource(source) => {
                 write!(
                     f,
                     "Invalid tool source: '{source}'. Supported sources are: github, brew, cargo, rustup, pip, go, url, uv"
                 )
-            },
+            }
             Self::ConflictingFields(msg) => {
                 write!(f, "Conflicting fields: {msg}")
-            },
+            }
         }
     }
 }
@@ -1028,7 +1030,7 @@ impl fmt::Display for InstallerError {
                         _ => cmd, // Generic fallback for unknown commands
                     }
                 )
-            },
+            }
         }
     }
 }

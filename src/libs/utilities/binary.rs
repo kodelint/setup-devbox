@@ -110,7 +110,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                     }
                                     // If it's a confirmed native binary, return it immediately as the most likely candidate.
                                     return Some(sole_path);
-                                },
+                                }
                                 // For other object types (e.g., PE for Windows, or unknown):
                                 _ => {
                                     // Check if the file starts with `#!` (shebang), indicating a script.
@@ -137,17 +137,21 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                         // If it's a script, return it immediately.
                                         return Some(sole_path);
                                     }
-                                },
+                                }
                             }
-                        },
+                        }
                         Err(err) => {
                             log_debug!("Goblin failed to parse the file: {}", err);
-                        },
+                        }
                     }
-                },
+                }
                 Err(err) => {
-                    log_warn!("Failed to read file {} for parsing: {}", sole_path.display(), err);
-                },
+                    log_warn!(
+                        "Failed to read file {} for parsing: {}",
+                        sole_path.display(),
+                        err
+                    );
+                }
             }
         }
     }
@@ -162,7 +166,11 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
     {
         let path = entry.path();
         // Get the lowercase filename for comparison.
-        let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+        let file_name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
 
         // Skip files with common non-executable extensions or names.
         // This is an optimization to avoid processing irrelevant files.
@@ -179,7 +187,10 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
             || file_name.contains("license")
             || file_name.contains("readme")
         {
-            log_debug!("Skipping known non-executable file by extension/name: {}", file_name);
+            log_debug!(
+                "Skipping known non-executable file by extension/name: {}",
+                file_name
+            );
             continue; // Move to the next file.
         }
 
@@ -228,7 +239,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                 add_candidate = true;
                             }
                         }
-                    },
+                    }
                     _ => {
                         // If not a native binary, check for shebang.
                         if data.starts_with(b"#!") {
@@ -265,7 +276,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                 }
                             }
                         }
-                    },
+                    }
                 }
             } else {
                 log_debug!("Goblin failed to parse the file: {}", path.display());
@@ -311,8 +322,16 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
 
     // Sort the collected candidates to prioritize the most likely executable.
     candidates.sort_by(|(a_path, a_size), (b_path, b_size)| {
-        let a = a_path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
-        let b = b_path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+        let a = a_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_lowercase();
+        let b = b_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_lowercase();
 
         // Primary sort criterion: exact match with the `target_name_lower`.
         // A file whose name exactly matches the expected (renamed) binary name is highly prioritized.
@@ -391,9 +410,12 @@ pub fn move_and_rename_binary(from: &Path, to: &Path) -> io::Result<()> {
     // However, it fails if source and destination are on different filesystems (cross-device link).
     match fs::rename(from, to) {
         Ok(_) => {
-            log_debug!("[Utils] Binary moved/renamed to {}", to.to_string_lossy().green());
+            log_debug!(
+                "[Utils] Binary moved/renamed to {}",
+                to.to_string_lossy().green()
+            );
             Ok(()) // Success case.
-        },
+        }
         // Handle the specific error case where `fs::rename` fails due to `CrossesDevices`.
         // This means the source and destination paths are on different file systems.
         Err(e) if e.kind() == io::ErrorKind::CrossesDevices => {
@@ -412,7 +434,7 @@ pub fn move_and_rename_binary(from: &Path, to: &Path) -> io::Result<()> {
                 to.to_string_lossy().green()
             );
             Ok(()) // Success after fallback.
-        },
+        }
         // Handle any other `io::Error` that `fs::rename` might return.
         Err(e) => {
             log_error!(
@@ -422,7 +444,7 @@ pub fn move_and_rename_binary(from: &Path, to: &Path) -> io::Result<()> {
                 e
             );
             Err(e) // Propagate the original error.
-        },
+        }
     }
 }
 
@@ -439,7 +461,10 @@ pub fn move_and_rename_binary(from: &Path, to: &Path) -> io::Result<()> {
 ///   - `io::Error` if permissions cannot be read or set (only applicable on Unix).
 #[cfg(unix)] // This function only compiles on Unix-like operating systems (Linux, macOS).
 pub fn make_executable(path: &Path) -> io::Result<()> {
-    log_debug!("[Utils] Making {} executable", path.to_string_lossy().yellow());
+    log_debug!(
+        "[Utils] Making {} executable",
+        path.to_string_lossy().yellow()
+    );
     // Get the current metadata (including permissions) of the file.
     // The `?` operator propagates any `io::Error` if metadata cannot be retrieved.
     let mut perms = fs::metadata(path)?.permissions();
@@ -454,7 +479,10 @@ pub fn make_executable(path: &Path) -> io::Result<()> {
     // Apply the modified permissions back to the file.
     // The `?` operator propagates any `io::Error` if permissions cannot be set.
     fs::set_permissions(path, perms)?;
-    log_debug!("[Utils] File {} is now executable.", path.to_string_lossy().green());
+    log_debug!(
+        "[Utils] File {} is now executable.",
+        path.to_string_lossy().green()
+    );
     Ok(()) // Indicate success.
 }
 

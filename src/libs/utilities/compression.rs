@@ -66,7 +66,10 @@ pub fn extract_archive(
     // If `known_file_type` is provided (i.e., `Some(ft)`), use that.
     // Otherwise, fall back to `detect_file_type` which uses the `file` command.
     let file_type = if let Some(ft) = known_file_type {
-        log_debug!("[Utils] Using known file type from argument: {}", ft.green());
+        log_debug!(
+            "[Utils] Using known file type from argument: {}",
+            ft.green()
+        );
         ft.to_string()
     } else {
         log_debug!("[Utils] No known file type provided. Auto-detecting using 'file' command...");
@@ -90,7 +93,7 @@ pub fn extract_archive(
             // Extract all contents of the zip archive into the `extracted_path`.
             archive.extract(&extracted_path)?;
             log_debug!("[Utils] Zip archive extracted successfully.");
-        },
+        }
         "tar.gz" => {
             // Handle specific `tar.gz` files.
             // Open the gzipped tar file.
@@ -102,7 +105,7 @@ pub fn extract_archive(
             // Unpack all contents of the tar archive into the `extracted_path`.
             archive.unpack(&extracted_path)?;
             log_debug!("[Utils] Tar.gz archive extracted successfully.");
-        },
+        }
         "gz" => {
             // Handle pure `.gz` files (not tarred, typically a single compressed file).
             log_info!(
@@ -119,7 +122,7 @@ pub fn extract_archive(
                 "[Utils] GZ file decompressed successfully to {:?}",
                 output_file_path.display()
             );
-        },
+        }
         "tar.bz2" | "tar.bz" => {
             // Open the bzipped tar file.
             let tar_bz2 = File::open(src)?;
@@ -130,7 +133,7 @@ pub fn extract_archive(
             // Unpack all contents of the tar archive into the `extracted_path`.
             archive.unpack(&extracted_path)?;
             log_debug!("[Utils] Tar.bz2 archive extracted successfully.");
-        },
+        }
         "tar" => {
             // Handle plain `.tar` archives (uncompressed).
             // Open the tar file.
@@ -140,7 +143,7 @@ pub fn extract_archive(
             // Unpack all contents of the tar archive into the `extracted_path`.
             archive.unpack(&extracted_path)?;
             log_debug!("[Utils] Tar archive extracted successfully.");
-        },
+        }
         "tar.xz" | "xz" | "txz" => {
             // Added support for tar.xz and xz/txz aliases
             log_debug!("[Utils] Decompressing Tar.xz/XZ file.");
@@ -149,7 +152,7 @@ pub fn extract_archive(
             let mut archive = Archive::new(decompressor);
             archive.unpack(&extracted_path)?;
             log_debug!("[Utils] Tar.xz archive extracted successfully.");
-        },
+        }
         "binary" => {
             // For standalone binaries like a .exe or uncompressed Mac binary.
             // In this case, "extraction" means simply copying the binary to the `extracted_path`.
@@ -165,7 +168,7 @@ pub fn extract_archive(
                 "[Utils] Binary copied successfully to {:?}",
                 extracted_path.join(file_name).display()
             );
-        },
+        }
         "pkg" => {
             // For macOS `.pkg` files, which are installers, not archives to unpack in the traditional sense.
             // We copy them to the extracted path so they are available for installation later.
@@ -181,7 +184,7 @@ pub fn extract_archive(
                 "[Utils] .pkg file copied successfully to {:?}",
                 extracted_path.join(file_name).display()
             );
-        },
+        }
         _ => {
             // If the `file_type` string does not match any of the supported types.
             log_error!(
@@ -194,7 +197,7 @@ pub fn extract_archive(
                 io::ErrorKind::InvalidData, // `InvalidData` is suitable for unsupported file formats.
                 format!("Unsupported archive type: {}", file_type),
             ));
-        },
+        }
     }
 
     // Log a success message with the path to the extracted contents.

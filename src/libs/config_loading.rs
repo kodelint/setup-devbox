@@ -86,7 +86,11 @@ where
         // Expand the `~` character in the path to the actual home directory path.
         let path = expand_tilde(path_str);
         // Log the attempt to load the configuration, including the resolved path.
-        log_debug!("Attempting to load {} config from: {}", config_name, path.display());
+        log_debug!(
+            "Attempting to load {} config from: {}",
+            config_name,
+            path.display()
+        );
 
         // Attempt to read the file content into a string.
         match fs::read_to_string(&path) {
@@ -102,7 +106,7 @@ where
                             path.display().to_string().green()
                         );
                         Some(cfg) // Return the successfully parsed configuration.
-                    },
+                    }
                     Err(e) => {
                         // Log a detailed error message if YAML parsing fails (e.g., syntax errors).
                         log_error!(
@@ -112,9 +116,9 @@ where
                             e
                         );
                         None // Return None on parsing failure.
-                    },
+                    }
                 }
-            },
+            }
             Err(_) => {
                 // Log a warning if the file is not found or is unreadable. This is not critical,
                 // as not all configurations are mandatory.
@@ -125,10 +129,13 @@ where
                     config_name
                 );
                 None // Return None if the file cannot be read.
-            },
+            }
         }
     } else {
-        log_debug!("No path provided for {} config. Skipping load.", config_name); // Log if no path was provided.
+        log_debug!(
+            "No path provided for {} config. Skipping load.",
+            config_name
+        ); // Log if no path was provided.
         None // No path was provided, so nothing to load.
     }
 }
@@ -166,7 +173,7 @@ pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
                 e
             );
             std::process::exit(1); // Exit with a non-zero status code to indicate failure.
-        },
+        }
     };
 
     // Attempt to deserialize the content into the `MainConfig` struct.
@@ -181,7 +188,7 @@ pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
                 e
             );
             std::process::exit(1); // Exit with a non-zero status code.
-        },
+        }
     };
     // log_debug!("MainConfig loaded: Tools: {}, Fonts: {}, Shell: {} and Settings: {}", main_cfg.fonts.as_deref()); // Log the loaded MainConfig for debugging.
     log_debug!(
@@ -260,13 +267,17 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
                 e
             );
             std::process::exit(1); // Exit the application.
-        },
+        }
     };
 
     // Initialize `ParsedConfigs` with all fields set to `None`. Only one will be populated
     // based on the `config_filename`.
-    let mut parsed_configs =
-        ParsedConfigs { tools: None, settings: None, shell: None, fonts: None };
+    let mut parsed_configs = ParsedConfigs {
+        tools: None,
+        settings: None,
+        shell: None,
+        fonts: None,
+    };
 
     // Match the `config_filename` to determine which type of configuration to parse it as.
     match config_filename {
@@ -277,13 +288,13 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
                 Ok(cfg) => {
                     log_info!("[Tools] Successfully parsed tools.yaml.");
                     Some(cfg)
-                },
+                }
                 Err(e) => {
                     log_error!("Failed to parse tools.yaml: {}", e);
                     None
-                },
+                }
             }
-        },
+        }
         "settings.yaml" => {
             log_debug!("Identified as settings.yaml. Attempting to parse...");
             // Attempt to deserialize as `SettingsConfig`.
@@ -291,13 +302,13 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
                 Ok(cfg) => {
                     log_info!("[Settings] Successfully parsed settings.yaml.");
                     Some(cfg)
-                },
+                }
                 Err(e) => {
                     log_error!("Failed to parse settings.yaml: {}", e);
                     None
-                },
+                }
             }
-        },
+        }
         "shellrc.yaml" | "shellac.yaml" => {
             // Support for both common shell config filenames.
             log_debug!("Identified as shell config file. Attempting to parse...");
@@ -306,13 +317,13 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
                 Ok(cfg) => {
                     log_info!("[ShellRC] Successfully parsed shell config.");
                     Some(cfg)
-                },
+                }
                 Err(e) => {
                     log_error!("Failed to parse shell config: {}", e);
                     None
-                },
+                }
             }
-        },
+        }
         "fonts.yaml" => {
             log_debug!("Identified as fonts.yaml. Attempting to parse...");
             // Attempt to deserialize as `FontConfig`.
@@ -320,13 +331,13 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
                 Ok(cfg) => {
                     log_info!("[Fonts] Successfully parsed fonts.yaml.");
                     Some(cfg)
-                },
+                }
                 Err(e) => {
                     log_error!("Failed to parse fonts.yaml: {}", e);
                     None
-                },
+                }
             }
-        },
+        }
         other => {
             // If the filename does not match any recognized single config type, it's an error.
             log_error!(
@@ -334,7 +345,7 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
                 other.red()
             );
             std::process::exit(1); // Exit the application due to an unhandled config type.
-        },
+        }
     }
     log_debug!("Exiting load_single_config() function.");
     parsed_configs // Return the populated `ParsedConfigs`.

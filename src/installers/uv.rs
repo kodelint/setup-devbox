@@ -75,14 +75,20 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     // 2. Validate options before proceeding
     if !validate_uv_options(tool_entry) {
-        log_error!("[UV Installer] Invalid options for tool entry: {}", tool_entry.name);
+        log_error!(
+            "[UV Installer] Invalid options for tool entry: {}",
+            tool_entry.name
+        );
         return None;
     }
 
     // 3. Determine installation mode and construct command
     let (subcommand, mut command_args) = determine_installation_mode(tool_entry);
 
-    log_debug!("[UV Installer] Using installation mode: {}", subcommand.cyan().bold());
+    log_debug!(
+        "[UV Installer] Using installation mode: {}",
+        subcommand.cyan().bold()
+    );
 
     // 4. Add the package specifier (for tool and pip modes)
     if subcommand != "python" {
@@ -130,7 +136,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 e
             );
             return None;
-        },
+        }
     };
 
     // 8. Check command exit status
@@ -144,7 +150,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
         // Log outputs for debugging
         if !output.stdout.is_empty() {
-            log_debug!("[UV Installer] Stdout: {}", String::from_utf8_lossy(&output.stdout));
+            log_debug!(
+                "[UV Installer] Stdout: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
         }
         if !output.stderr.is_empty() {
             log_warn!(
@@ -182,11 +191,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 "python" => {
                     // For Python installations, the "version" is the Python version itself
                     tool_entry.version.clone()?
-                },
+                }
                 _ => {
                     // For packages, use the specified version or "latest"
-                    tool_entry.version.clone().unwrap_or_else(|| "latest".to_string())
-                },
+                    tool_entry
+                        .version
+                        .clone()
+                        .unwrap_or_else(|| "latest".to_string())
+                }
             },
             // The canonical path where the tool's executable was installed. This is the path
             // that will be recorded in the `state.json` file.
@@ -280,7 +292,7 @@ fn determine_installation_mode(tool_entry: &ToolEntry) -> (String, Vec<String>) 
                             "[UV Installer] Unknown installation mode '{}', falling back to 'tool'",
                             mode
                         );
-                    },
+                    }
                 }
             }
         }
@@ -316,7 +328,7 @@ fn determine_install_path(subcommand: &str, package_name: &str) -> String {
                 );
                 format!("/usr/local/bin/{}", package_name)
             }
-        },
+        }
         "pip" => {
             // uv pip install behavior depends on active environment
             // Default to user site-packages location
@@ -325,12 +337,18 @@ fn determine_install_path(subcommand: &str, package_name: &str) -> String {
             } else {
                 "/usr/local/lib/python/site-packages/".to_string()
             }
-        },
+        }
         "python" => {
             // uv python install installs to uv's managed Python directory
             // Use `uv python list --only-installed --json` to find the exact path
             match Command::new("uv")
-                .args(["python", "list", "--only-installed", "--output-format", "json"])
+                .args([
+                    "python",
+                    "list",
+                    "--only-installed",
+                    "--output-format",
+                    "json",
+                ])
                 .output()
             {
                 Ok(output) if output.status.success() => {
@@ -364,16 +382,16 @@ fn determine_install_path(subcommand: &str, package_name: &str) -> String {
                                 package_name
                             );
                             default_python_path(package_name)
-                        },
+                        }
                         Err(e) => {
                             log_warn!(
                                 "[UV Installer] Failed to parse uv python list output: {}, using default path",
                                 e
                             );
                             default_python_path(package_name)
-                        },
+                        }
                     }
-                },
+                }
                 Ok(output) => {
                     let error = String::from_utf8_lossy(&output.stderr);
                     log_warn!(
@@ -381,24 +399,27 @@ fn determine_install_path(subcommand: &str, package_name: &str) -> String {
                         error
                     );
                     default_python_path(package_name)
-                },
+                }
                 Err(e) => {
                     log_warn!(
                         "[UV Installer] Failed to execute uv python list: {}, using default path",
                         e
                     );
                     default_python_path(package_name)
-                },
+                }
             }
-        },
+        }
         _ => {
-            log_warn!("[UV Installer] Unknown subcommand '{}', using generic path", subcommand);
+            log_warn!(
+                "[UV Installer] Unknown subcommand '{}', using generic path",
+                subcommand
+            );
             if let Ok(home) = std::env::var("HOME") {
                 format!("{}/.local/bin/{}", home, package_name)
             } else {
                 "/usr/local/bin/".to_string()
             }
-        },
+        }
     }
 }
 
@@ -589,8 +610,8 @@ pub fn validate_uv_options(tool_entry: &ToolEntry) -> bool {
                         tool_entry.version.clone().unwrap().bright_yellow()
                     );
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 
@@ -610,11 +631,13 @@ fn is_valid_python_version(version_input: &str) -> bool {
     let version_number = extract_version_number(version_input);
 
     // Execute the uv command
-    let output =
-        match Command::new("uv").args(&["python", "list", "--output-format", "json"]).output() {
-            Ok(output) => output,
-            Err(_) => return false, // Command failed
-        };
+    let output = match Command::new("uv")
+        .args(&["python", "list", "--output-format", "json"])
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return false, // Command failed
+    };
 
     if !output.status.success() {
         return false;

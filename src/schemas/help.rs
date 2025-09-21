@@ -253,7 +253,10 @@ impl InstallerInfo {
                         let value = value.trim();
 
                         // Check if the key is all uppercase
-                        if key.chars().all(|c| c.is_uppercase() || c == '_' || c.is_numeric()) {
+                        if key
+                            .chars()
+                            .all(|c| c.is_uppercase() || c == '_' || c.is_numeric())
+                        {
                             println!("    {}: {}", key.blue().bold(), value.white());
                         } else {
                             // For non-uppercase keys, use dimmed styling

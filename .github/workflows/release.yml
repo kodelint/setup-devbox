@@ -296,27 +296,6 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
-#      - name: Install advanced analysis tools
-#        run: |
-#          # Install more advanced Rust analysis tools
-#          cargo install cargo-deny cargo-udeps cargo-pants --locked
-#          # Install nightly for some tools that need it
-#          rustup install nightly
-#          rustup component add rust-src --toolchain nightly
-
-#      - name: Run cargo-deny checks
-#        run: |
-#          echo "🚫 Running cargo-deny checks..."
-#          # Check dependencies, licenses, and advisories
-#          cargo deny check
-#          echo "✅ Cargo-deny checks passed"
-
-#      - name: Check for unused features
-#        run: |
-#          echo "🧹 Checking for unused features..."
-#          cargo pants
-#          echo "✅ Feature usage analysis complete"
-
       - name: Check binary size and analyze
         run: |
           echo "📏 Analyzing binary size..."
@@ -339,31 +318,6 @@ jobs:
           else
             echo "ℹ️ No benchmarks found"
           fi
-
-#      - name: Check for common Rust anti-patterns
-#        run: |
-#          echo "🕵️ Checking for common anti-patterns..."
-#
-#          # Check for unwrap() calls in non-test code
-#          unwrap_count=$(find src -name "*.rs" -not -path "*/tests/*" -exec grep -n "\.unwrap()" {} \; | wc -l || echo 0)
-#          if [ "$unwrap_count" -gt 0 ]; then
-#            echo "⚠️ Found $unwrap_count .unwrap() calls in src/ (consider using proper error handling)"
-#            find src -name "*.rs" -not -path "*/tests/*" -exec grep -n "\.unwrap()" {} \; || true
-#          fi
-#
-#          # Check for expect() calls
-#          expect_count=$(find src -name "*.rs" -not -path "*/tests/*" -exec grep -n "\.expect(" {} \; | wc -l || echo 0)
-#          if [ "$expect_count" -gt 0 ]; then
-#            echo "⚠️ Found $expect_count .expect() calls in src/ (review if appropriate)"
-#          fi
-#
-#          # Check for panic! calls
-#          panic_count=$(find src -name "*.rs" -not -path "*/tests/*" -exec grep -n "panic!" {} \; | wc -l || echo 0)
-#          if [ "$panic_count" -gt 0 ]; then
-#            echo "⚠️ Found $panic_count panic! calls in src/ (consider returning Result instead)"
-#          fi
-#
-#          echo "✅ Anti-pattern check complete"
 
       - name: Advanced checks summary
         if: always()

@@ -76,7 +76,10 @@ use std::path::PathBuf;
 /// * `None` if the `go` command is not found, or if the `go install` command fails for any reason
 ///   (e.g., compilation error, network issue, module not found).
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_debug!("[Go Installer] Attempting to install Go tool: {}", tool_entry.name.bold());
+    log_debug!(
+        "[Go Installer] Attempting to install Go tool: {}",
+        tool_entry.name.bold()
+    );
 
     // Basic validation: Ensure 'go' command is available in the system's PATH.
     // We check for its existence by attempting to run `go version`.
@@ -144,7 +147,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         );
         // Log standard output if available, usually contains build progress or confirmation.
         if !output.stdout.is_empty() {
-            log_debug!("[Go Installer] Stdout: {}", String::from_utf8_lossy(&output.stdout));
+            log_debug!(
+                "[Go Installer] Stdout: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
         }
         // Log standard error if available. Go commands might print warnings to stderr even on success.
         if !output.stderr.is_empty() {
@@ -178,7 +184,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // for future operations like uninstallation, updates, or syncing.
         Some(ToolState {
             // Record the actual version used, or "latest" if not explicitly specified.
-            version: tool_entry.version.clone().unwrap_or_else(|| "latest".to_string()),
+            version: tool_entry
+                .version
+                .clone()
+                .unwrap_or_else(|| "latest".to_string()),
             // The canonical path where the tool's executable was installed. This is the path
             // that will be recorded in the `state.json` file.
             install_path,

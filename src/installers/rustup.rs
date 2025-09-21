@@ -83,7 +83,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 tool_entry.name.bold().red() // Highlight the tool name in error.
             );
             return None; // Toolchain version is a mandatory field for rustup installations.
-        },
+        }
     };
 
     // 2. Install the primary Rust toolchain.
@@ -151,8 +151,13 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     if let Some(components) = &tool_entry.options {
         for component in components {
             // Command to add a component to a specific toolchain.
-            let component_command_args =
-                vec!["component", "add", component, "--toolchain", &toolchain_name];
+            let component_command_args = vec![
+                "component",
+                "add",
+                component,
+                "--toolchain",
+                &toolchain_name,
+            ];
 
             log_info!(
                 "[Rustup Installer] Executing: {} {}",
@@ -176,7 +181,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     // Decided to return None here. If a core component fails,
                     // the entire Rust setup might be considered incomplete/broken.
                     return None;
-                },
+                }
             };
 
             if !output_component.status.success() {
@@ -185,7 +190,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     "[Rustup Installer] Failed to add component '{}'. Exit code: {}. Stderr: {}",
                     component.bold().red(), // Component name (Argument 1)
                     output_component.status.code().unwrap_or(-1), // Exit code (Argument 2)
-                    String::from_utf8_lossy(&output_component.stderr).trim().red() // Stderr (Argument 3)
+                    String::from_utf8_lossy(&output_component.stderr)
+                        .trim()
+                        .red()  // Stderr (Argument 3)
                 );
                 // Similar to toolchain installation, a failed component addition
                 // is treated as a fatal error for this tool's installation.

@@ -23,14 +23,29 @@ pub fn add_supported_installers(output: &mut String) {
         ("Rustup", "Rust toolchain installer and manager.", ""),
         ("shell", "Shell configs", ".zshrc, .bashrc"),
         ("URL", "Download and install from direct URLs.", ""),
-        ("UV", "Ultra-fast Python package installer", "tool/pip/python"),
+        (
+            "UV",
+            "Ultra-fast Python package installer",
+            "tool/pip/python",
+        ),
     ];
 
     // Find the longest installer name for padding
-    let max_width = INSTALLERS.iter().map(|(name, _, _)| name.len()).max().unwrap_or(0);
+    let max_width = INSTALLERS
+        .iter()
+        .map(|(name, _, _)| name.len())
+        .max()
+        .unwrap_or(0);
 
     for (name, desc, extra) in &INSTALLERS {
-        write!(output, "  • {:width$} - {}", name.bold().cyan(), desc, width = max_width).unwrap();
+        write!(
+            output,
+            "  • {:width$} - {}",
+            name.bold().cyan(),
+            desc,
+            width = max_width
+        )
+        .unwrap();
         if !extra.is_empty() {
             if *name == "Go" {
                 write!(output, " '{}'.", extra.cyan()).unwrap();
@@ -91,14 +106,22 @@ pub fn show_installers_help(detailed: bool, filter: Option<String>) {
     // If a filter was used but no installers matched, show available installers
     if let Some(ref original_filter) = filter {
         if matched_installers.is_empty() {
-            println!("{}: No installer found matching '{}'", "Error".red(), original_filter);
+            println!(
+                "{}: No installer found matching '{}'",
+                "Error".red(),
+                original_filter
+            );
             println!("\n{}", "Available installers:".bold().yellow());
 
             // Get all installers again to show the complete list
             let all_installers = InstallerRegistry::get_all();
 
             // Find the longest installer name for padding
-            let max_width = all_installers.iter().map(|i| i.name.len()).max().unwrap_or(0);
+            let max_width = all_installers
+                .iter()
+                .map(|i| i.name.len())
+                .max()
+                .unwrap_or(0);
 
             for installer in all_installers {
                 println!(
@@ -109,7 +132,10 @@ pub fn show_installers_help(detailed: bool, filter: Option<String>) {
                 );
             }
         } else {
-            println!("\n{} Use without --filter to see all installers.", "Tip:".yellow());
+            println!(
+                "\n{} Use without --filter to see all installers.",
+                "Tip:".yellow()
+            );
         }
     }
 }

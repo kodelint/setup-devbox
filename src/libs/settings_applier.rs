@@ -96,7 +96,7 @@ pub fn apply_system_settings(
                             full_key.yellow()
                         );
                         "-string"
-                    },
+                    }
                 };
 
                 // Create a new `Command` to execute `defaults write`.
@@ -117,7 +117,7 @@ pub fn apply_system_settings(
                             .map(|s| s.trim().to_string()) // Trim whitespace and convert to String.
                             .collect();
                         command.args(&parsed_values); // Add each parsed item as a separate argument.
-                    },
+                    }
                     "-dict" => {
                         // For dictionaries, parse the desired_value string (e.g., "{key1=val1, key2=val2}") into key-value pairs.
                         let parsed_items: Vec<String> = desired_value
@@ -135,11 +135,11 @@ pub fn apply_system_settings(
                             })
                             .collect();
                         command.args(&parsed_items); // Add all parsed keys and values as arguments.
-                    },
+                    }
                     _ => {
                         // For other types (bool, int, float, string), the value is a single argument.
                         command.arg(&desired_value);
-                    },
+                    }
                 }
 
                 // Execute the `defaults` command and capture its output.
@@ -180,7 +180,7 @@ pub fn apply_system_settings(
                                 );
                             }
                         }
-                    },
+                    }
                     Err(e) => {
                         // Log an error if the `defaults` command itself could not be executed (e.g., command not found).
                         log_error!(
@@ -188,7 +188,7 @@ pub fn apply_system_settings(
                             full_key.bold().red(),
                             e.to_string().red()
                         );
-                    },
+                    }
                 }
             } else {
                 log_debug!(
