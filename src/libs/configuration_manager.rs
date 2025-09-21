@@ -147,7 +147,8 @@ impl ConfigurationManagerProcessor {
             return Ok(None);
         }
 
-        let source_path = self.build_source_path(tool_name);
+        let source_path =
+            self.build_source_path(&config_manager.tools_configuration_path, tool_name);
         // Expand the destination path to handle tildes and environment variables
         let destination_path = Self::expand_path(&config_manager.tools_configuration_path)?;
 
@@ -240,7 +241,8 @@ impl ConfigurationManagerProcessor {
         }
 
         // Check if the source file exists. It's a required prerequisite.
-        let source_path = self.build_source_path(tool_name);
+        let source_path =
+            self.build_source_path(&config_manager.tools_configuration_path, tool_name);
         if !source_path.exists() {
             log_debug!(
                 "[Tools] Source file missing for {} - no change needed",
@@ -257,10 +259,34 @@ impl ConfigurationManagerProcessor {
     /// Constructs the full path to the source configuration file for a given tool.
     ///
     /// Source files are expected to be in TOML format and named after the tool.
-    /// For example, a tool named "my-tool" would have its configuration at
-    /// `[config_base_path]/my-tool.toml`.
-    pub(crate) fn build_source_path(&self, tool_name: &str) -> PathBuf {
-        self.config_base_path.join(format!("{}.toml", tool_name))
+    /// For example, a tool named "tool_name" would have its configuration at
+    /// `[config_base_path]/tool_name/config_name.toml`.
+    pub(crate) fn build_source_path(&self, destination_path: &str, tool_name: &str) -> PathBuf {
+        // Building Source Configuration path and filename
+        let source_config_file = destination_path
+            .split('/')
+            .last()
+            .expect("Destination path must contain a filename");
+
+        // Remove extension only if it exists, otherwise keep filename as is
+        // Then add `TOML` as extension for it
+        let filename = if source_config_file.contains('.') {
+            source_config_file.split('.').next().unwrap()
+        } else {
+            source_config_file
+        };
+
+        let calculated_source_path = self
+            .config_base_path
+            .join(tool_name)
+            .join(format!("{}.toml", filename));
+        log_debug!(
+            "[Tools] Using source configuration file: \
+        {} for {}",
+            calculated_source_path.display().to_string().blue(),
+            tool_name.blue()
+        );
+        calculated_source_path
     }
 
     /// The central method for determining if an update is required.
