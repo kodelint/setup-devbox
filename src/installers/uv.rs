@@ -2,11 +2,18 @@
 // It acts as a specialized installer within the `setup-devbox` application,
 // handling the nuances of `uv` commands, different installation modes, and options.
 
-use std::path::PathBuf;
 // For working with file paths in an OS-agnostic manner.
 use crate::libs::utilities::assets::current_timestamp;
-// Imports necessary schema definitions for tools.
-use crate::schemas::sdb_schema::{ToolEntry, ToolState};
+use std::path::PathBuf;
+// Internal module imports:
+// `ToolEntry`: Represents a single tool's configuration as defined in your `tools.yaml` file.
+//              It's a struct that contains all possible configuration fields for a tool,
+//              such as name, version, source, URL, repository, etc.
+// `ToolState`: Represents the actual state of an *installed* tool. This struct is used to
+//              persist information about installed tools in the application's `state.json` file.
+//              It helps `setup-devbox` track what's installed, its version, and where it's located.
+use crate::schemas::state_file::ToolState;
+use crate::schemas::tools::ToolEntry;
 // Imports custom logging macros from the crate root.
 use crate::{log_debug, log_error, log_info, log_warn};
 // For adding color to terminal output.
@@ -228,6 +235,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // This is useful for tracking what was done and potentially for cleanup during uninstall.
             // additional_cmd_executed: tool_entry.additional_cmd.clone(),
             additional_cmd_executed: executed_additional_commands,
+            configuration_manager: None,
         })
     } else {
         // 11. Handle installation failure

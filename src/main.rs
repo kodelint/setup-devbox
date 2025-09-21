@@ -26,39 +26,6 @@ use commands::{generate, now, sync, version};
 #[command(name = "setup-devbox")]
 #[command(disable_help_subcommand = true)]
 #[command(disable_help_flag = true)]
-// #[command(about = "
-// Purpose:
-//   Helps orchestrating development environments with automated tool installation,
-//   standardized configurations, and reproducible setup workflows.
-//
-// Scope:
-//   • User-level operations only - no system-wide installations.
-//   • Development environment foundation, not project dependencies.
-//   • Project packages managed by dedicated tools (cargo, pip, uv, etc.).
-//   • Clean separation between tool installation and package management.
-//
-// Supported Installers:
-//   • brew      - Package manager for macOS/Linux (Homebrew).
-//   • cargo     - Rust package manager for crates and binaries.
-//   • fonts     - Nerd Fonts installer from GitHub releases.
-//   • github    - Download tools from GitHub releases.
-//   • go        - Go package installer using 'go install'.
-//   • pip       - Python package installer using pip.
-//   • rustup    - Rust toolchain installer and manager.
-//   • shell     - Shell configs (.zshrc, .bashrc) and aliases.
-//   • url       - Download and install from direct URLs.
-//   • uv        - Ultra-fast Python package installer (tool/pip/python modes).
-//
-// Supported Environment Variables:
-//   • SDB_CONFIG_DIR          - Path for SDB Configuration directory.
-//   • SDB_RESET_SHELLRC_FILE  - \"true\" or \"false\" (see: \"setup-devbox help installers\" more details)
-//
-// For comprehensive commands and installer information:
-//   • setup-devbox help generate --detailed
-//   • setup-devbox help installers --detailed (optional: --filter <<installer_name>>)
-//   • setup-devbox help now --detailed
-//   • setup-devbox help sync-config --detailed",
-// )]
 struct Cli {
     // Global argument to enable debug logging.
     /// Enables detailed debug output.
@@ -83,7 +50,7 @@ enum Commands {
         /// Optional path to a custom state file.
         #[arg(long)]
         state: Option<String>,
-        /// Force update all tools with version "latest", overriding update_latest_only_after policy
+        /// Force update all tools with version "latest", overriding `update_latest_only_after` policy
         #[arg(long)]
         update_latest: bool,
     },

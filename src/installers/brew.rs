@@ -9,21 +9,21 @@
 // Standard library imports:
 use std::path::PathBuf; // For ergonomic and platform-agnostic path manipulation.
 use std::process::Command; // For executing external commands (like `brew`) and capturing their output.
-
 // External crate imports:
 use colored::Colorize; // Used for adding color to terminal output, improving log readability.
-
 // Internal module imports:
-use crate::schemas::sdb_schema::{ToolEntry, ToolState};
-// `ToolEntry`: Defines the structure for a tool's configuration as read from `tools.yaml`,
-//              providing details specific to a Homebrew installation (e.g., formula name).
-// `ToolState`: Represents the state of an installed tool, which we persist in `state.json`
-//              to track installed tools, their versions, and paths.
-
+// `ToolEntry`: Represents a single tool's configuration as defined in your `tools.yaml` file.
+//              It's a struct that contains all possible configuration fields for a tool,
+//              such as name, version, source, URL, repository, etc.
+// `ToolState`: Represents the actual state of an *installed* tool. This struct is used to
+//              persist information about installed tools in the application's `state.json` file.
+//              It helps `setup-devbox` track what's installed, its version, and where it's located.
 use crate::libs::utilities::assets::current_timestamp;
-use crate::{log_debug, log_error, log_info, log_warn};
+use crate::schemas::state_file::ToolState;
+use crate::schemas::tools::ToolEntry;
 // Custom logging macros. These are used throughout the module to provide informative output
 // during the installation process, aiding in debugging and user feedback.
+use crate::{log_debug, log_error, log_info, log_warn};
 
 /// Installs a tool using the Homebrew package manager.
 ///
@@ -200,5 +200,6 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // Record any additional commands that were executed during installation.
         // This is useful for tracking what was done and potentially for cleanup during uninstall.
         additional_cmd_executed: tool_entry.additional_cmd.clone(),
+        configuration_manager: None,
     })
 }

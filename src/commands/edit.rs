@@ -1,4 +1,4 @@
-use crate::schemas::sdb_schema::ConfigPaths;
+use crate::schemas::common::ConfigPaths;
 use crate::{log_debug, log_error, log_info, log_warn};
 use colored::Colorize;
 use sha2::{Digest, Sha256};
@@ -184,7 +184,7 @@ fn handle_config_edit(config_type: &str) {
 
     log_info!(
         "{}",
-        format!("Opening {} configuration for editing...", config_type)
+        format!("Opening {config_type} configuration for editing...",)
             .cyan()
             .bold()
     );
@@ -226,7 +226,7 @@ fn handle_config_edit(config_type: &str) {
     }
     log_info!(
         "{}",
-        format!("{} configuration editing completed.", config_type).green()
+        format!("{config_type} configuration editing completed.").green()
     );
     println!();
 
@@ -306,7 +306,7 @@ fn get_config_file_path(config_type: &str) -> PathBuf {
                     log_error!("[Edit] Invalid config type: {}", config_type);
                     eprintln!(
                         "{}",
-                        format!("Error: Invalid config type '{}'", config_type).red()
+                        format!("Error: Invalid config type '{config_type}'").red()
                     );
                     std::process::exit(1);
                 }
@@ -317,7 +317,7 @@ fn get_config_file_path(config_type: &str) -> PathBuf {
         }
         Err(e) => {
             log_error!("[Edit] Failed to read main config file: {:?}", e);
-            eprintln!("{}", format!("Error reading main config file: {}", e).red());
+            eprintln!("{}", format!("Error reading main config file: {e}").red());
             eprintln!(
                 "{}",
                 "You may want to run 'setup-devbox generate' first.".yellow()
@@ -342,10 +342,10 @@ where
 {
     log_debug!("[Edit] Resolving {} file path", file_type);
 
-    // Check for SDB_CONFIG_DIR environment variable first
-    if let Ok(config_dir) = env::var("SDB_CONFIG_DIR") {
+    // Check for SDB_CONFIG_PATH environment variable first
+    if let Ok(config_dir) = env::var("SDB_CONFIG_PATH") {
         log_debug!(
-            "[Edit] Using SDB_CONFIG_DIR environment variable: {}",
+            "[Edit] Using SDB_CONFIG_PATH environment variable: {}",
             config_dir
         );
         let mut path = PathBuf::from(config_dir);
@@ -353,7 +353,7 @@ where
             path.push("configs");
             path.push("config.yaml");
         } else {
-            path.push(format!("{}.json", file_type));
+            path.push(format!("{file_type}.json"));
         }
         return path;
     }
@@ -515,7 +515,7 @@ fn open_file_in_editor(file_path: &PathBuf) -> Result<(), Box<dyn std::error::Er
         }
         Err(e) => {
             log_error!("[Edit] Failed to launch editor: {:?}", e);
-            Err(format!("Error launching editor '{}': {}", editor_cmd, e).into())
+            Err(format!("Error launching editor '{editor_cmd}': {e}").into())
         }
     }
 }

@@ -3,7 +3,7 @@ use std::process::Command;
 // for debugging, general information, and errors.
 use crate::{log_debug, log_error, log_info, log_warn};
 // The 'colored' crate helps us make our console output look pretty and readab
-use crate::schemas::sdb_schema::InstallerError;
+use crate::schemas::tools::InstallerError;
 use colored::Colorize;
 
 /// Checks if a given asset filename from a GitHub release (or similar source)

@@ -3,7 +3,7 @@
 // and the installation/application of tools, fonts, shell configs, and system settings.
 
 use crate::installers::shell_run_commands::apply_shell_configs;
-use crate::schemas::sdb_schema::DevBoxState;
+use crate::schemas::state_file::DevBoxState;
 // Application state structure.
 use crate::{log_debug, log_info};
 // Custom logging macros.
@@ -43,7 +43,6 @@ pub fn run(config_path: Option<String>, state_path: Option<String>, update_lates
             "Update latest".bright_yellow()
         );
     }
-
     // Resolve configuration and state file paths.
     let (config_path_resolved, config_filename, state_path_resolved) =
         match utilities::misc_utils::resolve_paths(config_path, state_path) {

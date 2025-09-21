@@ -1,4 +1,4 @@
-use crate::schemas::sdb_schema::{AliasEntry, ConfigSection, RunCommandEntry};
+use crate::schemas::shell_configuration::{AliasEntry, ConfigSection, RunCommandEntry};
 use crate::{log_debug, log_info};
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};

@@ -1,15 +1,15 @@
 // Our custom logging macros to give us nicely formatted (and colored!) output
 // for debugging, general information, and errors.
 use crate::{log_debug, log_error, log_info, log_warn};
+// For working with file paths, specifically to construct installation paths.
+// `std::path::Path` is a powerful type for working with file paths in a robust way.
+// `std::path::PathBuf` provides an OS-agnostic way to build and manipulate file paths.
+use chrono::Duration;
 // The 'colored' crate helps us make our console output look pretty and readab
 use colored::Colorize;
 // For getting environment variables, like HOME.
 // `std::env` is used to find the user's home directory to determine rustup's installation path.
 use std::env;
-// For working with file paths, specifically to construct installation paths.
-// `std::path::Path` is a powerful type for working with file paths in a robust way.
-// `std::path::PathBuf` provides an OS-agnostic way to build and manipulate file paths.
-use chrono::Duration;
 use std::path::PathBuf;
 
 /// A super useful function to resolve paths that start with a tilde `~`.
@@ -145,10 +145,11 @@ pub fn default_python_path(package_name: &str) -> String {
 }
 
 /// Determines and resolves the absolute paths for the main configuration file
-/// and the application state file.
+/// and the application state file based on environment variables and fallbacks.
 ///
-/// This function encapsulates the logic for handling default paths and tilde expansion,
-/// ensuring that `setup-devbox` always knows exactly where to find its essential files.
+/// Priority order:
+/// 1. Main config: SDB_CONFIG_PATH env var -> default path
+/// 2. State file: SDB_STATE_FILE_PATH env var -> SDB_CONFIG_PATH env var -> default path
 ///
 /// # Arguments
 /// * `config_path`: An `Option<String>` allowing the user to specify a custom config path.
@@ -161,65 +162,87 @@ pub fn resolve_paths(
     config_path: Option<String>, // User-provided path for the main configuration file.
     state_path: Option<String>,  // User-provided path for the application state file.
 ) -> Option<(PathBuf, String, PathBuf)> {
-    log_debug!("Entering resolve_paths() function."); // Debug log for function entry.
+    log_debug!("Entering resolve_paths() function.");
     log_debug!(
         "Initial config_path parameter: {}",
         config_path.as_deref().unwrap_or("None")
-    ); // Log the initial `config_path` argument.
+    );
     log_debug!(
         "Initial state_path parameter: {}",
         state_path.as_deref().unwrap_or("None")
-    ); // Log the initial `state_path` argument.
+    );
 
-    // Define the default location for our main configuration file (`config.yaml`).
-    let default_main_config = "~/.setup-devbox/configs/config.yaml";
-    // Resolve the actual, absolute path to the main configuration file.
-    // If `config_path` is `Some`, use its value; otherwise, use `default_main_config`.
-    // `as_deref()` converts `Option<String>` to `Option<&str>`, then `unwrap_or` gets the value.
-    let config_path_resolved: PathBuf =
-        expand_tilde(config_path.as_deref().unwrap_or(default_main_config));
-    // Extract just the filename (e.g., "config.yaml", "tools.yaml") from the resolved config path.
-    // `file_name()` returns an `Option<&OsStr>`, `and_then` unwraps it and converts to `&str`.
-    // `unwrap_or("")` provides an empty string fallback, then `to_string()` converts to `String`.
+    // Resolve main configuration path
+    let config_path_resolved = if let Some(user_config_path) = config_path {
+        // User-provided config path takes highest priority
+        expand_tilde(&user_config_path)
+    } else if let Ok(env_config_path) = env::var("SDB_CONFIG_PATH") {
+        log_debug!(
+            "[SDB] Using \"{}\" as SDB Configuration folder",
+            "SDB_CONFIG_PATH".blue()
+        );
+        // Environment variable SDB_CONFIG_PATH
+        expand_tilde(&format!("{}/configs/config.yaml", env_config_path))
+    } else {
+        // Default fallback
+        expand_tilde("~/.setup-devbox/configs/config.yaml")
+    };
+
+    // Resolve state file path
+    let state_path_resolved = if let Some(user_state_path) = state_path {
+        // User-provided state path takes highest priority
+        expand_tilde(&user_state_path)
+    } else if let Ok(env_state_path) = env::var("SDB_STATE_FILE_PATH") {
+        log_debug!(
+            "[SDB] Using \"{}\" as SDB State file folder",
+            "SDB_STATE_FILE_PATH".blue()
+        );
+        // Environment variable SDB_STATE_FILE_PATH
+        expand_tilde(&format!("{}/state.json", env_state_path))
+    } else if let Ok(env_config_path) = env::var("SDB_CONFIG_PATH") {
+        log_debug!(
+            "[SDB] Using \"{}\" as SDB State file folder",
+            "SDB_CONFIG_PATH".blue()
+        );
+        // Fallback to SDB_CONFIG_PATH
+        expand_tilde(&format!("{}/state.json", env_config_path))
+    } else {
+        // Default fallback
+        expand_tilde("~/.setup-devbox/state.json")
+    };
+
+    // Extract config filename
     let config_filename = config_path_resolved
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_string();
-    // Resolve the actual, absolute path to the application's internal state file (`state.json`).
-    // Similar logic as `config_path_resolved`, using a default state file path.
-    let state_path_resolved: PathBuf = expand_tilde(
-        state_path
-            .as_deref()
-            .unwrap_or("~/.setup-devbox/state.json"),
-    );
 
-    // Log the final, resolved paths. Vital for confirming correct file system locations.
+    // Log the final, resolved paths
     log_info!(
         "Using configuration file: {}",
         config_path_resolved.display().to_string().cyan()
-    ); // Informative log for the config file path.
+    );
     log_debug!(
         "Managing application state in: {}",
         state_path_resolved.display().to_string().yellow()
-    ); // Debug log for the state file path.
+    );
     log_debug!(
         "Resolved config_path: {}",
         config_path_resolved.to_string_lossy()
-    ); // Debug log of the resolved config `PathBuf`.
+    );
     log_debug!(
         "Resolved state_path: {}",
         state_path_resolved.to_string_lossy()
-    ); // Debug log of the resolved state `PathBuf`.
-    log_debug!("Detected config filename: '{}'", config_filename.blue()); // Debug log for the extracted filename.
+    );
+    log_debug!("Detected config filename: '{}'", config_filename.blue());
 
-    // Basic check to ensure paths are not empty or invalid. `as_os_str().is_empty()` checks if the underlying OS string is empty.
+    // Basic check to ensure paths are not empty or invalid
     if config_path_resolved.as_os_str().is_empty() || state_path_resolved.as_os_str().is_empty() {
-        log_error!("Resolved config or state path is empty. This is an internal error."); // Error log if paths are empty.
-        return None; // Return `None` to indicate a critical error.
+        log_error!("Resolved config or state path is empty. This is an internal error.");
+        return None;
     }
 
-    log_debug!("Exiting resolve_paths() function."); // Debug log for function exit.
-    // Return `Some` tuple containing the resolved config path, filename, and state path.
+    log_debug!("Exiting resolve_paths() function.");
     Some((config_path_resolved, config_filename, state_path_resolved))
 }

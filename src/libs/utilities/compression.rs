@@ -4,7 +4,7 @@
 // Re-export GzDecoder from the `flate2` crate.
 // `pub(crate)` means it's publicly accessible within the crate but not outside it.
 pub(crate) use flate2::read::GzDecoder;
-// Our custom utility tools from assets 
+// Our custom utility tools from assets
 use crate::libs::utilities::assets::detect_file_type;
 // Our custom logging macros to give us nicely formatted (and colored!) output
 // for debugging, general information, and errors.
@@ -31,8 +31,8 @@ use std::io;
 pub(crate) use tar::Archive;
 // For extracting zip archives.
 // The `zip` crate provides functionality to read and write zip archives.
-use zip::ZipArchive;
 use xz2::read::XzDecoder;
+use zip::ZipArchive;
 
 /// Extracts the contents of a compressed archive (zip, tar.gz, etc.) into a new subdirectory
 /// within the specified destination path. This is a core utility for unpacking downloaded tools.
@@ -51,14 +51,25 @@ use xz2::read::XzDecoder;
 /// * `io::Result<PathBuf>`:
 ///   - `Ok(PathBuf)` with the path to the newly created "extracted" directory if extraction was successful.
 ///   - An `io::Error` if extraction fails, the archive type is unsupported, or any I/O operation fails.
-pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -> io::Result<PathBuf> {
-    log_debug!("[Utils] Extracting archive {} into {}", src.to_string_lossy().blue(), dest.to_string_lossy().cyan());
+pub fn extract_archive(
+    src: &Path,
+    dest: &Path,
+    known_file_type: Option<&str>,
+) -> io::Result<PathBuf> {
+    log_debug!(
+        "[Utils] Extracting archive {} into {}",
+        src.to_string_lossy().blue(),
+        dest.to_string_lossy().cyan()
+    );
 
     // Determine the file type to guide the extraction process.
     // If `known_file_type` is provided (i.e., `Some(ft)`), use that.
     // Otherwise, fall back to `detect_file_type` which uses the `file` command.
     let file_type = if let Some(ft) = known_file_type {
-        log_debug!("[Utils] Using known file type from argument: {}", ft.green());
+        log_debug!(
+            "[Utils] Using known file type from argument: {}",
+            ft.green()
+        );
         ft.to_string()
     } else {
         log_debug!("[Utils] No known file type provided. Auto-detecting using 'file' command...");
@@ -83,7 +94,8 @@ pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -
             archive.extract(&extracted_path)?;
             log_debug!("[Utils] Zip archive extracted successfully.");
         }
-        "tar.gz" => { // Handle specific `tar.gz` files.
+        "tar.gz" => {
+            // Handle specific `tar.gz` files.
             // Open the gzipped tar file.
             let tar_gz = File::open(src)?;
             // Create a `GzDecoder` to decompress the gzip stream.
@@ -94,8 +106,11 @@ pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -
             archive.unpack(&extracted_path)?;
             log_debug!("[Utils] Tar.gz archive extracted successfully.");
         }
-        "gz" => { // Handle pure `.gz` files (not tarred, typically a single compressed file).
-            log_info!("[Utils] Decompressing plain GZ file. Contents will be the original file without tar extraction.");
+        "gz" => {
+            // Handle pure `.gz` files (not tarred, typically a single compressed file).
+            log_info!(
+                "[Utils] Decompressing plain GZ file. Contents will be the original file without tar extraction."
+            );
             let gz_file = File::open(src)?;
             let mut decompressor = GzDecoder::new(gz_file);
             // Determine the output file path by removing the ".gz" extension from the source filename.
@@ -103,7 +118,10 @@ pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -
             let mut output_file = File::create(&output_file_path)?;
             // Copy the decompressed data from the `GzDecoder` to the new output file.
             io::copy(&mut decompressor, &mut output_file)?;
-            log_debug!("[Utils] GZ file decompressed successfully to {:?}", output_file_path.display());
+            log_debug!(
+                "[Utils] GZ file decompressed successfully to {:?}",
+                output_file_path.display()
+            );
         }
         "tar.bz2" | "tar.bz" => {
             // Open the bzipped tar file.
@@ -116,7 +134,8 @@ pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -
             archive.unpack(&extracted_path)?;
             log_debug!("[Utils] Tar.bz2 archive extracted successfully.");
         }
-        "tar" => { // Handle plain `.tar` archives (uncompressed).
+        "tar" => {
+            // Handle plain `.tar` archives (uncompressed).
             // Open the tar file.
             let tar = File::open(src)?;
             // Create a `tar::Archive` reader directly from the file.
@@ -125,7 +144,8 @@ pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -
             archive.unpack(&extracted_path)?;
             log_debug!("[Utils] Tar archive extracted successfully.");
         }
-        "tar.xz" | "xz" | "txz" => { // Added support for tar.xz and xz/txz aliases
+        "tar.xz" | "xz" | "txz" => {
+            // Added support for tar.xz and xz/txz aliases
             log_debug!("[Utils] Decompressing Tar.xz/XZ file.");
             let tar_xz = File::open(src)?;
             let decompressor = XzDecoder::new(tar_xz);
@@ -133,7 +153,8 @@ pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -
             archive.unpack(&extracted_path)?;
             log_debug!("[Utils] Tar.xz archive extracted successfully.");
         }
-        "binary" => { // For standalone binaries like a .exe or uncompressed Mac binary.
+        "binary" => {
+            // For standalone binaries like a .exe or uncompressed Mac binary.
             // In this case, "extraction" means simply copying the binary to the `extracted_path`.
             log_info!("[Utils] Copying detected 'binary' directly to extraction path.");
             // Get the filename part from the source path.
@@ -143,21 +164,34 @@ pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -
             })?;
             // Copy the source file to the `extracted_path` maintaining its original filename.
             fs::copy(src, extracted_path.join(file_name))?;
-            log_debug!("[Utils] Binary copied successfully to {:?}", extracted_path.join(file_name).display());
+            log_debug!(
+                "[Utils] Binary copied successfully to {:?}",
+                extracted_path.join(file_name).display()
+            );
         }
-        "pkg" => { // For macOS `.pkg` files, which are installers, not archives to unpack in the traditional sense.
+        "pkg" => {
+            // For macOS `.pkg` files, which are installers, not archives to unpack in the traditional sense.
             // We copy them to the extracted path so they are available for installation later.
-            log_info!("[Utils] Detected .pkg installer. Copying directly to extraction path for installation.");
+            log_info!(
+                "[Utils] Detected .pkg installer. Copying directly to extraction path for installation."
+            );
             let file_name = src.file_name().ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "Source path has no filename")
             })?;
             // Copy the `.pkg` file to the `extracted_path`.
             fs::copy(src, extracted_path.join(file_name))?;
-            log_debug!("[Utils] .pkg file copied successfully to {:?}", extracted_path.join(file_name).display());
+            log_debug!(
+                "[Utils] .pkg file copied successfully to {:?}",
+                extracted_path.join(file_name).display()
+            );
         }
         _ => {
             // If the `file_type` string does not match any of the supported types.
-            log_error!("[Utils] Unsupported archive type '{}' for extraction: {:?}", file_type.red(), src);
+            log_error!(
+                "[Utils] Unsupported archive type '{}' for extraction: {:?}",
+                file_type.red(),
+                src
+            );
             // Return an `io::Error` indicating that the archive type is not supported.
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData, // `InvalidData` is suitable for unsupported file formats.
@@ -167,6 +201,9 @@ pub fn extract_archive(src: &Path, dest: &Path, known_file_type: Option<&str>) -
     }
 
     // Log a success message with the path to the extracted contents.
-    log_debug!("[Utils] Archive contents available at: {}", extracted_path.to_string_lossy().green());
+    log_debug!(
+        "[Utils] Archive contents available at: {}",
+        extracted_path.to_string_lossy().green()
+    );
     Ok(extracted_path) // Return the path to the directory where contents were extracted.
 }

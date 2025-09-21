@@ -1,18 +1,20 @@
 use colored::Colorize;
-use std::path::PathBuf; // Provides `PathBuf` for working with file paths. // Imports the `Colorize` trait for adding color to console output.
+use std::path::PathBuf;
+// Provides `PathBuf` for working with file paths. // Imports the `Colorize` trait for adding color to console output.
 // Adjust the import path for logging macros if they are not directly in `crate::` but, for example, in `crate::libutils::logging`.
 // Assuming they are still at the top-level crate import for now.
-use crate::{log_debug, log_error, log_info}; // Custom logging macros for various log levels.
+use crate::{log_debug, log_error, log_info};
+// Custom logging macros for various log levels.
 
 // The path to the font installer module will change because it's now under `installers`.
 // It was already `crate::installers::fonts;` so this line remains the same as `font_installer.rs` calls it.
-use crate::installers::fonts; // Imports the `fonts` module, which contains the actual font installation logic.
-
-use crate::schemas::sdb_schema::{DevBoxState, FontConfig}; // Imports `DevBoxState` for application state management and `FontConfig` for font-specific configuration.
-// If `state_management` is also in `src/libs/`, its path would be `crate::libs::state_management::save_devbox_state;`
-// For now, assuming it's `crate::libs::state_management::save_devbox_state` or a top-level `crate::state_management`.
-// Based on your original file, it's `crate::libs::state_management::save_devbox_state`, so it remains the same.
-use crate::libs::state_management::save_devbox_state; // Imports the function to save the `DevBoxState`.
+// Imports the `fonts` module, which contains the actual font installation logic.
+use crate::installers::fonts;
+// Imports `DevBoxState` for application state management and `FontConfig` for font-specific configuration.
+use crate::schemas::fonts::FontConfig;
+use crate::schemas::state_file::DevBoxState;
+// Imports the function to save the `DevBoxState`.
+use crate::libs::state_management::save_devbox_state;
 
 /// Installs fonts based on the provided configuration and updates the application state.
 ///
@@ -29,7 +31,9 @@ pub fn install_fonts(
     state: &mut DevBoxState,
     state_path_resolved: &PathBuf,
 ) {
-    log_info!("[Fonts] Processing Font Installations..."); // Informative log that the font installation process has started.
+    eprintln!("\n");
+    eprintln!("{}:", "FONTS".bright_yellow().bold());
+    eprintln!("{}\n", "=".repeat(7).bright_yellow());
     log_debug!("Entering install_fonts() function."); // Debug log to indicate entry into the `install_fonts` function.
 
     // A boolean flag initialized to `false`. This flag will be set to `true`

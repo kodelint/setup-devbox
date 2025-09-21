@@ -71,10 +71,7 @@ fn get_latest_github_release() -> Result<String, Box<dyn std::error::Error>> {
     log_debug!("Constructing GitHub API URL for latest release.");
     // Construct the GitHub API URL for fetching the latest release.
     // Uses `REPO_OWNER` and `REPO_NAME` constants.
-    let url = format!(
-        "https://api.github.com/repos/{}/{}/releases/latest",
-        REPO_OWNER, REPO_NAME
-    );
+    let url = format!("https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest");
     log_debug!("GitHub API URL: {}", url.blue());
 
     // Create a `ureq` agent.

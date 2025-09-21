@@ -24,7 +24,7 @@ use std::{fs, io};
 /// This is crucial for fetching tools and resources from the internet (e.g., GitHub releases).
 ///
 /// # Arguments
-/// * `url`: The URL (as a string slice) of the file to download (e.g., "https://example.com/file.zip").
+/// * `url`: The URL (as a string slice) of the file to download (e.g. [https://example.com/file.zip](https://example.com/file.zip)).
 /// * `dest`: The local file system path (`&Path`) where the downloaded file should be saved.
 ///           This should be a full file path, including the desired filename.
 ///
@@ -609,7 +609,7 @@ pub fn current_timestamp() -> String {
 ///
 /// # Arguments
 /// * `duration_str` - A string slice containing the duration specification.
-///   Expected format: "<amount> <unit>" (e.g., "7 days", "1 hour", "30 minutes")
+///   Expected format: "`<amount>` `<unit>`" (e.g., "7 days", "1 hour", "30 minutes")
 ///
 /// # Returns
 /// * `Some(Duration)` - If parsing was successful

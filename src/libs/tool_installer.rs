@@ -1,303 +1,391 @@
-// For working with file paths, particularly for the state file.
+//! tool_installer.rs
+//!
+//! This module serves as the central orchestrator for the tool installation pipeline.
+//! It is responsible for determining the correct action for each tool (install, update,
+//! or skip), invoking the appropriate installer, and managing the tool's state and
+//! configuration. It integrates with various other modules to perform tasks such as
+//! state management, path resolution, and command execution.
+
 use chrono::Duration;
-use std::path::PathBuf;
-// For adding color to terminal output, enhancing readability.
-// The `Colorize` trait provides methods like `.bright_green()` or `.bold()`
-// to style strings for a more informative command-line interface.
 use colored::Colorize;
-// Imports custom logging macros from the crate root. These macros provide
-// consistent logging behavior (e.g., `log_info!`, `log_error!`).
-use crate::{log_debug, log_error, log_info, log_warn};
-// Imports individual installer modules. Each module is expected to provide
-// functions for installing a specific type of tool (e.g., Homebrew packages, Cargo crates).
+use std::path::PathBuf;
+// Import all available installer modules
 use crate::installers::{brew, cargo, github, go, pip, rustup, url, uv};
-// Imports schema definitions for application state (`DevBoxState`) and tool configurations (`ToolConfig`).
-// `DevBoxState` holds the persistent record of installed items, and `ToolConfig` defines
-// the structure of the `tools.yaml` file.
-use crate::schemas::sdb_schema::{DevBoxState, ToolConfig, ToolEntry, ToolEntryError};
-// Imports the function for saving the application state, usually defined in `state_management.rs`.
-// This is crucial for persisting changes made during the tool installation process.
-use crate::libs::state_management::save_devbox_state;
+// Import utility functions for state and time management
+use crate::libs::state_management::save_state_to_file;
 use crate::libs::utilities::assets::{is_timestamp_older_than, parse_duration, time_since};
 use crate::libs::utilities::misc_utils::format_duration;
 use crate::libs::utilities::platform::{
     check_installer_command_available, execute_additional_commands,
 };
+use crate::schemas::configuration_management::ConfigurationManagerProcessor;
+// Import data schemas and the configuration processor
+use crate::schemas::state_file::{DevBoxState, ToolState};
+use crate::schemas::tools::{
+    ConfigurationAction, InstallationConfiguration, InstallationSummary, ToolAction, ToolConfig,
+    ToolEntry, ToolInstallationOrchestrator, ToolProcessingResult, VersionAction,
+};
+// Import logging macros
+use crate::{log_debug, log_error, log_info, log_warn};
 
-/// Installs tools based on the provided configuration and updates the application state.
-///
-/// This function iterates through each tool defined in `tools_cfg`,
-/// checks if it's already installed and at the correct version according to `state`,
-/// and delegates to the appropriate installer for new or updated tools. It also handles
-/// state persistence by saving changes to `state.json` after successful installations.
-///
-/// # Arguments
-/// * `tools_cfg`: A `ToolConfig` struct containing the list of tools to install, as parsed from `tools.yaml`.
-/// * `state`: A mutable reference to the `DevBoxState` to update the record of installed tools and their versions.
-/// * `state_path_resolved`: The `PathBuf` to the `state.json` file.
-pub fn install_tools(
-    tools_cfg: ToolConfig,
-    state: &mut DevBoxState,
-    state_path_resolved: &PathBuf,
-    update_latest: bool,
-) {
-    // Add a newline for better visual separation in the terminal output, improving readability of logs.
-    eprintln!("\n");
-    // Informative log message indicating the start of the tool processing phase.
-    log_info!("[Tools] Processing Tools Installations...");
-    // Debug log for tracing function entry, useful for detailed debugging.
-    log_debug!("Entering install_tools() function.");
-
-    // `tools_updated` flag: Set to `true` if any tool is actually installed or updated during this session.
-    // This determines if the `DevBoxState` needs to be saved at the end.
-    let mut tools_updated = false;
-    // `skipped_tools` vector: Stores the names of tools that were found to be up-to-date and were skipped.
-    // This list is used to provide a summary to the user at the end of the process.
-    let mut skipped_tools: Vec<String> = Vec::new();
-    // Parse the update_latest_only_after duration if provided
-    let update_duration = if update_latest {
-        // If --update-latest flag is set, use zero duration to force updates
-        Duration::seconds(0)
-    } else {
-        // Otherwise, use the configured duration
-        tools_cfg
-            .update_latest_only_after
-            .as_ref()
-            .and_then(|d| parse_duration(d))
-            .unwrap_or_else(|| Duration::days(0))
-    };
-
-    log_debug!(
-        "[Tools] Update policy: {}",
-        if update_latest {
-            "forced update of all 'latest' version tools (--update-latest flag)".to_string()
+impl InstallationConfiguration {
+    /// Creates a new `InstallationConfiguration` instance.
+    ///
+    /// The `force_update` flag takes precedence and, if true, sets the update threshold
+    /// to zero, effectively forcing an update on every run for tools with `latest` versions.
+    pub(crate) fn new(tools_config: &ToolConfig, force_update: bool) -> Self {
+        let update_threshold_duration = if force_update {
+            // If forced, the threshold is 0, so any tool update is always considered 'older'
+            Duration::seconds(0)
         } else {
-            format!(
-                "only update 'latest' versions if older than {:?}",
-                update_duration
-            )
-        }
-    );
-
-    // Iterate over each `tool` entry provided in the `tools_cfg`.
-    // The `&tools_cfg.tools` takes a reference to the vector of tools to avoid moving it,
-    // allowing `tools_cfg` to be used later if needed.
-    // Each `tool` here is a `ToolEntry` struct containing details like name, type, version, etc.,
-    // representing a single tool definition from the configuration.
-    for tool in &tools_cfg.tools {
-        // Log the current tool being considered for installation.
-        log_debug!("[Tools] Considering tool: {}", tool.name.bright_green());
-
-        // Schema Validation Step
-        // Before attempting any installation, validate the `ToolEntry` against its defined schema.
-        // This ensures that the tool's configuration (e.g., 'source' field) is valid and well-formed.
-        match tool.validate() {
-            Ok(_) => {
-                // If validation passes, log a debug message. This indicates the tool's configuration
-                // adheres to the expected structure.
-                log_debug!(
-                    "[Tools] Tool {} passed schema validation.",
-                    tool.name.bright_green()
-                );
-            }
-            Err(e) => {
-                // If validation fails, handle the specific error.
-                match e {
-                    ToolEntryError::InvalidSource(_) => {
-                        // This specific error indicates that the 'source' field in the tool configuration
-                        // (e.g., in `tools.yaml`) is not one of the recognized types (e.g., "GitHub", "Brew").
-                        // Log an error message, highlighting the invalid tool and specifying the supported sources.
-                        log_error!(
-                            "[Tools] Skipping tool '{}' due to configuration error: {}",
-                            tool.name.bold().red(),
-                            e.to_string().red()
-                        );
-                        log_error!(
-                            "{}: {}",
-                            "[Tools] Supported sources are".bright_white(),
-                            "GitHub, Brew, Cargo, Rustup, Pip, Go, URL.".bright_green()
-                        );
-                    }
-                    _ => {
-                        // For any other type of validation error (not an `InvalidSource`), use a general
-                        // error message. This covers cases like missing required fields or other malformed data.
-                        log_error!(
-                            "[Tools] Skipping tool '{}' due to configuration error: {}",
-                            tool.name.bold().red(),
-                            e.to_string().red()
-                        );
-                    }
-                }
-                // Continue to the next tool in the loop, skipping installation for the invalid entry.
-                continue;
-            }
-        }
-
-        // Installer Availability Check
-        // Convert the tool's source enum variant into a lowercase string.
-        // This string (e.g., "brew", "go", "cargo") will be used to check for the presence of the corresponding
-        // installer command on the system.
-        let installer_name_for_check = tool.source.to_string().to_lowercase();
-
-        // Determine if the current tool's source requires a system-level installer command check.
-        // Sources like "GitHub" are handled internally (e.g., via `git` or `curl`), so they don't
-        // require a separate pre-check for an installer executable in the PATH.
-        let needs_installer_check = matches!(
-            installer_name_for_check.as_str(),
-            "brew" | "go" | "cargo" | "rustup" | "pip" | "uv"
-        );
-
-        if needs_installer_check {
-            // Check if the required installer command is available in the system's PATH.
-            // This prevents the program from trying to run a command that doesn't exist.
-            if let Err(installer_err) = check_installer_command_available(&installer_name_for_check)
-            {
-                // If the installer is not found, log an error and skip the tool.
-                log_error!(
-                    "[Tools] Skipping tool '{}' (source: {}) because {}. \
-                    Please ensure the necessary installer is installed and in your system's PATH.",
-                    tool.name.bold().red(),
-                    installer_name_for_check.yellow(),
-                    installer_err.to_string().red()
-                );
-                continue;
-            }
-        }
-
-        // Version Comparison Logic
-        // Flag to determine if a new installation or update is needed. It is initially set to true.
-        let mut should_install_tool = true;
-        // Flag to identify why to skip
-        // 1. Specified version is already installed
-        // 2. Latest version is already installed and within the threshold
-        //    - Threshold is defined in the `tools.yaml` as `update_latest_only_after`
-        //    - Compare with `last_updated` from `state.json` file
-        let mut skip_reason = None;
-
-        // Use `if let Some(...)` to safely check if a tool with the same name already exists in the state file.
-        // If it does, `existing_tool_state` will be a reference to the `ToolState` struct for that tool.
-        if let Some(existing_tool_state) = state.tools.get(&tool.name) {
-            // Log that the tool was found in the state file, indicating a potential update rather than a new install.
-            log_debug!(
-                "[Tools] Tool '{}' found in state file. Comparing versions.",
-                tool.name.bright_green()
-            );
-
-            // Check if tool version is "latest" and should respect update policy
-            let is_latest_version = tool.version.as_ref().map_or(true, |v| v == "latest")
-                || existing_tool_state.version == "latest";
-
-            if is_latest_version && !update_latest {
-                // Check if we should skip update based on last_updated timestamp
-                // The threshold is defined in `tools.yaml` as `update_latest_only_after`
-                // Only apply time-based update policy if --update-latest flag is NOT set
-                if let Some(last_updated) = &existing_tool_state.last_updated {
-                    if !is_timestamp_older_than(last_updated, &update_duration) {
-                        should_install_tool = false;
-                        skip_reason = Some(format!(
-                            "version 'latest' was updated {} (within {} threshold)",
-                            time_since(last_updated).unwrap_or_else(|| "recently".to_string()),
-                            format_duration(&update_duration)
-                        ));
-                    }
-                }
-                // If no last_updated timestamp exists, we should update
-            }
-
-            if should_install_tool {
-                if let Some(config_version) = &tool.version {
-                    if existing_tool_state.version == *config_version && config_version != "latest"
-                    {
-                        should_install_tool = false;
-                        skip_reason = Some("specified version already installed".to_string());
-                    }
-                } else {
-                    // No version was specified in the configuration (`tools.yaml`).
-                    // In this case, we assume the user wants the latest version. For simplicity,
-                    // we proceed with installation to ensure the tool is at its latest available version.
-                    if !existing_tool_state.version.is_empty()
-                        && existing_tool_state.version != "latest"
-                    {
-                        should_install_tool = false;
-                        skip_reason =
-                            Some("version not specified but tool is installed".to_string());
-                    }
-                }
-            }
-
-            // If the `should_install_tool` flag is `false` (meaning versions matched),
-            // add the tool name to the skipped list and continue to the next tool in the loop.
-            if !should_install_tool {
-                if let Some(reason) = skip_reason {
-                    log_debug!(
-                        "[Tools] {} '{}': {}",
-                        "Skipping tool".italic().dimmed(),
-                        tool.name.bright_green().bold().italic(),
-                        reason.italic().dimmed()
-                    );
-                }
-                skipped_tools.push(tool.name.clone());
-                log_debug!(
-                    "[Tools] {}",
-                    format!(
-                        "Tool '{}' added to skipped list.",
-                        tool.name.bright_green().bold().italic()
-                    )
-                    .italic()
-                    .dimmed()
-                );
-                continue;
-            }
-        } else {
-            // The tool was not found in the state file, which means it's a new installation.
-            // Log an info message and proceed with the installation process.
-            log_info!(
-                "[Tools] Tool '{}' not found in state file. It will be installed.",
-                tool.name.bright_green()
-            );
-        }
-
-        // Installation Process
-        // This part of the code is only reached if the tool is new or needs an update.
-        print!("\n");
-        eprintln!(
-            "{}",
-            "==================================================================\
-        ============================"
-                .bright_blue()
-        );
-
-        // Determine installation reason for logging
-        let install_reason = if state.tools.contains_key(&tool.name) {
-            "Updating"
-        } else {
-            "Installing"
+            // Parse the duration from the config file, or default to 0 days
+            tools_config
+                .update_latest_only_after
+                .as_ref()
+                .and_then(|duration_str| parse_duration(duration_str))
+                .unwrap_or_else(|| Duration::days(0))
         };
 
+        Self {
+            update_threshold_duration,
+            force_update_enabled: force_update,
+        }
+    }
+}
+
+impl<'a> ToolInstallationOrchestrator<'a> {
+    /// Creates a new `ToolInstallationOrchestrator`.
+    ///
+    /// It initializes the configuration manager processor, which handles the path
+    /// resolution for tool configuration files.
+    fn new(state: &'a mut DevBoxState, configuration: &'a InstallationConfiguration) -> Self {
+        // The `ConfigurationManagerProcessor` is created with a `None` base path,
+        // relying on its internal fallback logic to resolve the correct path.
+        let config_processor = ConfigurationManagerProcessor::new(None);
+
+        Self {
+            state,
+            configuration,
+            config_processor,
+        }
+    }
+
+    /// Determines the high-level action to be taken for a specific tool.
+    ///
+    /// This is the primary decision-making method that combines the results of
+    /// version and configuration analysis.
+    fn determine_required_action(
+        &self,
+        tool: &ToolEntry,
+        current_state: Option<&ToolState>,
+    ) -> ToolAction {
+        // If the tool is not in the current state, it must be installed.
+        match current_state {
+            None => ToolAction::Install,
+            Some(state) => {
+                // Analyze version and configuration requirements independently.
+                let version_action = self.analyze_version_requirements(tool, state);
+                let config_action = self.analyze_configuration_requirements(tool, state);
+
+                // Combine the individual actions into a final `ToolAction`.
+                self.combine_actions(version_action, config_action)
+            }
+        }
+    }
+
+    /// Analyzes the version requirements for a tool to determine if an update is needed.
+    ///
+    /// This function handles several scenarios:
+    /// - **`latest` version with a threshold**: Checks if the last update time is within the threshold.
+    /// - **Forced update**: Skips the threshold check and always returns `Update`.
+    /// - **Specific version**: Checks if the required version is already installed.
+    fn analyze_version_requirements(
+        &self,
+        tool: &ToolEntry,
+        current_state: &ToolState,
+    ) -> VersionAction {
+        let requested_version = tool.version.as_deref().unwrap_or("latest");
+        let is_latest_version_scenario =
+            requested_version == "latest" || current_state.version == "latest";
+
+        // Handle the "latest" version logic with an update threshold.
+        if is_latest_version_scenario && !self.configuration.force_update_enabled {
+            if let Some(last_updated_timestamp) = &current_state.last_updated {
+                if !is_timestamp_older_than(
+                    last_updated_timestamp,
+                    &self.configuration.update_threshold_duration,
+                ) {
+                    let time_since_update = time_since(last_updated_timestamp)
+                        .unwrap_or_else(|| "recently".to_string());
+                    let threshold_description =
+                        format_duration(&self.configuration.update_threshold_duration);
+
+                    // Skip because the 'latest' version was recently updated.
+                    return VersionAction::Skip(format!(
+                        "version 'latest' updated {} (within {} threshold)",
+                        time_since_update, threshold_description
+                    ));
+                }
+            }
+            // The tool is older than the threshold, so it needs an update.
+            return VersionAction::Update;
+        }
+
+        // Handle specific version logic.
+        if let Some(required_version) = &tool.version {
+            if required_version != "latest" && current_state.version == *required_version {
+                // Skip because the specified version is already installed.
+                return VersionAction::Skip("specified version already installed".to_string());
+            }
+        } else if !current_state.version.is_empty() && current_state.version != "latest" {
+            // A tool with no specified version is already installed with a specific version.
+            return VersionAction::Skip("version not specified but tool is installed".to_string());
+        }
+
+        // Default case: a specific version is required and not installed, or it's a forced update.
+        VersionAction::Update
+    }
+
+    /// Analyzes the configuration requirements for a tool.
+    ///
+    /// This method leverages the `ConfigurationManagerProcessor` to determine if the
+    /// configuration file needs to be updated based on SHA hashes and file existence.
+    fn analyze_configuration_requirements(
+        &self,
+        tool: &ToolEntry,
+        current_state: &ToolState,
+    ) -> ConfigurationAction {
+        // If the configuration is not enabled in the tool entry, we can skip this check.
+        if !tool.configuration_manager.enabled {
+            return ConfigurationAction::Skip("configuration disabled".to_string());
+        }
+
+        // Delegate the core logic to the `ConfigurationManagerProcessor`.
+        match self.config_processor.evaluate_configuration_change_needed(
+            &tool.name,
+            &tool.configuration_manager,
+            current_state.get_configuration_manager(),
+        ) {
+            Ok(true) => ConfigurationAction::Update,
+            Ok(false) => ConfigurationAction::Skip("configuration up-to-date".to_string()),
+            Err(e) => {
+                // Log a warning if evaluation fails but assume an update is needed to be safe.
+                log_warn!(
+                    "[Tools] Error evaluating configuration for {}: {}. Assuming update needed.",
+                    tool.name,
+                    e
+                );
+                ConfigurationAction::Update
+            }
+        }
+    }
+
+    /// Combines the individual `VersionAction` and `ConfigurationAction` into a single
+    /// `ToolAction`.
+    ///
+    /// The logic here prioritizes a full tool update over a configuration-only update.
+    fn combine_actions(
+        &self,
+        version_action: VersionAction,
+        config_action: ConfigurationAction,
+    ) -> ToolAction {
+        match (version_action, config_action) {
+            // If a version update is needed, perform a full tool update.
+            (VersionAction::Update, _) => ToolAction::Update,
+            // If the version is up-to-date but the configuration needs an update,
+            // perform a configuration-only update.
+            (VersionAction::Skip(_), ConfigurationAction::Update) => {
+                ToolAction::UpdateConfigurationOnly
+            }
+            // If both version and configuration are up-to-date, determine the appropriate skip reason.
+            (VersionAction::Skip(version_reason), ConfigurationAction::Skip(config_reason)) => {
+                // Check if the configuration was actually evaluated and found up-to-date.
+                if config_reason == "configuration up-to-date" {
+                    ToolAction::SkipConfigurationOnly(format!(
+                        "{}, {}",
+                        version_reason, config_reason
+                    ))
+                } else {
+                    // This is a regular skip, typically for tools with disabled configuration.
+                    ToolAction::Skip(version_reason)
+                }
+            }
+        }
+    }
+
+    /// Iterates through all tools in the configuration and processes each one.
+    fn process_all_tools(&mut self, tools: &[ToolEntry]) -> Vec<(String, ToolProcessingResult)> {
+        tools
+            .iter()
+            .map(|tool| {
+                let result = self.process_individual_tool(tool);
+                (tool.name.clone(), result)
+            })
+            .collect()
+    }
+
+    /// Handles the complete processing pipeline for a single tool.
+    /// This includes validation, action determination, and execution.
+    fn process_individual_tool(&mut self, tool: &ToolEntry) -> ToolProcessingResult {
+        log_debug!("[Tools] Processing tool: {}", tool.name.bright_green());
+
+        // Step 1: Validate the tool's configuration.
+        if let Err(validation_error) = tool.validate() {
+            return ToolProcessingResult::Failed(format!(
+                "Configuration validation failed: {}",
+                validation_error
+            ));
+        }
+
+        // Step 2: Validate that the required installer command is available.
+        if let Err(installer_error) = self.validate_installer_availability(tool) {
+            return ToolProcessingResult::Failed(installer_error);
+        }
+
+        // Step 3: Determine and execute the required action.
+        let current_state = self.state.tools.get(&tool.name);
+        let required_action = self.determine_required_action(tool, current_state);
+
+        self.execute_action(tool, required_action)
+    }
+
+    /// Validates that the command-line tool for the installer exists on the system.
+    /// This prevents failed installations due to missing prerequisites like `brew` or `go`.
+    fn validate_installer_availability(&self, tool: &ToolEntry) -> Result<(), String> {
+        let installer_name = tool.source.to_string().to_lowercase();
+
+        // Only validate installers that require a system command to be present.
+        if matches!(
+            installer_name.as_str(),
+            "brew" | "go" | "cargo" | "rustup" | "pip" | "uv"
+        ) {
+            check_installer_command_available(&installer_name)
+                .map_err(|error| format!("Installer '{}' not available: {}", installer_name, error))
+        } else {
+            // Installers like `github` or `url` don't require a pre-existing command.
+            Ok(())
+        }
+    }
+
+    /// Executes the determined `ToolAction`.
+    fn execute_action(&mut self, tool: &ToolEntry, action: ToolAction) -> ToolProcessingResult {
+        match action {
+            ToolAction::Skip(reason) => ToolProcessingResult::Skipped(reason),
+            ToolAction::SkipConfigurationOnly(reason) => {
+                ToolProcessingResult::ConfigurationSkipped(reason)
+            }
+            ToolAction::Install => self.execute_installation(tool, "Installing"),
+            ToolAction::Update => self.execute_installation(tool, "Updating"),
+            ToolAction::UpdateConfigurationOnly => self.execute_configuration_update(tool),
+        }
+    }
+
+    /// Handles the `UpdateConfigurationOnly` action.
+    /// This is a specialized path that only processes the configuration manager without
+    /// invoking the tool installer.
+    fn execute_configuration_update(&mut self, tool: &ToolEntry) -> ToolProcessingResult {
+        log_info!("[Tools] Configuration Management...");
+        log_info!(
+            "[Tools] Updating configuration for: {}",
+            tool.name.bright_green()
+        );
+
+        // Get the existing state for the tool.
+        if let Some(mut existing_state) = self.state.tools.get(&tool.name).cloned() {
+            // Process the configuration and update the state if successful.
+            match self.process_configuration_management(tool, &mut existing_state) {
+                Ok(()) => {
+                    self.state.tools.insert(tool.name.clone(), existing_state);
+                    ToolProcessingResult::ConfigurationUpdated
+                }
+                Err(error) => {
+                    ToolProcessingResult::Failed(format!("Configuration update failed: {}", error))
+                }
+            }
+        } else {
+            // This should not happen if the logic is correct, but it's a safe guard.
+            ToolProcessingResult::Failed("Tool not found in state".to_string())
+        }
+    }
+
+    /// Encapsulates the common installation logic for both `Install` and `Update` actions.
+    /// It invokes the installer, handles post-installation commands, and updates the state.
+    fn execute_installation(
+        &mut self,
+        tool: &ToolEntry,
+        operation_type: &str,
+    ) -> ToolProcessingResult {
+        log_info!("[Tools] Installing {}...", "Tools".bright_green());
+        self.display_installation_header(tool, operation_type);
+
+        // Invoke the correct installer based on the tool's `source`.
+        match self.invoke_appropriate_installer(tool) {
+            Some(mut tool_state) => {
+                // Process configuration management as a non-fatal step.
+                // An error here will be logged as a warning but won't fail the overall installation.
+                if let Err(error) = self.process_configuration_management(tool, &mut tool_state) {
+                    log_warn!(
+                        "[Tools] Configuration management warning for {}: {}. Continuing.",
+                        tool.name.yellow(),
+                        error
+                    );
+                }
+
+                // Update the state with the new tool information.
+                self.state.tools.insert(tool.name.clone(), tool_state);
+                self.display_installation_success(tool, operation_type);
+
+                // Return the appropriate success result.
+                match operation_type {
+                    "Installing" => ToolProcessingResult::Installed,
+                    _ => ToolProcessingResult::Updated,
+                }
+            }
+            None => {
+                // If the installer returns `None`, it signifies a failure.
+                self.display_installation_failure(tool, operation_type);
+                ToolProcessingResult::Failed(format!("{} failed", operation_type))
+            }
+        }
+    }
+
+    // A simple helper function to display a formatted header for installation.
+    fn display_installation_header(&self, tool: &ToolEntry, operation_type: &str) {
+        println!("\n{}", "=".repeat(80).bright_blue());
         log_info!(
             "[Tools] {} tool from {}: {}",
-            install_reason.bright_yellow(),
+            operation_type.bright_yellow(),
             tool.source.to_string().bright_yellow(),
-            tool.name.to_string().bright_blue().bold()
+            tool.name.bright_blue().bold()
         );
+    }
 
-        log_debug!(
-            "[Tools] Full configuration details for tool '{}': name='{}', version='{}', source='{}', \
-            repo='{}', tag='{}', rename_to='{}' and reason='{}'",
-            tool.name.green(),
-            tool.name,
-            tool.version.as_deref().unwrap_or("N/A"),
-            tool.source,
-            tool.repo.as_deref().unwrap_or("N/A"),
-            tool.tag.as_deref().unwrap_or("N/A"),
-            tool.rename_to.as_deref().unwrap_or("N/A"),
-            install_reason,
+    // A helper function to display a formatted success message.
+    fn display_installation_success(&self, tool: &ToolEntry, operation_type: &str) {
+        log_info!(
+            "[Tools] Successfully {} tool: {}",
+            operation_type.to_lowercase(),
+            tool.name.bold().bright_green()
         );
+        println!("{}\n", "=".repeat(80).blue());
+    }
 
-        // Use a `match` statement to call the correct installer function based on the tool's source.
-        // Each installer function (e.g., `github::install`, `brew::install`) returns an `Option<ToolState>`.
-        // `Some(tool_state)` on success, `None` on failure.
-        let installation_result = match tool.source.to_string().to_lowercase().as_str() {
+    // A helper function to display a formatted failure message.
+    fn display_installation_failure(&self, tool: &ToolEntry, operation_type: &str) {
+        log_error!(
+            "[Tools] Failed to {} tool: {}",
+            operation_type.to_lowercase(),
+            tool.name.bold().red()
+        );
+    }
+
+    /// Invokes the correct installer function based on the tool's `source`.
+    ///
+    /// The `match` statement dispatches to a specific module (e.g., `github::install`).
+    /// This design keeps the orchestration logic clean and separates it from the
+    /// implementation details of each installer.
+    fn invoke_appropriate_installer(&self, tool: &ToolEntry) -> Option<ToolState> {
+        match tool.source.to_string().to_lowercase().as_str() {
             "github" => github::install(tool),
             "brew" => brew::install(tool),
             "go" => go::install(tool),
@@ -306,173 +394,281 @@ pub fn install_tools(
             "pip" => pip::install(tool),
             "uv" => uv::install(tool),
             "url" => url::install(tool),
-            other => {
-                // Handle unsupported or unrecognized source types.
+            unsupported_installer => {
                 log_warn!(
-                    "[Tools] Installer for source type '{}' not yet implemented (or \
-                    unrecognized for this context) for tool '{}'. Skipping this tool's installation.",
-                    other.yellow(),
+                    "[Tools] Unsupported installer: {} for tool: {}",
+                    unsupported_installer.yellow(),
                     tool.name.bold()
                 );
-                // Return `None` to indicate installation was not attempted.
                 None
             }
+        }
+    }
+
+    /// Calls the `ConfigurationManagerProcessor` to process the configuration for a tool.
+    ///
+    /// This method is called after both successful installations and for
+    /// `UpdateConfigurationOnly` actions.
+    fn process_configuration_management(
+        &self,
+        tool: &ToolEntry,
+        tool_state: &mut ToolState,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // Get the existing configuration state from the tool's current state.
+        let existing_config_state = tool_state.get_configuration_manager();
+
+        // Process the configuration and handle the result.
+        match self.config_processor.process_tool_configuration(
+            &tool.name,
+            &tool.configuration_manager,
+            existing_config_state,
+        )? {
+            Some(new_config_state) => {
+                // If a new state is returned, update the tool's state.
+                tool_state.set_configuration_manager(new_config_state);
+                Ok(())
+            }
+            None => {
+                // If `None` is returned, it means configuration was disabled or no update was needed.
+                Ok(())
+            }
+        }
+    }
+}
+
+impl InstallationSummary {
+    /// Creates a new `InstallationSummary` from the raw `ToolProcessingResult`s.
+    fn from_processing_results(results: Vec<(String, ToolProcessingResult)>) -> Self {
+        let mut summary = Self {
+            installed_tools: Vec::new(),
+            updated_tools: Vec::new(),
+            configuration_updated_tools: Vec::new(),
+            skipped_tools: Vec::new(),
+            configuration_skipped_tools: Vec::new(),
+            failed_tools: Vec::new(),
         };
 
-        // Handle the result of the installation attempt.
-        if let Some(tool_state) = installation_result {
-            // If installation was successful, insert the new `ToolState` into the `DevBoxState` HashMap.
-            // This overwrites any old state for the same tool, effectively performing an update.
-            state.tools.insert(tool.name.clone(), tool_state);
-            // Set the `tools_updated` flag to `true` to signal that the state needs to be saved.
-            tools_updated = true;
-            // Log a success message for the installed tool.
-            log_info!(
-                "[Tools] {}: {}",
-                "Successfully installed tool".yellow(),
-                tool.name.bold().bright_green()
-            );
-            eprintln!(
-                "{}",
-                "=================================================================\
-            ============================="
-                    .blue()
-            );
-            print!("\n");
-        } else {
-            // If `installation_result` is `None`, it means the installation failed.
-            // Log an error message to inform the user.
-            log_error!(
-                "[Tools] Failed to install tool: {}. Please review previous logs for specific errors during installation.",
-                tool.name.bold().red()
-            );
+        // Categorize each result into the appropriate vector.
+        for (tool_name, result) in results {
+            match result {
+                ToolProcessingResult::Installed => summary.installed_tools.push(tool_name),
+                ToolProcessingResult::Updated => summary.updated_tools.push(tool_name),
+                ToolProcessingResult::ConfigurationUpdated => {
+                    summary.configuration_updated_tools.push(tool_name)
+                }
+                ToolProcessingResult::Skipped(reason) => {
+                    summary.skipped_tools.push((tool_name, reason))
+                }
+                ToolProcessingResult::ConfigurationSkipped(reason) => summary
+                    .configuration_skipped_tools
+                    .push((tool_name, reason)),
+                ToolProcessingResult::Failed(reason) => {
+                    summary.failed_tools.push((tool_name, reason))
+                }
+            }
         }
+
+        summary
     }
 
-    // Post-Installation Summary
-    // After the loop, check if any tools were skipped.
-    if !skipped_tools.is_empty() {
+    /// Checks if any state-changing operations (install, update, config update) occurred.
+    /// This is used to decide whether the state file needs to be saved.
+    fn has_state_changes(&self) -> bool {
+        !self.installed_tools.is_empty()
+            || !self.updated_tools.is_empty()
+            || !self.configuration_updated_tools.is_empty()
+    }
+
+    /// Prints the complete summary to the console.
+    fn display_summary(&self) {
+        self.display_skipped_tools();
+        self.display_configuration_skipped_tools();
+        self.display_failed_tools();
+        self.display_success_summary();
+    }
+
+    /// Prints a formatted list of skipped tools.
+    fn display_skipped_tools(&self) {
+        if self.skipped_tools.is_empty() {
+            return;
+        }
+
         println!();
-        // If there were skipped tools, format and print a summary.
-        log_info!("[Tools] Below tools were already up to date and were skipped:");
-        eprintln!(
-            "{}",
-            "====================================================================".blue()
+        println!(
+            "{} Skipped tools (already up to date) {}",
+            "============".blue(),
+            "=============".blue()
         );
-        // Print tools in chunks of 5 per line
-        for chunk in skipped_tools.chunks(5) {
-            let tools_line = chunk
+
+        for tools_chunk in self.skipped_tools.chunks(3) {
+            let tools_line = tools_chunk
                 .iter()
-                .map(|tool| tool.bright_yellow().to_string())
+                .map(|(name, _)| name.bright_yellow().to_string())
                 .collect::<Vec<_>>()
                 .join(", ");
-            eprintln!("[Skipped Tools] {}", tools_line);
+            println!("[Skipped Install] {}", tools_line);
         }
-        eprintln!(
-            "{}",
-            "====================================================================".blue()
-        );
-        println!();
-    } else {
-        // If no tools were skipped, log a debug message to provide more context for a user looking at detailed logs.
-        log_debug!(
-            "[Tools] No tools were skipped as they were either not found in the state or needed an update."
-        );
+        println!("{}", "=".repeat(61).blue());
     }
 
-    // State Management
-    // Check if the `tools_updated` flag was set to `true` during the process.
-    if tools_updated {
-        // If so, it means changes were made, and the state file must be saved.
-        log_info!("[Tools] New tools installed or state updated. Saving current DevBox state...");
-        if !save_devbox_state(state, state_path_resolved) {
-            // If saving fails (e.g., due to file permissions), log a critical error.
-            log_error!(
-                "[StateSave] Failed to save state after tool installations. Data loss risk!"
-            );
-        } else {
-            // On success, log an informative message.
-            log_info!("[StateSave] State saved successfully after tool updates.");
+    /// Prints a formatted list of tools where configuration syncing was skipped.
+    fn display_configuration_skipped_tools(&self) {
+        if self.configuration_skipped_tools.is_empty() {
+            return;
         }
+
+        println!();
+        println!(
+            "{} Skipped Configuration Sync (already up to date) {}",
+            "======".blue(),
+            "======".blue()
+        );
+
+        for tools_chunk in self.configuration_skipped_tools.chunks(3) {
+            let tools_line = tools_chunk
+                .iter()
+                .map(|(name, _)| name.bright_yellow().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("[Skipped Configuration] {}", tools_line);
+        }
+        println!("{}\n", "=".repeat(61).blue());
+    }
+
+    /// Prints a formatted list of failed tool installations.
+    fn display_failed_tools(&self) {
+        if self.failed_tools.is_empty() {
+            return;
+        }
+
+        println!();
+        log_error!("[Tools] Failed installations:");
+        for (tool_name, failure_reason) in &self.failed_tools {
+            log_error!("  {} - {}", tool_name.red().bold(), failure_reason.red());
+        }
+    }
+
+    /// Prints a final summary of successfully processed tools.
+    fn display_success_summary(&self) {
+        let total_processed = self.installed_tools.len()
+            + self.updated_tools.len()
+            + self.configuration_updated_tools.len();
+
+        if total_processed > 0 {
+            log_info!("[Tools] Successfully processed {} tool(s)", total_processed);
+        }
+    }
+}
+
+/// ### Public Functions
+/// The main public entry point for the tool installation process.
+///
+/// This function sets up the installation configuration, initializes the orchestrator,
+/// and processes all tools. It then displays a summary and saves the final state
+/// if any changes were made.
+pub fn install_tools(
+    tools_configuration: ToolConfig,
+    state: &mut DevBoxState,
+    state_file_path: &PathBuf,
+    force_update_latest: bool,
+) {
+    eprintln!("\n");
+    eprintln!("{}:", "TOOLS".bright_yellow().bold());
+    eprintln!("{}", "=".repeat(7).bright_yellow());
+
+    // Create the installation configuration based on the provided parameters.
+    let installation_config =
+        InstallationConfiguration::new(&tools_configuration, force_update_latest);
+    // Initialize the main orchestrator with the shared state and configuration.
+    let mut orchestrator = ToolInstallationOrchestrator::new(state, &installation_config);
+
+    log_debug!(
+        "[Tools] Update policy: {}",
+        if installation_config.force_update_enabled {
+            "forced update of all 'latest' version tools (--update-latest flag)".to_string()
+        } else {
+            format!(
+                "only update 'latest' versions if older than {:?}",
+                installation_config.update_threshold_duration
+            )
+        }
+    );
+
+    // Process all tools and collect the results.
+    let processing_results = orchestrator.process_all_tools(&tools_configuration.tools);
+    // Create a summary object from the results for reporting.
+    let summary = InstallationSummary::from_processing_results(processing_results);
+
+    // Display the final summary to the user.
+    summary.display_summary();
+
+    // Only save the state file if there were changes to prevent unnecessary writes.
+    if summary.has_state_changes() {
+        save_state_to_file(state, state_file_path);
     } else {
-        // If no tools were installed or updated, no need to save the state.
-        log_info!("[Tools] No new tools installed or state changes detected for tools.");
+        log_info!("[Tools] No new tools installed or state changes detected.");
     }
 
     eprintln!();
-    log_debug!("Exiting install_tools() function.");
 }
 
-/// Executes additional commands after the main installation is complete.
-/// These commands are often used for post-installation setup, such as copying
-/// configuration files, creating directories, or setting up symbolic links.
+/// Executes a set of additional shell commands for a tool after its installation.
 ///
-/// # Arguments
-/// * `installer_prefix` - The prefix for log messages (e.g., "[GitHub]", "[Cargo]")
-/// * `tool_entry` - Reference to the ToolEntry containing the tool configuration
-/// * `working_dir` - The working directory where commands should be executed
-///
-/// # Returns
-/// * `Option<Vec<String>>` - Some with executed commands if successful, None if no commands to execute or if commands failed
-/// * The function continues execution even if commands fail, only logging warnings instead of errors
-pub(crate) fn execute_post_installation_commands(
+/// This function provides a way to run custom commands, such as `pip install -r requirements.txt`,
+/// as part of the tool installation process. It handles logging and error reporting.
+pub fn execute_post_installation_commands(
     installer_prefix: &str,
     tool_entry: &ToolEntry,
-    working_dir: &std::path::Path,
+    working_directory: &std::path::Path,
 ) -> Option<Vec<String>> {
-    if let Some(ref additional_commands) = tool_entry.additional_cmd {
-        if !additional_commands.is_empty() {
-            log_info!(
-                "{} Tool {} has {} additional command(s) to execute",
-                installer_prefix,
-                tool_entry.name.bold(),
-                additional_commands.len().to_string().yellow()
-            );
+    // Return `None` if there are no additional commands.
+    let additional_commands = tool_entry.additional_cmd.as_ref()?;
 
-            log_debug!(
-                "{} Additional commands will execute from working directory: {}",
-                installer_prefix,
-                working_dir.display().to_string().cyan()
-            );
-
-            match execute_additional_commands(
-                installer_prefix,
-                additional_commands,
-                working_dir,
-                &tool_entry.name,
-            ) {
-                Ok(executed_cmds) => {
-                    log_info!(
-                        "{} Successfully completed all additional commands for {}",
-                        installer_prefix,
-                        tool_entry.name.to_string().green()
-                    );
-                    Some(executed_cmds)
-                }
-                Err(err) => {
-                    log_warn!(
-                        "{} Failed to execute additional commands for {}: {}. Continuing with installation.",
-                        installer_prefix,
-                        tool_entry.name.to_string().yellow(),
-                        err.yellow()
-                    );
-                    None
-                }
-            }
-        } else {
-            log_debug!(
-                "{} Tool {} has additional_cmd field but it's empty, skipping",
-                installer_prefix,
-                tool_entry.name.dimmed()
-            );
-            None
-        }
-    } else {
+    if additional_commands.is_empty() {
         log_debug!(
-            "{} No additional commands specified for {}",
+            "[Tools] {} No additional commands for {}",
             installer_prefix,
             tool_entry.name.dimmed()
         );
-        None
+        return None;
+    }
+
+    log_info!(
+        "[Tools] {} Executing {} additional command(s) for {}",
+        installer_prefix,
+        additional_commands.len().to_string().yellow(),
+        tool_entry.name.bold()
+    );
+
+    log_debug!(
+        "[Tools] {} Working directory: {}",
+        installer_prefix,
+        working_directory.display().to_string().cyan()
+    );
+
+    // Delegate the actual command execution to a separate utility function.
+    match execute_additional_commands(
+        installer_prefix,
+        additional_commands,
+        working_directory,
+        &tool_entry.name,
+    ) {
+        Ok(executed_commands) => {
+            log_info!(
+                "[Tools] {} Successfully completed additional commands for {}",
+                installer_prefix,
+                tool_entry.name.green()
+            );
+            Some(executed_commands)
+        }
+        Err(execution_error) => {
+            log_warn!(
+                "[Tools] {} Additional commands failed for {}: {}. Continuing.",
+                installer_prefix,
+                tool_entry.name.yellow(),
+                execution_error.yellow()
+            );
+            None
+        }
     }
 }

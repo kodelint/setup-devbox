@@ -1,0 +1,181 @@
+name: Test Release Workflow (Dry Run)
+
+on:
+  workflow_dispatch:  # Manual trigger only
+    inputs:
+      test_branch:
+        description: 'Branch to simulate'
+        required: true
+        default: 'feature/test-feature'
+      test_commits:
+        description: 'Simulate commits since last release'
+        required: false
+        default: 'feat: add new feature\nfix: resolve bug'
+
+jobs:
+  dry-run-analyze:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      should_build: ${{ steps.check.outputs.should_build }}
+      new_version: ${{ steps.version.outputs.new_version }}
+      is_prerelease: ${{ steps.check.outputs.is_prerelease }}
+      branch_type: ${{ steps.check.outputs.branch_type }}
+      release_type: ${{ steps.version.outputs.release_type }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust tools (dry run)
+        run: |
+          echo "Would install: cargo install cargo-release git-cliff --locked"
+          # For testing, just show what would happen
+          cargo --version
+
+      - name: Simulate branch analysis
+        id: check
+        run: |
+          branch="${{ github.event.inputs.test_branch }}"
+          echo "🧪 TESTING: Simulating branch: $branch"
+          
+          if [[ "$branch" == "main" ]]; then
+            echo "branch_type=main" >> $GITHUB_OUTPUT
+            echo "should_release=pending" >> $GITHUB_OUTPUT
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          elif [[ "$branch" == "development" ]]; then
+            echo "branch_type=development" >> $GITHUB_OUTPUT
+            echo "should_release=pending" >> $GITHUB_OUTPUT
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          elif [[ "$branch" == feature/* ]] || [[ "$branch" == hotfix/* ]] || [[ "$branch" == bugfix/* ]]; then
+            echo "branch_type=feature" >> $GITHUB_OUTPUT
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          else
+            echo "branch_type=other" >> $GITHUB_OUTPUT
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "✅ Branch analysis complete"
+
+      - name: Simulate version analysis
+        if: steps.check.outputs.branch_type == 'main' || steps.check.outputs.branch_type == 'development'
+        id: version
+        run: |
+          echo "🧪 TESTING: Analyzing version changes..."
+          
+          # Get current version from Cargo.toml
+          current_version=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "Current version: $current_version"
+          
+          # Simulate commit analysis
+          test_commits="${{ github.event.inputs.test_commits }}"
+          echo "Simulating commits:"
+          echo "$test_commits"
+          
+          if echo "$test_commits" | grep -q "BREAKING CHANGE"; then
+            release_type="major"
+            should_release="true"
+          elif echo "$test_commits" | grep -q "^feat"; then
+            release_type="minor"
+            should_release="true"
+          elif echo "$test_commits" | grep -q "^fix\|^build\|^perf"; then
+            release_type="patch"
+            should_release="true"
+          else
+            release_type="none"
+            should_release="false"
+          fi
+          
+          # Calculate new version (simulation)
+          if [[ "$should_release" == "true" ]]; then
+            IFS='.' read -ra VERSION_PARTS <<< "$current_version"
+            major=${VERSION_PARTS[0]}
+            minor=${VERSION_PARTS[1]:-0}
+            patch=${VERSION_PARTS[2]:-0}
+          
+            case "$release_type" in
+              major) new_version="$((major + 1)).0.0" ;;
+              minor) new_version="${major}.$((minor + 1)).0" ;;
+              patch) new_version="${major}.${minor}.$((patch + 1))" ;;
+            esac
+          
+            if [[ "${{ steps.check.outputs.branch_type }}" == "development" ]]; then
+              new_version="${new_version}-beta.1"
+            fi
+          else
+            new_version="$current_version"
+          fi
+          
+          echo "release_type=$release_type" >> $GITHUB_OUTPUT
+          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+          echo "should_release=$should_release" >> $GITHUB_OUTPUT
+          
+          echo "✅ Version analysis complete"
+
+      - name: Display test results
+        run: |
+          echo "## 🧪 Dry Run Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ github.event.inputs.test_branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch Type**: ${{ steps.check.outputs.branch_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Should Build**: ${{ steps.check.outputs.should_build }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Should Release**: ${{ steps.version.outputs.should_release || steps.check.outputs.should_release }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Release Type**: ${{ steps.version.outputs.release_type || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**New Version**: ${{ steps.version.outputs.new_version || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Is Prerelease**: ${{ steps.check.outputs.is_prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### What would happen:" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.check.outputs.should_build }}" == "true" ]]; then
+            echo "- ✅ Build job would run" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Build job would be skipped" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [[ "${{ steps.version.outputs.should_release || steps.check.outputs.should_release }}" == "true" ]]; then
+            echo "- ✅ Release job would run" >> $GITHUB_STEP_SUMMARY
+            echo "- 📝 Cargo.toml would be updated to v${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "- 🏷️ Git tag v${{ steps.version.outputs.new_version }} would be created" >> $GITHUB_STEP_SUMMARY
+            echo "- 📦 GitHub release would be created" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Release job would be skipped" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  dry-run-build:
+    needs: dry-run-analyze
+    if: needs.dry-run-analyze.outputs.should_build == 'true'
+    runs-on: ubuntu-latest  # Use Ubuntu for testing (cheaper)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check if project compiles
+        run: |
+          echo "🧪 TESTING: Checking if project compiles..."
+          cargo check --release
+          echo "✅ Project compiles successfully"
+
+      - name: Simulate build (no actual artifact creation)
+        run: |
+          echo "🧪 TESTING: Would run 'cargo build --release'"
+          echo "✅ Build simulation complete"
+
+      - name: Build summary
+        run: |
+          echo "## 🔨 Build Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Project compiles without errors" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Would create artifact: setup-devbox-macos-x86_64-${{ needs.dry-run-analyze.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
