@@ -29,8 +29,9 @@ By defining your desired tools, system settings, shell configurations, and fonts
 * **Declarative Configuration**: Define your entire development environment in easy-to-read YAML files.
 * **Intelligent State Management**: Tracks installed tools and applied settings in a `state.json` file to prevent redundant operations and ensure efficiency.
 * **Platform Support**: Currently designed for and tested on **macOS**. Linux support is planned for future releases.
-* **Smart Update Policies**: Control when tools with version "latest" should be updated using the `update_latest_only_after` configuration. 
-Override update policies with the `--update-latest` flag to force updates of all "latest" version tools.
+* **Smart Update Policies**: Control when tools with version "latest" should be updated using the `update_latest_only_after` configuration.
+  Override update policies with the `--update-latest` flag to force updates of all "latest" version tools.
+* **Smart Tool Configuration Management**: Manage tool configuration files and tracks the drifts using `SHA256`
 * **Extensible Installer Support**:
   * 📦 **Homebrew (`brew`)**: Install packages and applications (primarily macOS).
   * 🐙 **GitHub Releases (`github`)**: Download and install pre-compiled binaries.
@@ -105,16 +106,23 @@ update_latest_only_after: "7 days"  # Options: "1 day", "3 days", "14 days", "24
 tools:
   # --- GitHub Release Installer Example (source: github) ---
   # Downloads pre-compiled binaries from GitHub releases.
-  - name: git-pr                    # The name of the tool (e.g., 'terraform', 'kubectl')
-    source: github                  # Specifies the GitHub installer.
-    repo: kodelint/git-pr           # REQUIRED: The GitHub repository in 'owner/repo' format.
-    version: 0.1.0                  # (Optional) The specific version to download.
-    rename_to: git-pr               # (Optional) Rename the downloaded executable.
-  - name: git-spellcheck            # The name of the tool (e.g., 'terraform', 'kubectl')
-    source: github                  # Specifies the GitHub installer.
-    repo: kodelint/git-spellcheck   # REQUIRED: The GitHub repository in 'owner/repo' format.
-    version: 0.0.1                  # (Optional) The specific version to download.
-    rename_to: git-spellcheck       # (Optional) Rename the downloaded executable.
+  - name: git-pr                             # The name of the tool (e.g., 'terraform', 'kubectl')
+    source: github                           # Specifies the GitHub installer.
+    repo: kodelint/git-pr                    # REQUIRED: The GitHub repository in 'owner/repo' format.
+    version: 0.1.0                           # (Optional) The specific version to download.
+    rename_to: git-pr                        # (Optional) Rename the downloaded executable.
+    
+  - name: zed                                # The name of the tool (e.g., 'terraform', 'kubectl')
+    version: 0.204.4                         # Specifies the GitHub installer.
+    source: github
+    repo: zed-industries/zed
+    tag: v0.204.4
+    rename_to: zed
+    configuration_manager:                   # Tool's configuration manager
+      enabled: true                          # enabled or disabled
+      tools_configuration_paths:             # Tools configuration path
+        - $HOME/.config/zed/settings.json    # Tools configuration file
+    
   # --- Go Installer Example (source: go) ---
   # Installs Go binaries directly from their source via `go install`.
   - name: gh                    # The Go module path.
@@ -140,6 +148,15 @@ tools:
     version: 8.5.1              # (Optional) The specific version of the crate.
     options:
       - --features="notify"     # Example: Enable specific features for the crate.
+
+  - name: lsd
+    source: cargo
+    version: 1.1.5
+    configuration_manager:               # Tool's configuration manager
+      enabled: true                      # enabled or disabled
+      tools_configuration_paths:         # Tools configuration path
+        - $HOME/.config/lsd/config.yaml  # Tools configuration file
+        - $HOME/.config/lsd/icons.yaml   # Tools configuration file
 
   # --- Pip Installer Example (source: pip) ---
   # Installs Python packages using `pip`.

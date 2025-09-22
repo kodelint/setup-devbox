@@ -87,6 +87,9 @@ jobs:
             # Get commits since last tag
             commits=$(git log ${last_tag}..HEAD --oneline --grep="^feat" --grep="^fix" --grep="^build" --grep="^perf" --grep="^refactor" --grep="BREAKING CHANGE" || echo "")
           
+            echo "Found commits:"
+            echo "$commits"
+          
             if [[ -z "$commits" ]]; then
               echo "No release-worthy commits found"
               should_release="false"
@@ -95,12 +98,12 @@ jobs:
               echo "Breaking changes detected"
               release_type="major"
               should_release="true"
-            elif git log ${last_tag}..HEAD --oneline | grep -E "^[a-f0-9]+ feat" | head -1; then
+            elif echo "$commits" | grep -q "feat:"; then
               echo "Features detected"
               release_type="minor"
               should_release="true"
             else
-              echo "Patches/fixes detected"
+              echo "Patches/fixes/refactors detected"
               release_type="patch"  
               should_release="true"
             fi
@@ -159,6 +162,7 @@ jobs:
 
       - name: Set feature version for artifacts
         if: steps.check.outputs.branch_type == 'feature'
+        id: feature_version
         run: |
           current_version=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
           short_sha=$(echo "${{ github.sha }}" | cut -c1-7)
@@ -202,11 +206,11 @@ jobs:
           fi
           echo "✅ Code formatting is correct"
 
-#      - name: Run Clippy lints
-#        run: |
-#          echo "📎 Running Clippy lints..."
-#          cargo clippy --all-targets --all-features -- -D warnings -D clippy::all -W clippy::pedantic -W clippy::nursery
-#          echo "✅ No Clippy issues found"
+      #      - name: Run Clippy lints
+      #        run: |
+      #          echo "📎 Running Clippy lints..."
+      #          cargo clippy --all-targets --all-features -- -D warnings -D clippy::all -W clippy::pedantic -W clippy::nursery
+      #          echo "✅ No Clippy issues found"
 
       - name: Check for unused dependencies
         run: |
@@ -332,6 +336,7 @@ jobs:
           echo "- ✅ Anti-pattern detection" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "💡 These advanced checks help maintain code quality but won't block releases."
+
   build:
     needs: [analyze, quality]  # Now depends on quality checks too
     if: needs.analyze.outputs.should_build == 'true'
