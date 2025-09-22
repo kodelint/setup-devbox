@@ -29,8 +29,9 @@ By defining your desired tools, system settings, shell configurations, and fonts
 * **Declarative Configuration**: Define your entire development environment in easy-to-read YAML files.
 * **Intelligent State Management**: Tracks installed tools and applied settings in a `state.json` file to prevent redundant operations and ensure efficiency.
 * **Platform Support**: Currently designed for and tested on **macOS**. Linux support is planned for future releases.
-* **Smart Update Policies**: Control when tools with version "latest" should be updated using the `update_latest_only_after` configuration. 
-Override update policies with the `--update-latest` flag to force updates of all "latest" version tools.
+* **Smart Update Policies**: Control when tools with version "latest" should be updated using the `update_latest_only_after` configuration.
+  Override update policies with the `--update-latest` flag to force updates of all "latest" version tools.
+* **Smart Tool Configuration Management**: Manage tool configuration files and tracks the drifts using `SHA256`
 * **Extensible Installer Support**:
   * 📦 **Homebrew (`brew`)**: Install packages and applications (primarily macOS).
   * 🐙 **GitHub Releases (`github`)**: Download and install pre-compiled binaries.
@@ -105,16 +106,23 @@ update_latest_only_after: "7 days"  # Options: "1 day", "3 days", "14 days", "24
 tools:
   # --- GitHub Release Installer Example (source: github) ---
   # Downloads pre-compiled binaries from GitHub releases.
-  - name: git-pr                    # The name of the tool (e.g., 'terraform', 'kubectl')
-    source: github                  # Specifies the GitHub installer.
-    repo: kodelint/git-pr           # REQUIRED: The GitHub repository in 'owner/repo' format.
-    version: 0.1.0                  # (Optional) The specific version to download.
-    rename_to: git-pr               # (Optional) Rename the downloaded executable.
-  - name: git-spellcheck            # The name of the tool (e.g., 'terraform', 'kubectl')
-    source: github                  # Specifies the GitHub installer.
-    repo: kodelint/git-spellcheck   # REQUIRED: The GitHub repository in 'owner/repo' format.
-    version: 0.0.1                  # (Optional) The specific version to download.
-    rename_to: git-spellcheck       # (Optional) Rename the downloaded executable.
+  - name: git-pr                             # The name of the tool (e.g., 'terraform', 'kubectl')
+    source: github                           # Specifies the GitHub installer.
+    repo: kodelint/git-pr                    # REQUIRED: The GitHub repository in 'owner/repo' format.
+    version: 0.1.0                           # (Optional) The specific version to download.
+    rename_to: git-pr                        # (Optional) Rename the downloaded executable.
+    
+  - name: zed                                # The name of the tool (e.g., 'terraform', 'kubectl')
+    version: 0.204.4                         # Specifies the GitHub installer.
+    source: github
+    repo: zed-industries/zed
+    tag: v0.204.4
+    rename_to: zed
+    configuration_manager:                   # Tool's configuration manager
+      enabled: true                          # enabled or disabled
+      tools_configuration_paths:             # Tools configuration path
+        - $HOME/.config/zed/settings.json    # Tools configuration file
+    
   # --- Go Installer Example (source: go) ---
   # Installs Go binaries directly from their source via `go install`.
   - name: gh                    # The Go module path.
@@ -140,6 +148,15 @@ tools:
     version: 8.5.1              # (Optional) The specific version of the crate.
     options:
       - --features="notify"     # Example: Enable specific features for the crate.
+
+  - name: lsd
+    source: cargo
+    version: 1.1.5
+    configuration_manager:               # Tool's configuration manager
+      enabled: true                      # enabled or disabled
+      tools_configuration_paths:         # Tools configuration path
+        - $HOME/.config/lsd/config.yaml  # Tools configuration file
+        - $HOME/.config/lsd/icons.yaml   # Tools configuration file
 
   # --- Pip Installer Example (source: pip) ---
   # Installs Python packages using `pip`.
@@ -249,6 +266,158 @@ settings:
       value: "true"
       type: bool
 ```
+
+## 🔧 Configuration Manager:
+`setup-devbox` features a sophisticated Configuration Manager that ensures your tool configurations remain consistent and 
+version-controlled. This powerful subsystem detects and corrects configuration drift, maintaining your development 
+environment's integrity across installations and updates.
+
+```yaml
+tools:
+  - name: lsd
+    source: brew
+    version: latest
+    configuration_manager:               # 🎛️ Tool's configuration manager
+      enabled: true                      # ✅ Enable configuration management
+      tools_configuration_paths:         # 📁 Tools configuration paths to manage
+        - $HOME/.config/lsd/config.yaml  # 🔧 Main configuration file
+        - $HOME/.config/lsd/icons.yaml   # 🎨 Icons configuration file
+```
+
+### 🚀 How It Works
+
+#### 📊 Configuration Management Flow
+```text
+Source Template → Validation → Transformation → Deployment → State Tracking
+     ↓               ↓             ↓             ↓              ↓
+   TOML/JSON      Syntax Check   Format Convert  Copy to Dest   SHA256 Tracking
+     ↓               ↓             ↓             ↓              ↓
+  ~/.setup-devbox/  ✅ Valid     → YAML/JSON   → ~/.config/   → State Database
+  configs/tools/               (Target Format)    tool/
+```
+
+#### 🔍 Key Features
+
+- **🔒 SHA256 Hashing:** Tracks both source and destination file checksums
+- **📊 Drift Reporting:** Provides detailed reports on configuration differences
+- **🔄 Auto-Correction:** Automatically synchronizes configurations when drift is detected
+
+#### 📁 Smart Source File Resolution
+The system intelligently locates configuration source files using this priority order:
+1. Environment Variables (Highest Priority):
+   ```bash
+    export SBD_CONFIG_PATH="/custom/source_config_path"
+    export SBD_TOOL_CONFIGURATION_PATH="/custom/source_config_path/configs/tools/"
+   ```
+    >> 📝 **Important Notes:**
+    >- `SBD_CONFIG_PATH`: Root configuration directory for entire setup-devbox
+    >- `SBD_TOOL_CONFIGURATION_PATH`: Specific directory for tool configuration files
+    >- Both expect organized folder structure with tool-specific subdirectories
+    
+    >> 📋 Example Resolution:
+   > - Destination file: $HOME/.config/lsd/config.yaml 
+   > - SBD_CONFIG_PATH: $HOME/Documents/SDB 
+   > - Expected source file locations:
+   >   - $SBD_CONFIG_PATH/configs/tools/lsd/config.toml
+   >   - $SBD_CONFIG_PATH/configs/tools/lsd/icons.toml 
+   > - File naming convention:
+   >   - Source: config.toml (TOML format) → Destination: config.yaml (YAML format)
+
+
+2. Default Locations (Fallback):
+   ```bash
+   $HOME/.setup-devbox/configs/tools/<<tool_name>>/
+   ```
+
+#### Advanced Multi-File Management
+
+ ```yaml
+  tools:
+    - name: nvim
+      source: brew
+      configuration_manager:
+        enabled: true
+        tools_configuration_paths:
+          - $HOME/.config/nvim/init.vim
+          - $HOME/.config/nvim/coc-settings.json
+          - $HOME/.config/nvim/lua/plugins.lua
+        additional_cmd: 
+        - nvim --headless +'checkhealth' +qall  # 🛠️ Pre-apply validation
+ ```
+
+### 📊 State Management
+This is how the `state.json` files looks
+
+```json
+  "lsd": {
+    "version": "1.1.5",
+    "install_path": "/Users/kodelint/.cargo/bin/lsd",
+    "installed_by_devbox": true,
+    "install_method": "cargo-install",
+    "renamed_to": null,
+    "package_type": "rust-crate",
+    "repo": null,
+    "tag": null,
+    "options": null,
+    "url": null,
+    "last_updated": "2025-09-05T16:45:26.737584+00:00",
+    "executable_path_after_extract": null,
+    "additional_cmd_executed": null,
+    "configuration_manager": {
+      "enabled": true,
+      "tools_configuration_paths": [
+        "$HOME/.config/lsd/config.yaml",
+        "$HOME/.config/lsd/icons.yaml"
+      ],
+      "source_configuration_sha": "66ce9065be901....",
+      "destination_configuration_sha": "d56d715d7072..."
+    }
+  },
+```
+
+### 🔔 Drift Detection Alerts
+```bash
+  ...
+  ...
+  TOOLS:
+  =======
+  [INFO] [Tools] Configuration Management...
+  [INFO] [Tools] Updating configuration for: Ghostty
+  [INFO] [Tools] Configuration written to: /Users/kodelint/.config/ghostty/config
+```
+
+### ✅ Recommended Configuration Structure
+```bash
+>> ls -l --tree SDB
+ls --tree SDB
+📂  SDB
+├── 📂  configs
+│   ├──   config.yaml
+│   ├──   fonts.yaml
+│   ├──   settings.yaml
+│   ├──   shellrc.yaml
+│   ├── 📂  tools
+│   │   ├── 📂  autin
+│   │   │   └──   atuin.toml
+│   │   ├── 📂  ghostty
+│   │   │   └──   config.toml
+│   │   ├── 📂  helix
+│   │   │   └──   config.toml
+│   │   ├── 📂  lsd
+│   │   │   ├──   config.toml
+│   │   │   └──   icons.toml
+│   │   ├── 📂  starship
+│   │   │   └──   starship.toml
+│   │   ├── 📂  uv
+│   │   │   └──   uv.toml
+│   │   └── 📂  zed
+│   │       └──   settings.toml
+│   └──   tools.yaml
+└──   state.json
+```
+The Configuration Manager ensures your development tools maintain consistent settings across all your machines, 
+providing enterprise-grade configuration management with developer-friendly simplicity. 🚀
+
 
 ## 🤝 Contributing
 Contributions are welcome! If you find a bug, have a feature request, or want to contribute code, please open an issue or submit a pull request.
