@@ -22,7 +22,7 @@ use std::path::PathBuf;
 ///
 /// # Returns
 /// * `PathBuf`: The fully resolved path if `~` was present and the home directory
-///              could be determined. Otherwise, it returns the original path unchanged.
+///   could be determined. Otherwise, it returns the original path unchanged.
 pub fn expand_tilde(path: &str) -> PathBuf {
     // Check if the input path string actually begins with a tilde character.
     if path.starts_with("~") {
@@ -113,7 +113,7 @@ pub fn get_devbox_dir() -> PathBuf {
         // Get the current working directory.
         let current_dir = env::current_dir().unwrap_or_else(|e| {
             // If even current directory can't be found, panic as it's a critical error.
-            panic!("Failed to get current directory and home directory: {}", e);
+            panic!("Failed to get current directory and home directory: {e}");
         });
         // Corrected: Use ".setup-devbox" for the fallback path
         let fallback_dir = current_dir.join(".setup-devbox");
@@ -138,9 +138,9 @@ pub fn extract_version_number(input: &str) -> String {
 /// Helper function to get the default Python installation path
 pub fn default_python_path(package_name: &str) -> String {
     if let Ok(home) = std::env::var("HOME") {
-        format!("{}/.local/share/uv/python/{}", home, package_name)
+        format!("{home}/.local/share/uv/python/{package_name}")
     } else {
-        format!("/usr/local/share/uv/python/{}", package_name)
+        format!("/usr/local/share/uv/python/{package_name}")
     }
 }
 
@@ -182,7 +182,7 @@ pub fn resolve_paths(
             "SDB_CONFIG_PATH".blue()
         );
         // Environment variable SDB_CONFIG_PATH
-        expand_tilde(&format!("{}/configs/config.yaml", env_config_path))
+        expand_tilde(&format!("{env_config_path}/configs/config.yaml"))
     } else {
         // Default fallback
         expand_tilde("~/.setup-devbox/configs/config.yaml")
@@ -198,14 +198,14 @@ pub fn resolve_paths(
             "SDB_STATE_FILE_PATH".blue()
         );
         // Environment variable SDB_STATE_FILE_PATH
-        expand_tilde(&format!("{}/state.json", env_state_path))
+        expand_tilde(&format!("{env_state_path}/state.json"))
     } else if let Ok(env_config_path) = env::var("SDB_CONFIG_PATH") {
         log_debug!(
             "[SDB] Using \"{}\" as SDB State file folder",
             "SDB_CONFIG_PATH".blue()
         );
         // Fallback to SDB_CONFIG_PATH
-        expand_tilde(&format!("{}/state.json", env_config_path))
+        expand_tilde(&format!("{env_config_path}/state.json"))
     } else {
         // Default fallback
         expand_tilde("~/.setup-devbox/state.json")

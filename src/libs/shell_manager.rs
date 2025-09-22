@@ -16,7 +16,6 @@ use std::collections::{HashMap, HashSet};
 /// # Logic
 /// - For export commands: Checks if the same variable name already exists with a different value
 /// - For other commands: Currently returns false (could be extended for other patterns)
-
 pub fn is_command_update(command: &str, existing_commands: &HashSet<String>) -> bool {
     // For export commands, check if we're updating the same variable
     if command.starts_with("export ") {
@@ -24,7 +23,7 @@ pub fn is_command_update(command: &str, existing_commands: &HashSet<String>) -> 
             let var_name = &command[7..equals_pos]; // Skip "export "
             return existing_commands
                 .iter()
-                .any(|existing| existing.starts_with(&format!("export {}", var_name)));
+                .any(|existing| existing.starts_with(&format!("export {var_name}")));
         }
     }
 
@@ -152,7 +151,6 @@ pub fn find_section_start(lines: &[String], section: &ConfigSection) -> Option<u
 ///
 /// # Returns
 /// * `String` - The formatted section header line
-
 pub fn create_section_header(section: &ConfigSection) -> String {
     format!(
         "# {} Section - Managed by setup-devbox",
@@ -197,7 +195,7 @@ pub fn normalize_command(command: &str) -> String {
     if command.starts_with("export ") {
         if let Some(equals_pos) = command.find('=') {
             let var_name = &command[7..equals_pos]; // Skip "export "
-            return format!("export {}", var_name);
+            return format!("export {var_name}");
         }
     }
 
@@ -205,7 +203,7 @@ pub fn normalize_command(command: &str) -> String {
     if command.starts_with("alias ") {
         if let Some(equals_pos) = command.find('=') {
             let alias_name = &command[6..equals_pos]; // Skip "alias "
-            return format!("alias {}", alias_name);
+            return format!("alias {alias_name}");
         }
     }
 

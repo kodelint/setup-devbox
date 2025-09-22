@@ -51,7 +51,7 @@ use serde::{Deserialize, Serialize};
 /// Each operating system uses different mechanisms for applying settings:
 /// - **macOS**: `defaults` command for preference domain system
 /// - **Linux**: Various methods (gsettings, config files, sysctl)
-/// - **Windows**: Registry edits, PowerShell commands
+/// - **Windows**: Registry edits, `PowerShell` commands
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SettingsConfig {
     /// OS-specific settings, organized by operating system.

@@ -61,7 +61,7 @@ pub struct ShellRunCommands {
     /// - Comment headers and section organization
     ///
     /// ## Supported Shells
-    /// - `"bash"`: Bourne Again SHell (Linux/macOS)
+    /// - `"bash"`: Bourne Again Shell (Linux/macOS)
     /// - `"zsh"`: Z Shell (macOS default, popular alternative)
     /// - Other shells with RC file support
     pub shell: String,

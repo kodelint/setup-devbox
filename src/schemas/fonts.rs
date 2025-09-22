@@ -137,9 +137,9 @@ pub struct FontEntry {
     ///
     /// ## Version Format
     /// Typically follows semantic versioning or release numbering:
-    /// - `"6.2"` (Fira Code v6.2)
-    /// - `"v2.304"` (JetBrains Mono v2.304)
-    /// - `"3.0.1"` (Hack v3.0.1)
+    /// - `"6.2"` (`Fira Code v6.2`)
+    /// - `"v2.304"` (`JetBrains Mono v2.304`)
+    /// - `"3.0.1"` (`Hack v3.0.1`)
     ///
     /// ## Update Behavior
     /// - With specific version: Only updated if version changes in config
@@ -180,9 +180,9 @@ pub struct FontEntry {
     ///
     /// ## Repository Format
     /// Must follow GitHub's `owner/repository` naming convention:
-    /// - `"tonsky/FiraCode"` (Fira Code font)
-    /// - `"JetBrains/JetBrainsMono"` (JetBrains Mono)
-    /// - `"source-foundry/Hack"` (Hack font)
+    /// - `"tonsky/FiraCode"` (`Fira Code font`)
+    /// - `"JetBrains/JetBrainsMono"` (`JetBrains Mono`)
+    /// - `"source-foundry/Hack"` (`Hack font`)
     ///
     /// ## Release Discovery
     /// The system uses the GitHub API to discover available releases and

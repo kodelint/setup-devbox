@@ -12,14 +12,13 @@ use colored::Colorize;
 /// from a list of available files. It performs fuzzy matching using aliases.
 ///
 /// # Arguments
-/// * `filename`: The full filename (`&str`) of the asset (e.g., "mytool_1.0.0_macOS_arm64.tar.gz").
-/// * `os`: The current operating system as a normalized string (e.g., "macos").
-/// * `arch`: The current architecture as a normalized string (e.g., "arm64").
+/// * `filename`: The full filename (`&str`) of the asset (e.g., "`mytool_1.0.0_macOS_arm64.tar.gz`").
+/// * `os`: The current operating system as a normalized string (e.g., "`macos`").
+/// * `arch`: The current architecture as a normalized string (e.g., "`arm64`").
 ///
 /// # Returns
 /// * `bool`: `true` if the filename contains recognizable keywords for the platform's OS and architecture,
-///           considering aliases and a special Rosetta 2 fallback for macOS ARM64. `false` otherwise.
-
+///   considering aliases and a special Rosetta 2 fallback for macOS ARM64. `false` otherwise.
 pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
     // Convert inputs to lowercase for case-insensitive comparison.
     let asset_name_lower = filename.to_lowercase();
@@ -50,8 +49,11 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
     // 2. Handle universal macOS packages (.dmg, .pkg)
     // If the OS is macOS and the asset is a .dmg or .pkg file, we consider it a match
     // because these are often universal installers that don't specify an architecture.
+
     let is_macos_universal_package = os_normalized == "macos"
-        && (asset_name_lower.ends_with(".dmg") || asset_name_lower.ends_with(".pkg"));
+        && std::path::Path::new(&asset_name_lower)
+            .extension()
+            .is_some_and(|ext| ["dmg", "pkg"].iter().any(|&e| ext.eq_ignore_ascii_case(e)));
 
     if is_macos_universal_package {
         log_debug!(
@@ -117,7 +119,7 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
 /// # Returns
 ///
 /// * `bool`: Returns `true` if the filename contains keywords for exclusion (e.g., "src", "checksum", ".asc").
-///           Returns `false` if the asset is considered a potential binary.
+///   Returns `false` if the asset is considered a potential binary.
 fn is_excluded_asset(asset_name_lower: &str) -> bool {
     // These files are usually not the actual executable binaries we want to download.
     // This helps in picking the actual binary release.
@@ -127,7 +129,8 @@ fn is_excluded_asset(asset_name_lower: &str) -> bool {
         asset_name_lower.contains("checksum") ||
         asset_name_lower.contains("sha256") ||
         asset_name_lower.contains("tar.gz.sig") || // Common signature file for tar.gz
-        asset_name_lower.ends_with(".asc"); // Common detached signature file extension
+        std::path::Path::new(asset_name_lower).extension
+            ().is_some_and(|ext| ext.eq_ignore_ascii_case("asc")); // Common detached signature file extension
 
     if is_excluded {
         log_debug!(
@@ -140,10 +143,10 @@ fn is_excluded_asset(asset_name_lower: &str) -> bool {
 
 /// Helper function: Provides a list of common alternative names (aliases) for a given CPU architecture.
 /// This is used internally by `asset_matches_platform` to handle different naming conventions
-/// for architectures in release asset filenames (e.g., "aarch64" vs "arm64").
+/// for architectures in release asset filenames (e.g., "`aarch64`" vs "`arm64`").
 ///
 /// # Arguments
-/// * `arch`: A string slice representing a normalized architecture name (e.g., "arm64", "x86_64").
+/// * `arch`: A string slice representing a normalized architecture name (e.g., "`arm64`", "`x86_64`").
 ///
 /// # Returns
 /// * `Vec<String>`: A vector of strings containing the input architecture name and its known aliases.
@@ -190,14 +193,14 @@ fn os_aliases(os: &str) -> Vec<String> {
     }
 }
 
-/// Detects the current machine's CPU architecture (e.g., "arm64", "x86_64").
+/// Detects the current machine's CPU architecture (e.g., "`arm64`", "`x86_64`").
 /// This is vital for downloading the correct version of a binary from GitHub releases
 /// or other sources that provide platform-specific builds.
 ///
 /// # Returns
 /// * `Option<String>`:
 ///   - `Some(String)` containing the detected architecture as a canonical string
-///     (e.g., "arm64" for "aarch64", "x86_64" for "amd64").
+///     (e.g., "`arm64`" for "`aarch64`", "`x86_64`" for "`amd64`").
 ///   - `None` if detection somehow fails, though `std::env::consts::ARCH` is generally reliable.
 pub fn detect_architecture() -> Option<String> {
     // `std::env::consts::ARCH` provides the target architecture Rust was compiled for
@@ -206,14 +209,14 @@ pub fn detect_architecture() -> Option<String> {
     Some(normalize_arch(std::env::consts::ARCH).to_string())
 }
 
-/// Detects the current operating system (e.g., "macos", "linux", "windows").
+/// Detects the current operating system (e.g., "`macos`", "`linux`", "`windows`").
 /// Similar to architecture detection, this is crucial for finding the right software release
 /// assets that are built for the specific OS.
 ///
 /// # Returns
 /// * `Option<String>`:
 ///   - `Some(String)` containing the detected OS as a canonical string
-///     (e.g., "macOS" for "darwin", "windows" for "win32").
+///     (e.g., "`macOS`" for "`darwin`", "`windows`" for "`win32`").
 ///   - `None` if detection somehow fails, though `std::env::consts::OS` is generally reliable.
 pub fn detect_os() -> Option<String> {
     // `std::env::consts::OS` provides the target operating system Rust was compiled for
@@ -231,7 +234,7 @@ pub fn detect_os() -> Option<String> {
 ///
 /// # Returns
 /// * `String`: The normalized OS string (e.g., "macOS", "linux", "windows").
-///             If the input is not a known alias, the lowercase version of the input is returned.
+///   If the input is not a known alias, the lowercase version of the input is returned.
 pub fn normalize_os(os: &str) -> String {
     // Convert the input OS string to lowercase for case-insensitive matching.
     match os.to_lowercase().as_str() {
@@ -252,15 +255,15 @@ pub fn normalize_os(os: &str) -> String {
 }
 
 /// Normalizes various input strings for CPU architectures into a consistent, lowercase format.
-/// This ensures `setup-devbox` can correctly match architectures (e.g., "aarch64" vs "arm64",
-/// or "amd64" vs "x86_64") when parsing asset names from releases.
+/// This ensures `setup-devbox` can correctly match architectures (e.g., "`aarch64`" vs "`arm64`",
+/// or "`amd64`" vs "`x86_64`") when parsing asset names from releases.
 ///
 /// # Arguments
-/// * `arch`: An input string (`&str`) representing an architecture (e.g., "AARCH64", "x86_64", "amd64").
+/// * `arch`: An input string (`&str`) representing an architecture (e.g., "`AARCH64`", "`x86_64`", "`amd64`").
 ///
 /// # Returns
-/// * `String`: The normalized architecture string (e.g., "arm64", "x86_64").
-///             If the input is not a known alias, the lowercase version of the input is returned.
+/// * `String`: The normalized architecture string (e.g., "`arm64`", "`x86_64`").
+///   If the input is not a known alias, the lowercase version of the input is returned.
 pub fn normalize_arch(arch: &str) -> String {
     // Convert the input architecture string to lowercase for case-insensitive matching.
     match arch.to_lowercase().as_str() {
@@ -351,7 +354,7 @@ pub fn check_installer_command_available(command_name: &str) -> Result<(), Insta
 /// - No sandboxing or privilege restriction is applied
 /// - Input validation should be performed by the caller to prevent command injection
 /// - Consider the security implications of executing user-provided commands
-pub(crate) fn execute_additional_commands(
+pub fn execute_additional_commands(
     installer_prefix: &str,
     commands: &[String],
     working_dir: &std::path::Path,
@@ -458,7 +461,7 @@ pub(crate) fn execute_additional_commands(
                     e.to_string().red()
                 );
 
-                return Err(format!("Failed to execute command '{}': {}", command, e));
+                return Err(format!("Failed to execute command '{command}': {e}"));
             }
         }
     }

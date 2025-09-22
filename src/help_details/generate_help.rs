@@ -75,7 +75,7 @@ pub fn show_generate_detailed_help() {
     ];
 
     for example in &config_examples {
-        println!("  • {}", example);
+        println!("  • {example}");
     }
     println!();
 

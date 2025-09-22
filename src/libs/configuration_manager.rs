@@ -285,7 +285,7 @@ impl ConfigurationManagerProcessor {
         &self,
         current_source_sha: &str,
         current_destination_sha: &Option<String>,
-        destination_paths: &Vec<PathBuf>,
+        destination_paths: &[PathBuf],
         existing_state: Option<&ConfigurationManagerState>,
         tool_name: &str,
     ) -> Result<(bool, Option<String>), Box<dyn std::error::Error>> {
@@ -451,7 +451,7 @@ impl ConfigurationManagerProcessor {
 
                 self.config_base_path
                     .join(tool_name)
-                    .join(format!("{}.toml", filename))
+                    .join(format!("{filename}.toml"))
             })
             .collect()
     }
@@ -473,8 +473,8 @@ impl ConfigurationManagerProcessor {
     /// Returns error if file operations or format conversion fails
     fn update_configuration_file(
         &self,
-        source_paths: &Vec<PathBuf>,
-        destination_paths: &Vec<PathBuf>,
+        source_paths: &[PathBuf],
+        destination_paths: &[PathBuf],
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Ensure we have the same number of source and destination paths
         if source_paths.len() != destination_paths.len() {
@@ -646,14 +646,14 @@ impl ConfigurationManagerProcessor {
                     let new_prefix = if prefix.is_empty() {
                         key.clone()
                     } else {
-                        format!("{}_{}", prefix, key)
+                        format!("{prefix}_{key}")
                     };
                     self.flatten_toml_to_key_value(val, new_prefix, result);
                 }
             }
             TomlValue::Array(arr) => {
                 for (i, val) in arr.iter().enumerate() {
-                    let new_prefix = format!("{}_{}", prefix, i);
+                    let new_prefix = format!("{prefix}_{i}");
                     self.flatten_toml_to_key_value(val, new_prefix, result);
                 }
             }
@@ -662,7 +662,7 @@ impl ConfigurationManagerProcessor {
                     TomlValue::String(s) => {
                         // Apply quoting if the string contains special characters or whitespace.
                         if self.needs_quotes(s) {
-                            format!("\"{}\"", s)
+                            format!("\"{s}\"")
                         } else {
                             s.clone()
                         }
@@ -674,7 +674,7 @@ impl ConfigurationManagerProcessor {
                     // Unhandled types will result in an empty string.
                     _ => String::new(),
                 };
-                result.push(format!("{}={}", prefix, value_str));
+                result.push(format!("{prefix}={value_str}"));
             }
         }
     }

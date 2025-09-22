@@ -56,7 +56,7 @@ pub fn show_now_help(detailed: bool) {
         add_now_basic_examples(&mut output);
     }
 
-    print!("{}", output);
+    print!("{output}");
 }
 
 /// Adds detailed information for the `now` command to a mutable string.
@@ -118,7 +118,7 @@ pub fn add_now_detailed_info(output: &mut String) {
     ];
 
     for item in &state_items {
-        writeln!(output, "  • {}", item).unwrap();
+        writeln!(output, "  • {item}").unwrap();
     }
     writeln!(output).unwrap();
 
@@ -142,7 +142,7 @@ pub fn add_now_detailed_examples(output: &mut String) {
     ];
 
     for example in &examples {
-        writeln!(output, "  {}", example).unwrap();
+        writeln!(output, "  {example}").unwrap();
     }
     writeln!(output).unwrap();
 

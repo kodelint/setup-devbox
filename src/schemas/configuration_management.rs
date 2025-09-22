@@ -55,7 +55,7 @@ use std::path::PathBuf;
 /// When `enabled` is `true`, the system will automatically manage the configuration
 /// file at the specified path, synchronizing it with the source configuration.
 /// When `false`, configuration management is disabled for this tool.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ConfigurationManager {
     /// Whether configuration management is enabled for this tool.
     ///
@@ -112,7 +112,7 @@ pub struct ConfigurationManager {
 /// - Destination file was modified externally (SHA-256 mismatch)
 /// - Configuration path in tool definition changes
 /// - Configuration management is newly enabled for a tool
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ConfigurationManagerState {
     /// Whether configuration management is currently enabled for this tool.
     ///

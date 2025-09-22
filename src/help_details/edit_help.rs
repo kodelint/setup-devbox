@@ -43,7 +43,7 @@ pub fn show_edit_help(detailed: bool) {
         add_edit_basic_examples(&mut output);
     }
 
-    print!("{}", output);
+    print!("{output}");
 }
 
 /// Adds detailed information for the `edit` command to a mutable string.
@@ -131,7 +131,7 @@ pub fn add_edit_basic_examples(output: &mut String) {
     ];
 
     for example in &examples {
-        writeln!(output, "  {}", example).unwrap();
+        writeln!(output, "  {example}").unwrap();
     }
     writeln!(output).unwrap();
 }

@@ -21,10 +21,10 @@ use std::fmt::Write;
 /// # Arguments
 ///
 /// * `topic` - An `Option<String>` representing the specific topic the user wants help with.
-///             If `None`, the general help message is displayed.
+///   If `None`, the general help message is displayed.
 /// * `detailed` - A `bool` flag indicating whether to show a more detailed version of the help.
 /// * `filter` - An `Option<String>` used to filter the output, currently only for the
-///              `installers` topic.
+///   `installers` topic.
 pub fn run(topic: Option<String>, detailed: bool, filter: Option<String>) {
     match topic.as_deref() {
         Some("edit") => show_edit_help(detailed),
@@ -105,27 +105,23 @@ fn show_general_help() {
     writeln!(output, "{}", "Scope:".bold().yellow()).unwrap();
     writeln!(
         output,
-        "  • {} - {}",
+        "  • {} - no system-wide installations.",
         "[User-level operations only]".bold(),
-        "no system-wide installations."
     )
     .unwrap();
     writeln!(
         output,
-        "  • {}",
-        "Development environment foundation, not project dependencies."
+        "  • Development environment foundation, not project dependencies."
     )
     .unwrap();
     writeln!(
         output,
-        "  • {}",
-        "Project packages managed by dedicated tools (cargo, pip, uv, etc.)."
+        "  • Project packages managed by dedicated tools (cargo, pip, uv, etc.)."
     )
     .unwrap();
     writeln!(
         output,
-        "  • {}\n",
-        "Clean separation between tool installation and package management."
+        "  • Clean separation between tool installation and package management.\n"
     )
     .unwrap();
 
@@ -136,7 +132,7 @@ fn show_general_help() {
     add_detailed_help_info(&mut output);
 
     // Print the fully built string to the console.
-    print!("{}", output);
+    print!("{output}");
 }
 
 /// Adds the "Supported Environment Variables" section to a mutable string.
@@ -387,7 +383,7 @@ fn show_version_help(detailed: bool) {
         ];
 
         for item in &info_items {
-            println!("  • {}", item);
+            println!("  • {item}");
         }
         println!();
     }

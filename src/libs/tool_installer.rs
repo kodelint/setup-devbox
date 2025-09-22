@@ -154,7 +154,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                             needs_update: true,
                             current_source_sha: String::new(),
                             current_destination_sha: None,
-                            reason: Some(format!("evaluation error: {}", e)),
+                            reason: Some(format!("evaluation error: {e}")),
                         })
                     }
                 };
@@ -213,8 +213,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
 
                     // Skip because the 'latest' version was recently updated.
                     return VersionAction::Skip(format!(
-                        "version 'latest' updated {} (within {} threshold)",
-                        time_since_update, threshold_description
+                        "version 'latest' updated {time_since_update} (within {threshold_description} threshold)"
                     ));
                 }
             }
@@ -265,10 +264,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
             (VersionAction::Skip(version_reason), ConfigurationAction::Skip(config_reason)) => {
                 // Check if the configuration was actually evaluated and found up-to-date.
                 if config_reason == "configuration up-to-date" {
-                    ToolAction::SkipConfigurationOnly(format!(
-                        "{}, {}",
-                        version_reason, config_reason
-                    ))
+                    ToolAction::SkipConfigurationOnly(format!("{version_reason}, {config_reason}"))
                 } else {
                     // This is a regular skip, typically for tools with disabled configuration.
                     ToolAction::Skip(version_reason)
@@ -309,8 +305,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         // Step 1: Validate the tool's configuration.
         if let Err(validation_error) = tool.validate() {
             return ToolProcessingResult::Failed(format!(
-                "Configuration validation failed: {}",
-                validation_error
+                "Configuration validation failed: {validation_error}",
             ));
         }
 
@@ -344,7 +339,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
             "brew" | "go" | "cargo" | "rustup" | "pip" | "uv"
         ) {
             check_installer_command_available(&installer_name)
-                .map_err(|error| format!("Installer '{}' not available: {}", installer_name, error))
+                .map_err(|error| format!("Installer '{installer_name}' not available: {error}"))
         } else {
             // Installers like `github` or `url` don't require a pre-existing command.
             Ok(())
@@ -417,7 +412,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                     ToolProcessingResult::ConfigurationUpdated
                 }
                 Err(error) => {
-                    ToolProcessingResult::Failed(format!("Configuration update failed: {}", error))
+                    ToolProcessingResult::Failed(format!("Configuration update failed: {error}"))
                 }
             }
         } else {
@@ -476,7 +471,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
             None => {
                 // If the installer returns `None`, it signifies a failure.
                 self.display_installation_failure(tool, operation_type);
-                ToolProcessingResult::Failed(format!("{} failed", operation_type))
+                ToolProcessingResult::Failed(format!("{operation_type} failed"))
             }
         }
     }
@@ -626,7 +621,6 @@ impl InstallationSummary {
                 }
             }
         }
-
         summary
     }
 
@@ -668,7 +662,7 @@ impl InstallationSummary {
                 .map(|(name, _)| name.bright_yellow().to_string())
                 .collect::<Vec<_>>()
                 .join(", ");
-            println!("[Skipped Install] {}", tools_line);
+            println!("[Skipped Install] {tools_line}");
         }
         println!("{}", "=".repeat(61).blue());
     }
@@ -692,7 +686,7 @@ impl InstallationSummary {
                 .map(|(name, _)| name.bright_yellow().to_string())
                 .collect::<Vec<_>>()
                 .join(", ");
-            println!("[Skipped Configuration] {}", tools_line);
+            println!("[Skipped Configuration] {tools_line}");
         }
         println!("{}\n", "=".repeat(61).blue());
     }

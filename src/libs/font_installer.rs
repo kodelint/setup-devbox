@@ -56,7 +56,7 @@ pub fn install_fonts(
         if !state.fonts.contains_key(&font.name) {
             // Print a newline character to the standard output for better console formatting
             // and visual separation between log blocks.
-            print!("\n");
+            println!("\n");
             // Print a separator line to the standard error output for strong visual clarity,
             // signaling the start of a new font installation block. The line is colored bright blue.
             eprintln!("{}", "==============================================================================================".bright_blue());
@@ -82,7 +82,7 @@ pub fn install_fonts(
                 // Print another separator line to the standard error output, in bright blue,
                 // to visually close the font installation block.
                 eprintln!("{}", "===============================================================================================".bright_blue());
-                print!("\n"); // Print a newline for additional visual spacing.
+                println!("\n"); // Print a newline for additional visual spacing.
             } else {
                 // If `fonts::install(font)` returned `None`, it indicates that the font installation failed.
                 // Log an error message, prompting the user to review earlier logs for more specific

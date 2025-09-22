@@ -47,7 +47,7 @@ pub fn show_sync_config_detailed_help() {
     ];
 
     for case in &use_cases {
-        println!("  • {}", case);
+        println!("  • {case}");
     }
     println!();
 
@@ -61,7 +61,7 @@ pub fn show_sync_config_detailed_help() {
     ];
 
     for case in &additional_cases {
-        println!("  • {}", case);
+        println!("  • {case}");
     }
     println!();
 
@@ -76,7 +76,7 @@ pub fn show_sync_config_detailed_help() {
     ];
 
     for output in &outputs {
-        println!("  • {}", output);
+        println!("  • {output}");
     }
     println!();
 

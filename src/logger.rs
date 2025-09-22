@@ -2,13 +2,14 @@
 // It provides macros for different log levels (INFO, WARN, ERROR, DEBUG)
 // and handles conditional output, especially for debug messages, with colored terminal output.
 
-use colored::*; // Used for adding color to log messages.
+// Used for adding color to log messages.
+use colored::Colorize;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering}; // For thread-safe, atomic control of the debug flag. // Ensures the DEBUG_ENABLED flag is initialized exactly once.
+// For thread-safe, atomic control of the debug flag.
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Provides convenient logging macros.
 /// `#[macro_export]` makes these macros globally available within the crate.
-
 // `log_info!` for general application progress and informational messages.
 #[macro_export]
 macro_rules! log_info {

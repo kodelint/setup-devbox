@@ -74,7 +74,7 @@ pub struct InstallerInfo {
     /// A slice of strings describing the configuration options available.
     ///
     /// Each string describes a configuration option, typically in the
-    /// format "option_name: description". Lines starting with '#' are
+    /// format "`option_name`: description". Lines starting with '#' are
     /// treated as comments and formatted differently.
     options: &'static [&'static str],
 }
@@ -220,7 +220,7 @@ impl InstallerInfo {
     /// # Arguments
     ///
     /// * `detailed` - A `bool` indicating whether to show the full, detailed
-    ///                help for the installer.
+    ///   help for the installer.
     pub(crate) fn display(&self, detailed: bool) {
         // Print the installer name with a bullet point.
         println!("{} {}", "•".green().bold(), self.name.bold().blue());
@@ -238,7 +238,7 @@ impl InstallerInfo {
                 println!("  {}", "```yaml".green());
                 // Indent the YAML content to align with the Examples header
                 for line in format_yaml_content(&examples_output).lines() {
-                    println!("  {}", line);
+                    println!("  {line}");
                 }
                 println!("  {}", "```".green());
                 println!();

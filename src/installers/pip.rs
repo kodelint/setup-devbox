@@ -64,9 +64,9 @@ use std::path::PathBuf;
 /// # Returns
 /// An `Option<ToolState>`:
 /// * `Some(ToolState)` if the Python package installation (including command execution and success status)
-///     was completely successful. The `ToolState` object contains details about the installed package.
+///   was completely successful. The `ToolState` object contains details about the installed package.
 /// * `None` if `pip` (or `pip3`) is not found, or if the `pip install` command fails for any reason
-///     (e.g., network error, package not found, installation error).
+///   (e.g., network error, package not found, installation error).
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_debug!(
         "[Pip Installer] Attempting to install Python package: {}",

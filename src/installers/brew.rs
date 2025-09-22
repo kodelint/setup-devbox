@@ -37,9 +37,9 @@ use crate::{log_debug, log_error, log_info, log_warn};
 ///
 /// # Arguments
 /// * `tool`: A reference to a `ToolEntry` struct. This `ToolEntry` contains all the
-///           metadata read from the `tools.yaml` configuration file that specifies
-///           how to install this particular tool using Homebrew (e.g., `name` of the formula,
-///           `rename_to` if the binary needs a different name).
+///   metadata read from the `tools.yaml` configuration file that specifies
+///   how to install this particular tool using Homebrew (e.g., `name` of the formula,
+///   `rename_to` if the binary needs a different name).
 ///
 /// # Returns
 /// * `Option<ToolState>`:
@@ -150,7 +150,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // located directly under its determined prefix (e.g., `/usr/local/bin/<tool_name>`).
     // The binary name itself might be renamed if `tool.rename_to` is specified.
     let bin_name = tool_entry.rename_to.clone().unwrap_or_else(|| name.clone());
-    let install_path = PathBuf::from(format!("{}/bin/{}", brew_prefix, bin_name));
+    let install_path = PathBuf::from(format!("{brew_prefix}/bin/{bin_name}"));
 
     log_debug!(
         "[Brew Installer] Expected final binary path for {}: {}",

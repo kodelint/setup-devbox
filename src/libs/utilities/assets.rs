@@ -26,7 +26,7 @@ use std::{fs, io};
 /// # Arguments
 /// * `url`: The URL (as a string slice) of the file to download (e.g. [https://example.com/file.zip](https://example.com/file.zip)).
 /// * `dest`: The local file system path (`&Path`) where the downloaded file should be saved.
-///           This should be a full file path, including the desired filename.
+///   This should be a full file path, including the desired filename.
 ///
 /// # Returns
 /// * `io::Result<()>`:
@@ -44,11 +44,8 @@ pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
             // If the HTTP request itself failed (e.g., network error, invalid URL, DNS resolution failure).
             log_error!("[Utils] HTTP request failed for {}: {}", url.red(), e);
             // Convert the `ureq` error into a standard `io::Error` for consistent error handling
-            // across the application. `io::ErrorKind::Other` is a generic error kind.
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("HTTP error: {}", e),
-            ));
+            // across the application. `std::io::Error::other` is a generic error kind.
+            return Err(std::io::Error::other(format!("HTTP error: {e}")));
         }
     };
 
@@ -204,10 +201,9 @@ pub fn install_pkg(pkg_path: &Path, tool_name: &str) -> io::Result<PathBuf> {
     if !installer_output.status.success() {
         let stderr = String::from_utf8_lossy(&installer_output.stderr);
         log_error!("[macOS Installer] Failed to install .pkg: {}", stderr.red());
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("Failed to install .pkg: {}", stderr),
-        ));
+        return Err(std::io::Error::other(format!(
+            "Failed to install .pkg: {stderr}"
+        )));
     }
 
     // Determine the actual installation path using a more generic heuristic
@@ -218,7 +214,7 @@ pub fn install_pkg(pkg_path: &Path, tool_name: &str) -> io::Result<PathBuf> {
     let mut inferred_install_path = None;
 
     // 1. Check for application bundles in /Applications (common for GUI apps)
-    let app_path = PathBuf::from(format!("/Applications/{}.app", tool_name));
+    let app_path = PathBuf::from(format!("/Applications/{tool_name}.app"));
     if app_path.exists() {
         log_debug!(
             "[macOS Installer] Found application bundle at: {}",
@@ -229,7 +225,7 @@ pub fn install_pkg(pkg_path: &Path, tool_name: &str) -> io::Result<PathBuf> {
 
     // 2. If not an app bundle, check common CLI tool root directories (e.g., /usr/local/go)
     if inferred_install_path.is_none() {
-        let cli_root_path = PathBuf::from(format!("/usr/local/{}", tool_name));
+        let cli_root_path = PathBuf::from(format!("/usr/local/{tool_name}"));
         if cli_root_path.exists() && cli_root_path.is_dir() {
             log_debug!(
                 "[macOS Installer] Found CLI tool root directory at: {}",
@@ -238,7 +234,7 @@ pub fn install_pkg(pkg_path: &Path, tool_name: &str) -> io::Result<PathBuf> {
             inferred_install_path = Some(cli_root_path);
         } else {
             // As a fallback, check if a binary directly exists in /usr/local/bin
-            let cli_bin_path = PathBuf::from(format!("/usr/local/bin/{}", tool_name));
+            let cli_bin_path = PathBuf::from(format!("/usr/local/bin/{tool_name}"));
             if cli_bin_path.exists() {
                 log_debug!(
                     "[macOS Installer] Found CLI binary at: {}",
@@ -259,7 +255,7 @@ pub fn install_pkg(pkg_path: &Path, tool_name: &str) -> io::Result<PathBuf> {
             tool_name.green()
         );
         // Defaulting to /usr/local/bin/<tool_name> as a very common CLI install location.
-        PathBuf::from(format!("/usr/local/bin/{}", tool_name))
+        PathBuf::from(format!("/usr/local/bin/{tool_name}"))
     });
 
     log_info!(
@@ -335,10 +331,9 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
     if !hdiutil_output.status.success() {
         let stderr = String::from_utf8_lossy(&hdiutil_output.stderr);
         log_error!("[macOS Installer] Failed to mount DMG: {}", stderr.red());
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("Failed to mount DMG: {}", stderr),
-        ));
+        return Err(std::io::Error::other(format!(
+            "[macOS Installer] Failed to mount DMG: {stderr}"
+        )));
     }
 
     let stdout = String::from_utf8_lossy(&hdiutil_output.stdout);
@@ -431,14 +426,10 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
                         target_app_path.display(),
                         stderr.red()
                     );
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!(
-                            "Failed to remove existing app {}: {}",
-                            target_app_path.display(),
-                            stderr
-                        ),
-                    ));
+                    return Err(std::io::Error::other(format!(
+                        "Failed to remove existing app {}: {stderr}",
+                        target_app_path.display()
+                    )));
                 }
                 log_info!("[macOS Installer] Existing app removed successfully.");
             }
@@ -462,10 +453,9 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
                     "[macOS Installer] Failed to copy .app to /Applications: {}",
                     stderr.red()
                 );
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Failed to copy .app: {}", stderr),
-                ));
+                return Err(std::io::Error::other(format!(
+                    "Failed to copy .app: {stderr}"
+                )));
             }
             log_info!(
                 "[macOS Installer] .app copied successfully to {}",
@@ -544,10 +534,11 @@ fn unmount_dmg(mount_path: &Path) -> io::Result<()> {
 
     if !detach_output.status.success() {
         let stderr = String::from_utf8_lossy(&detach_output.stderr);
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("Failed to unmount DMG {}: {}", mount_path.display(), stderr),
-        ));
+        return Err(std::io::Error::other(format!(
+            "Failed to unmount DMG {}: {}",
+            mount_path.display(),
+            stderr
+        )));
     }
     log_debug!("[macOS Installer] DMG unmounted successfully.");
     Ok(())
@@ -664,7 +655,7 @@ pub fn parse_duration(duration_str: &str) -> Option<Duration> {
 ///
 /// # Returns
 /// * `true` - If the timestamp is older than the specified duration OR
-///            if the timestamp cannot be parsed (error-safe default)
+///   if the timestamp cannot be parsed (error-safe default)
 /// * `false` - If the timestamp is newer than or equal to the duration threshold
 ///
 /// # Error Handling

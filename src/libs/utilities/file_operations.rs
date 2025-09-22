@@ -38,7 +38,7 @@ pub fn source_rc_file(shell_type: &str, rc_path: &Path) -> Result<(), Box<dyn st
         Ok(())
     } else {
         let error_msg = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Failed to source RC file: {}", error_msg).into())
+        Err(format!("Failed to source RC file: {error_msg}").into())
     }
 }
 
@@ -120,7 +120,7 @@ pub fn write_rc_file(rc_path: &Path, lines: &[String]) -> std::io::Result<()> {
     let final_content = if content.is_empty() {
         content
     } else {
-        format!("{}\n", content)
+        format!("{content}\n")
     };
 
     // Write the final content to the file, overwriting any existing content
@@ -147,10 +147,7 @@ pub fn read_rc_file(rc_path: &Path) -> Vec<String> {
     }
 
     match fs::File::open(rc_path) {
-        Ok(file) => BufReader::new(file)
-            .lines()
-            .filter_map(Result::ok)
-            .collect(),
+        Ok(file) => BufReader::new(file).lines().map_while(Result::ok).collect(),
         Err(err) => {
             log_warn!(
                 "[Shell Config] Could not read RC file {}: {}. Using empty file.",

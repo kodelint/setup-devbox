@@ -209,8 +209,8 @@ pub struct ToolState {
     ///
     /// ## Example
     /// Original tool name: "helix-editor"
-    /// rename_to: "hx"
-    /// Key: "helix-editor", renamed_to: Some("hx")
+    /// `rename_to`: "hx"
+    /// Key: "helix-editor", `renamed_to`: Some("hx")
     pub renamed_to: Option<String>,
 
     /// Type of package (e.g., "binary", "go-module", "rust-binary").

@@ -33,9 +33,9 @@ const REPO_NAME: &str = "setup-devbox"; // The name of the repository to check f
 ///
 /// # Returns
 /// * `Ok(String)`: A `String` containing the version number (e.g., "0.1.0").
-///                  This function is unlikely to fail unless the `CARGO_PKG_VERSION`
-///                  environment variable is somehow missing during compilation,
-///                  which is an anomalous build environment issue.
+///   This function is unlikely to fail unless the `CARGO_PKG_VERSION`
+///   environment variable is somehow missing during compilation,
+///   which is an anomalous build environment issue.
 /// * `Err(Box<dyn std::error::Error>)`: Although this specific implementation
 ///   is practically infallible (as `env!` is a compile-time assertion),
 ///   the `Result` return type is maintained for consistency with other
@@ -142,7 +142,8 @@ fn normalize_version(version: &str) -> String {
     log_debug!("Normalizing version: '{}'", version.cyan());
     let normalized = version
         .trim() // Step 1: Remove leading/trailing whitespace.
-        .trim_start_matches(|c| c == 'v' || c == 'V') // Step 2: Strip 'v' or 'V' prefix (case-insensitive due to this logic).
+        // Step 2: Strip 'v' or 'V' prefix (case-insensitive due to this logic).
+        .trim_start_matches(['v', 'V'])
         .chars()
         .filter(|c| c.is_ascii()) // Step 3: Filter out non-ASCII characters.
         .collect::<String>() // Collect into a new String.

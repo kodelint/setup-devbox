@@ -28,7 +28,7 @@ pub struct SyncConfigArgs {
 
 /// Executes the `sync` command, primarily for syncing state to config files.
 pub fn run(args: SyncConfigArgs) {
-    eprint!("\n"); // Add a blank line for readability.
+    eprintln!("\n"); // Add a blank line for readability.
     log_warn!(
         "{}",
         "[Sync] This 'sync' command is an EMERGENCY command and \
@@ -47,7 +47,7 @@ pub fn run(args: SyncConfigArgs) {
     and updates."
             .bold()
     ); // Recommends 'now' for regular use.
-    eprint!("\n"); // Add another blank line.
+    eprintln!("\n"); // Add another blank line.
 
     // Resolve default paths for state and configs.
     let devbox_dir = get_devbox_dir();

@@ -209,7 +209,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // The method of installation, useful for future diagnostics or differing update logic.
             // In this module, it's always "uv".
             // e.g., "uv-tool", "uv-python", "uv-pip"
-            install_method: format!("uv-{}", subcommand),
+            install_method: format!("uv-{subcommand}"),
             // Records if the binary was renamed during installation, storing the new name.
             renamed_to: tool_entry.rename_to.clone(),
             repo: None,
@@ -321,19 +321,19 @@ fn determine_install_path(subcommand: &str, package_name: &str) -> String {
             // uv manages its own tool installation directory
             if let Ok(home) = std::env::var("HOME") {
                 // uv tool installs typically go to ~/.local/bin
-                format!("{}/.local/bin/{}", home, package_name)
+                format!("{home}/.local/bin/{package_name}")
             } else {
                 log_warn!(
                     "[UV Installer] Could not determine HOME directory for tool installation path"
                 );
-                format!("/usr/local/bin/{}", package_name)
+                format!("/usr/local/bin/{package_name}")
             }
         }
         "pip" => {
             // uv pip install behavior depends on active environment
             // Default to user site-packages location
             if let Ok(home) = std::env::var("HOME") {
-                format!("{}/.local/lib/python/site-packages/{}", home, package_name)
+                format!("{home}/.local/lib/python/site-packages/{package_name}")
             } else {
                 "/usr/local/lib/python/site-packages/".to_string()
             }
@@ -415,7 +415,7 @@ fn determine_install_path(subcommand: &str, package_name: &str) -> String {
                 subcommand
             );
             if let Ok(home) = std::env::var("HOME") {
-                format!("{}/.local/bin/{}", home, package_name)
+                format!("{home}/.local/bin/{package_name}")
             } else {
                 "/usr/local/bin/".to_string()
             }
