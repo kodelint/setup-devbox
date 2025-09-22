@@ -41,7 +41,7 @@ use zip::ZipArchive;
 /// # Arguments
 /// * `src`: The path (`&Path`) to the compressed archive file that needs to be extracted.
 /// * `dest`: The parent directory (`&Path`) where the *extracted* content should be placed.
-///           A new subdirectory named "extracted" will be created inside this `dest` path.
+///   A new subdirectory named "extracted" will be created inside this `dest` path.
 /// * `known_file_type`: An `Option<&str>`. If `Some(type_str)` is provided, it tells the function
 ///   the exact type of the archive (e.g., "zip", "tar.gz"), bypassing internal detection.
 ///   This is useful when the caller already knows the type (e.g., from a GitHub asset name),
@@ -195,7 +195,7 @@ pub fn extract_archive(
             // Return an `io::Error` indicating that the archive type is not supported.
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData, // `InvalidData` is suitable for unsupported file formats.
-                format!("Unsupported archive type: {}", file_type),
+                format!("Unsupported archive type: {file_type}"),
             ));
         }
     }

@@ -42,18 +42,17 @@ use walkdir::WalkDir;
 ///
 /// # Arguments
 /// * `dir`: The `&Path` to the directory where the search should begin. The function
-///          will traverse this directory and all its subdirectories.
+///   will traverse this directory and all its subdirectories.
 /// * `tool_name`: The original, user-defined name of the tool (e.g., "helix").
-///                Used as a fallback for name matching and logging.
+///   Used as a fallback for name matching and logging.
 /// * `rename_to`: An `Option<&str>` specifying an alternative name for the executable
-///                if it's different from `tool_name` (e.g., "hx" for "helix"). This is
-///                the primary name targeted during the search and sorting.
+///   if it's different from `tool_name` (e.g., "hx" for "helix"). This is
+///   the primary name targeted during the search and sorting.
 ///
 /// # Returns
 /// * `Option<PathBuf>`:
 ///   - `Some(PathBuf)` containing the full path to the most probable executable file found.
 ///   - `None` if no suitable executable file is identified within the specified directory tree.
-
 pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> Option<PathBuf> {
     // Convert tool name and target (renamed) name to lowercase for case-insensitive comparisons.
     let tool_name_lower = tool_name.to_lowercase();
@@ -359,9 +358,9 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
 ///
 /// # Returns
 /// * `bool`: `true` if the file exists and has any executable bit set (on Unix-like systems).
-///           On Windows, this check is less relevant as executability is primarily determined
-///           by file extension (`.exe`, `.bat`, etc.) rather than permission bits.
-///           Returns `false` if metadata cannot be retrieved or it's not executable.
+///   On Windows, this check is less relevant as executability is primarily determined
+///   by file extension (`.exe`, `.bat`, etc.) rather than permission bits.
+///   Returns `false` if metadata cannot be retrieved or it's not executable.
 fn is_executable(path: &Path) -> bool {
     // Get file metadata, specifically permissions.
     fs::metadata(path)

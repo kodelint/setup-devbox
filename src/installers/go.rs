@@ -102,7 +102,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Combine the base package path with the version if provided.
     // Go modules typically use `@version` syntax (e.g., `module_path@version`).
     let package_path_with_version = if let Some(version) = &tool_entry.version {
-        format!("{}@{}", base_package_path, version) // Format as `module_path_or_url@version`.
+        format!("{base_package_path}@{version}") // Format as `module_path_or_url@version`.
     } else {
         base_package_path.clone() // If no version specified, install the latest (implicitly `@latest`).
     };

@@ -55,7 +55,7 @@ use std::path::PathBuf;
 /// When `enabled` is `true`, the system will automatically manage the configuration
 /// file at the specified path, synchronizing it with the source configuration.
 /// When `false`, configuration management is disabled for this tool.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ConfigurationManager {
     /// Whether configuration management is enabled for this tool.
     ///
@@ -91,7 +91,7 @@ pub struct ConfigurationManager {
     /// - `"$HOME/.config/helix/config.toml"`
     /// - `"/etc/myapp/config.json"`
     /// - `"./local-config.yaml"`
-    pub tools_configuration_path: String,
+    pub tools_configuration_paths: Vec<String>,
 }
 
 // ============================================================================
@@ -112,7 +112,7 @@ pub struct ConfigurationManager {
 /// - Destination file was modified externally (SHA-256 mismatch)
 /// - Configuration path in tool definition changes
 /// - Configuration management is newly enabled for a tool
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ConfigurationManagerState {
     /// Whether configuration management is currently enabled for this tool.
     ///
@@ -125,7 +125,7 @@ pub struct ConfigurationManagerState {
     /// This is the expanded and resolved path after environment variable
     /// and tilde expansion. Stored to detect path changes that would
     /// require re-synchronization.
-    pub tools_configuration_path: String,
+    pub tools_configuration_paths: Vec<String>,
 
     /// SHA-256 hash of the source configuration file content.
     ///
@@ -189,4 +189,33 @@ pub struct ConfigurationManagerProcessor {
     /// - `/etc/setup-devbox/configs/tools/` (system-wide)
     /// - `./.setup-devbox/configs/tools/` (project-specific)
     pub(crate) config_base_path: PathBuf,
+}
+
+/// Cached evaluation result to avoid duplicate SHA calculations.
+///
+/// This struct stores the results of configuration evaluation to prevent
+/// redundant hash calculations and file operations during processing.
+/// It encapsulates all the information needed to determine whether
+/// configuration updates are required.
+#[derive(Debug, Clone)]
+pub struct ConfigurationEvaluationResult {
+    /// Whether the configuration needs to be updated based on current state.
+    ///
+    /// `true` if source or destination files have changed, `false` if everything is up-to-date.
+    pub needs_update: bool,
+
+    /// Current SHA-256 hash of the source configuration file content.
+    ///
+    /// Used for change detection and state tracking. Empty string if source file doesn't exist.
+    pub current_source_sha: String,
+
+    /// Current SHA-256 hash of the destination configuration file content.
+    ///
+    /// `None` if destination file doesn't exist, `Some(sha)` if file exists and was read.
+    pub current_destination_sha: Option<String>,
+
+    /// Human-readable reason for the update decision.
+    ///
+    /// Provides context about why an update is or isn't needed, useful for logging and debugging.
+    pub reason: Option<String>,
 }

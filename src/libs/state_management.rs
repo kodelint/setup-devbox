@@ -28,12 +28,12 @@ use std::{fs, io}; // Imports standard library modules for file system operation
 ///
 /// # Arguments
 /// * `state_path_resolved`: The `PathBuf` to the `state.json` file where the state
-///                          is expected to be loaded from or saved to initially.
+///   is expected to be loaded from or saved to initially.
 ///
 /// # Returns
 /// * `DevBoxState`: A `DevBoxState` struct representing the loaded or newly initialized state.
-///                  The function will `std::process::exit(1)` if a critical error
-///                  (like an unreadable or unparsable state file) occurs.
+///   The function will `std::process::exit(1)` if a critical error
+///   (like an unreadable or unparsable state file) occurs.
 pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
     log_debug!("Entering load_or_initialize_state() function."); // Debug log for function entry.
 
@@ -166,7 +166,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
 /// # Arguments
 /// * `state`: A reference to the `DevBoxState` struct that needs to be saved.
 /// * `state_path`: A reference to a `PathBuf` indicating the full path where the state file
-///                 (`state.json`) should be saved.
+///   (`state.json`) should be saved.
 ///
 /// # Returns
 /// * `bool`:
@@ -209,7 +209,7 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
             match fs::write(state_path, serialized_state) {
                 Ok(_) => {
                     // Print an empty line to ensure clean terminal output, separating logs from other output.
-                    eprint!("\n");
+                    eprintln!("\n");
                     log_info!(
                         "[StateSave] DevBox state saved successfully to {}",
                         state_path.display().to_string().green()
@@ -294,7 +294,7 @@ pub fn read_devbox_state(state_path: &Path) -> io::Result<DevBoxState> {
         );
         io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("Failed to parse state file: {}", e),
+            format!("Failed to parse state file: {e}"),
         )
     })
 }

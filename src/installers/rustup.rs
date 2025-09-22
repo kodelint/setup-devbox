@@ -226,7 +226,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Rustup typically installs toolchains under `~/.rustup/toolchains/<toolchain_name>/bin`.
     // We construct this path to record it in `ToolState` for future reference.
     let install_path = if let Ok(mut home) = env::var("HOME") {
-        home.push_str(&format!("/.rustup/toolchains/{}/bin", toolchain_name));
+        home.push_str(&format!("/.rustup/toolchains/{toolchain_name}/bin"));
         PathBuf::from(home).to_string_lossy().into_owned()
     } else {
         // Fallback if HOME directory cannot be determined, though this might be less accurate

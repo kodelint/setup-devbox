@@ -510,7 +510,7 @@ fn open_file_in_editor(file_path: &PathBuf) -> Result<(), Box<dyn std::error::Er
                 Ok(())
             } else {
                 log_warn!("[Edit] Editor exited with status: {:?}", status);
-                Err(format!("Editor exited with status: {:?}", status).into())
+                Err(format!("Editor exited with status: {status:?}").into())
             }
         }
         Err(e) => {

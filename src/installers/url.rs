@@ -55,7 +55,7 @@ use crate::libs::utilities::compression::extract_archive;
 ///
 /// # Arguments
 /// * `tool_entry`: A `ToolEntry` struct containing the configuration for the tool to be installed,
-///                 including its name, URL, and any specific installation options.
+///   including its name, URL, and any specific installation options.
 ///
 /// # Returns
 /// * `Option<ToolState>`:

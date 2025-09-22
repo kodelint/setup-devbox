@@ -46,9 +46,9 @@ use crate::{log_debug, log_error, log_info, log_warn};
 ///
 /// # Arguments
 /// * `tool_entry`: A reference to a `ToolEntry` struct. This `ToolEntry` contains all the
-///                 metadata read from the `tools.yaml` configuration file that specifies
-///                 how to install this particular tool as a Cargo crate (e.g., `name`,
-///                 `version`, `options` like `--features`).
+///   metadata read from the `tools.yaml` configuration file that specifies
+///   how to install this particular tool as a Cargo crate (e.g., `name`,
+///   `version`, `options` like `--features`).
 ///
 /// # Returns
 /// * `Option<ToolState>`:
@@ -359,10 +359,10 @@ fn determine_installed_version(tool_entry: &ToolEntry, is_git_install: bool) -> 
         if let Some(branch_opt) = options.iter().find(|opt| opt.starts_with("--branch")) {
             // Extract branch value
             if let Some(branch_value) = branch_opt.split('=').nth(1) {
-                return format!("branch-{}", branch_value);
+                return format!("branch-{branch_value}");
             } else if let Some(pos) = options.iter().position(|opt| opt == "--branch") {
                 if let Some(branch_value) = options.get(pos + 1) {
-                    return format!("branch-{}", branch_value);
+                    return format!("branch-{branch_value}");
                 }
             }
         }
@@ -376,7 +376,7 @@ fn determine_installed_version(tool_entry: &ToolEntry, is_git_install: bool) -> 
                 } else {
                     rev_value
                 };
-                return format!("rev-{}", short_rev);
+                return format!("rev-{short_rev}");
             } else if let Some(pos) = options.iter().position(|opt| opt == "--rev") {
                 if let Some(rev_value) = options.get(pos + 1) {
                     let short_rev = if rev_value.len() > 7 {
@@ -384,7 +384,7 @@ fn determine_installed_version(tool_entry: &ToolEntry, is_git_install: bool) -> 
                     } else {
                         rev_value
                     };
-                    return format!("rev-{}", short_rev);
+                    return format!("rev-{short_rev}");
                 }
             }
         }

@@ -64,9 +64,9 @@ use tempfile::Builder as TempFileBuilder;
 ///
 /// # Arguments
 /// * `tool`: A reference to a `ToolEntry` struct. This `ToolEntry` contains all the
-///           metadata read from the `tools.yaml` configuration file that specifies
-///           how to install this particular tool from GitHub (e.g., `repo`, `tag`,
-///           `name`, `rename_to`, `additional_cmd`).
+///   metadata read from the `tools.yaml` configuration file that specifies
+///   how to install this particular tool from GitHub (e.g., `repo`, `tag`,
+///   `name`, `rename_to`, `additional_cmd`).
 ///
 /// # Returns
 /// * `Option<ToolState>`:
@@ -148,10 +148,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // 3. Fetch GitHub Release Information via API
     // Construct the GitHub API endpoint URL for the specific repository and release tag.
     // Example: https://api.github.com/repos/cli/cli/releases/tags/v2.5.0
-    let api_url = format!(
-        "https://api.github.com/repos/{}/releases/tags/{}",
-        repo, tag
-    );
+    let api_url = format!("https://api.github.com/repos/{repo}/releases/tags/{tag}");
     log_debug!(
         "[GitHub Installer] Fetching release information from GitHub API: {}",
         api_url.blue()
@@ -345,7 +342,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         .clone()
         .unwrap_or_else(|| tool_entry.name.clone());
     // Construct the full absolute path where the tool's executable will be placed.
-    let install_path = PathBuf::from(format!("{}/bin/{}", home_dir, bin_name));
+    let install_path = PathBuf::from(format!("{home_dir}/bin/{bin_name}"));
     log_debug!(
         "[GitHub Installer] Target installation path for {}: {}",
         tool_entry.name.to_string().bright_blue(),

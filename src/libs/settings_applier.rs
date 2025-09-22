@@ -34,9 +34,9 @@ use std::process::Command;
 /// # Arguments
 /// * `settings_cfg`: A `SettingsConfig` struct containing the desired system settings.
 /// * `state`: A mutable reference to the `DevBoxState` to read current setting states and
-///            to update with newly applied settings.
+///   to update with newly applied settings.
 /// * `state_path_resolved`: The `PathBuf` to the `state.json` file, used for saving the
-///                          updated application state.
+///   updated application state.
 pub fn apply_system_settings(
     settings_cfg: SettingsConfig,
     state: &mut DevBoxState,

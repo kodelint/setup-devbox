@@ -110,7 +110,7 @@ pub struct ReleaseAsset {
 /// ## Rate Limiting Considerations
 /// When using this with the GitHub API, be mindful of:
 /// - API rate limits (60 requests/hour unauthenticated, 5000/hour authenticated)
-/// - Conditional requests using ETags for caching
+/// - Conditional requests using `ETags` for caching
 /// - Pagination for repositories with many releases
 #[derive(Debug, Deserialize)]
 pub struct Release {
@@ -123,8 +123,8 @@ pub struct Release {
     /// ## Asset Filtering
     /// Typically filtered based on:
     /// - Platform-specific patterns in asset names
-    /// - File extensions (.tar.gz, .zip, .pkg, etc.)
-    /// - Architecture requirements (x86_64, arm64, etc.)
+    /// - File extensions (`.tar.gz`, `.zip`, `.pkg`, etc.)
+    /// - Architecture requirements (i`x86_64`, `arm64`, etc.)
     /// - Tool-specific naming conventions
     ///
     /// ## Empty Releases
@@ -223,7 +223,7 @@ pub struct MainConfig {
 /// in a single object. It's typically used internally after parsing the main
 /// configuration to resolve and validate all configuration file locations.
 ///
-/// ## Difference from MainConfig
+/// ## Difference from `MainConfig`
 /// While `MainConfig` uses `Option<String>` for optional paths, `ConfigPaths`
 /// uses `String` for required paths, representing the resolved and validated
 /// configuration file locations after processing the main configuration.

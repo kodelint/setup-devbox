@@ -90,10 +90,7 @@ fn validate_font_entry(font: &FontEntry) -> Option<ValidatedFontDetails> {
 
     // Construct the GitHub release download URL.
     // Example: https://github.com/ryanoasis/nerd-fonts/releases/download/v3.0.2/FiraCode.zip
-    let url = format!(
-        "https://github.com/{}/releases/download/{}/{}",
-        repo, tag, asset_name
-    );
+    let url = format!("https://github.com/{repo}/releases/download/{tag}/{asset_name}");
 
     log_debug!("[Font Validation] Constructed download URL: {}", url.cyan());
 

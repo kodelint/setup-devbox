@@ -59,14 +59,14 @@ pub struct ParsedConfigs {
 ///
 /// # Type Parameters
 /// * `T`: The target type for deserialization. This must be a struct that implements
-///        `serde::de::DeserializeOwned` (allowing `serde_yaml` to create an instance from YAML)
-///        and `std::fmt::Debug` (for logging purposes).
+///   `serde::de::DeserializeOwned` (allowing `serde_yaml` to create an instance from YAML)
+///   and `std::fmt::Debug` (for logging purposes).
 ///
 /// # Arguments
 /// * `path_option`: An `Option<&String>` representing the path to the configuration file.
-///                  This path is typically read from the `MainConfig` struct.
+///   This path is typically read from the `MainConfig` struct.
 /// * `config_name`: A human-readable name for the configuration type (e.g., "tools", "settings"),
-///                  used in log messages to identify which config is being processed.
+///   used in log messages to identify which config is being processed.
 /// * `bold_name`: A string slice used for consistent, bolded prefixes in log messages (e.g., `"[Tools]"`, `"[Settings]"`).
 ///
 /// # Returns
@@ -151,14 +151,14 @@ where
 ///
 /// # Arguments
 /// * `config_path_resolved`: A `PathBuf` representing the absolute and resolved path
-///                           to the main `config.yaml` file.
+///   to the main `config.yaml` file.
 ///
 /// # Returns
 /// * `ParsedConfigs`: A struct containing `Option`s for each type of configuration.
-///                    Each `Option` will be `Some(T)` if the corresponding config
-///                    file was found and successfully parsed, or `None` otherwise.
-///                    The function will `std::process::exit(1)` if the master config
-///                    cannot be loaded.
+///   Each `Option` will be `Some(T)` if the corresponding config
+///   file was found and successfully parsed, or `None` otherwise.
+///   The function will `std::process::exit(1)` if the master config
+///   cannot be loaded.
 pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
     log_debug!("Entering load_master_configs() function.");
     // Attempt to read the contents of the main `config.yaml` file.
@@ -234,16 +234,16 @@ pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
 ///
 /// # Arguments
 /// * `config_path_resolved`: A `PathBuf` representing the absolute and resolved path
-///                           to the single configuration file provided by the user.
+///   to the single configuration file provided by the user.
 /// * `config_filename`: A string slice containing just the filename (e.g., "tools.yaml")
-///                      from `config_path_resolved`, used to infer the configuration type.
+///   from `config_path_resolved`, used to infer the configuration type.
 ///
 /// # Returns
 /// * `ParsedConfigs`: A struct containing `Option`s for each type of configuration.
-///                    Only the `Option` corresponding to the loaded single config file
-///                    will be `Some(T)`; others will remain `None`.
-///                    The function will `std::process::exit(1)` if the single config
-///                    cannot be loaded or is of an unsupported type.
+///   Only the `Option` corresponding to the loaded single config file
+///   will be `Some(T)`; others will remain `None`.
+///   The function will `std::process::exit(1)` if the single config
+///   cannot be loaded or is of an unsupported type.
 pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str) -> ParsedConfigs {
     log_debug!("Entering load_single_config() function.");
     // Inform the user that a single config file is being loaded.
