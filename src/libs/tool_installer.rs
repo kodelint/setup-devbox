@@ -1,10 +1,27 @@
-//! tool_installer.rs
+//! # Tool Installation Orchestrator
 //!
 //! This module serves as the central orchestrator for the tool installation pipeline.
 //! It is responsible for determining the correct action for each tool (install, update,
 //! or skip), invoking the appropriate installer, and managing the tool's state and
 //! configuration. It integrates with various other modules to perform tasks such as
 //! state management, path resolution, and command execution.
+//!
+//! ## Core Responsibilities
+//!
+//! - **Action Determination**: Analyzes tool state and configuration to decide what action to take
+//! - **Installer Dispatch**: Routes tools to the appropriate installer based on source type
+//! - **State Management**: Maintains and updates the installation state for all tools
+//! - **Configuration Synchronization**: Manages tool configuration file updates
+//! - **Result Processing**: Collects and categorizes installation results for reporting
+//!
+//! ## Installation Pipeline
+//!
+//! The orchestrator follows a structured pipeline for each tool:
+//! 1. **Validation**: Check tool configuration and installer availability
+//! 2. **Analysis**: Determine required action based on current state and configuration
+//! 3. **Execution**: Perform installation, update, or configuration synchronization
+//! 4. **State Update**: Record results and update persistent state
+//! 5. **Reporting**: Categorize and display results to the user
 
 use chrono::Duration;
 use colored::Colorize;
@@ -12,6 +29,7 @@ use std::path::PathBuf;
 // Import all available installer modules
 use crate::installers::{brew, cargo, github, go, pip, rustup, url, uv};
 // Import utility functions for state and time management
+use crate::libs::configuration_manager::ConfigurationEvaluationResult;
 use crate::libs::state_management::save_state_to_file;
 use crate::libs::utilities::assets::{is_timestamp_older_than, parse_duration, time_since};
 use crate::libs::utilities::misc_utils::format_duration;
@@ -28,11 +46,22 @@ use crate::schemas::tools::{
 // Import logging macros
 use crate::{log_debug, log_error, log_info, log_warn};
 
+// ============================================================================
+// INSTALLATION CONFIGURATION IMPLEMENTATION
+// ============================================================================
+
 impl InstallationConfiguration {
     /// Creates a new `InstallationConfiguration` instance.
     ///
     /// The `force_update` flag takes precedence and, if true, sets the update threshold
     /// to zero, effectively forcing an update on every run for tools with `latest` versions.
+    ///
+    /// ## Parameters
+    /// - `tools_config`: Tool configuration containing update threshold settings
+    /// - `force_update`: Whether to force updates regardless of threshold
+    ///
+    /// ## Returns
+    /// New `InstallationConfiguration` instance with resolved update settings
     pub(crate) fn new(tools_config: &ToolConfig, force_update: bool) -> Self {
         let update_threshold_duration = if force_update {
             // If forced, the threshold is 0, so any tool update is always considered 'older'
@@ -53,11 +82,22 @@ impl InstallationConfiguration {
     }
 }
 
+// ============================================================================
+// TOOL INSTALLATION ORCHESTRATOR IMPLEMENTATION
+// ============================================================================
+
 impl<'a> ToolInstallationOrchestrator<'a> {
     /// Creates a new `ToolInstallationOrchestrator`.
     ///
     /// It initializes the configuration manager processor, which handles the path
     /// resolution for tool configuration files.
+    ///
+    /// ## Parameters
+    /// - `state`: Mutable reference to the application state
+    /// - `configuration`: Reference to installation configuration settings
+    ///
+    /// ## Returns
+    /// New `ToolInstallationOrchestrator` instance
     fn new(state: &'a mut DevBoxState, configuration: &'a InstallationConfiguration) -> Self {
         // The `ConfigurationManagerProcessor` is created with a `None` base path,
         // relying on its internal fallback logic to resolve the correct path.
@@ -71,24 +111,68 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     }
 
     /// Determines the high-level action to be taken for a specific tool.
+    /// This now performs a single comprehensive evaluation to avoid duplicate SHA calculations.
     ///
     /// This is the primary decision-making method that combines the results of
     /// version and configuration analysis.
+    ///
+    /// ## Parameters
+    /// - `tool`: Tool entry to analyze
+    /// - `current_state`: Current state of the tool (if it exists)
+    ///
+    /// ## Returns
+    /// Tuple containing the required action and optional cached configuration evaluation
     fn determine_required_action(
         &self,
         tool: &ToolEntry,
         current_state: Option<&ToolState>,
-    ) -> ToolAction {
+    ) -> (ToolAction, Option<ConfigurationEvaluationResult>) {
         // If the tool is not in the current state, it must be installed.
         match current_state {
-            None => ToolAction::Install,
+            None => (ToolAction::Install, None),
             Some(state) => {
-                // Analyze version and configuration requirements independently.
+                // Analyze version requirements first
                 let version_action = self.analyze_version_requirements(tool, state);
-                let config_action = self.analyze_configuration_requirements(tool, state);
+
+                // Perform comprehensive configuration evaluation once
+                let config_evaluation = match self
+                    .config_processor
+                    .evaluate_configuration_requirements(
+                        &tool.name,
+                        &tool.configuration_manager,
+                        state.get_configuration_manager(),
+                    ) {
+                    Ok(evaluation) => Some(evaluation),
+                    Err(e) => {
+                        log_warn!(
+                            "[Tools] Error evaluating configuration for {}: {}. Assuming update needed.",
+                            tool.name,
+                            e
+                        );
+                        // Create a default evaluation that assumes update is needed
+                        Some(ConfigurationEvaluationResult {
+                            needs_update: true,
+                            current_source_sha: String::new(),
+                            current_destination_sha: None,
+                            reason: Some(format!("evaluation error: {}", e)),
+                        })
+                    }
+                };
+
+                // Convert evaluation result to ConfigurationAction
+                let config_action = match &config_evaluation {
+                    Some(eval) if eval.needs_update => ConfigurationAction::Update,
+                    Some(eval) => ConfigurationAction::Skip(
+                        eval.reason
+                            .clone()
+                            .unwrap_or_else(|| "configuration up-to-date".to_string()),
+                    ),
+                    None => ConfigurationAction::Skip("configuration disabled".to_string()),
+                };
 
                 // Combine the individual actions into a final `ToolAction`.
-                self.combine_actions(version_action, config_action)
+                let final_action = self.combine_actions(version_action, config_action);
+                (final_action, config_evaluation)
             }
         }
     }
@@ -99,6 +183,13 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     /// - **`latest` version with a threshold**: Checks if the last update time is within the threshold.
     /// - **Forced update**: Skips the threshold check and always returns `Update`.
     /// - **Specific version**: Checks if the required version is already installed.
+    ///
+    /// ## Parameters
+    /// - `tool`: Tool entry with version requirements
+    /// - `current_state`: Current installed state of the tool
+    ///
+    /// ## Returns
+    /// `VersionAction` indicating whether version update is needed
     fn analyze_version_requirements(
         &self,
         tool: &ToolEntry,
@@ -146,44 +237,17 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         VersionAction::Update
     }
 
-    /// Analyzes the configuration requirements for a tool.
-    ///
-    /// This method leverages the `ConfigurationManagerProcessor` to determine if the
-    /// configuration file needs to be updated based on SHA hashes and file existence.
-    fn analyze_configuration_requirements(
-        &self,
-        tool: &ToolEntry,
-        current_state: &ToolState,
-    ) -> ConfigurationAction {
-        // If the configuration is not enabled in the tool entry, we can skip this check.
-        if !tool.configuration_manager.enabled {
-            return ConfigurationAction::Skip("configuration disabled".to_string());
-        }
-
-        // Delegate the core logic to the `ConfigurationManagerProcessor`.
-        match self.config_processor.evaluate_configuration_change_needed(
-            &tool.name,
-            &tool.configuration_manager,
-            current_state.get_configuration_manager(),
-        ) {
-            Ok(true) => ConfigurationAction::Update,
-            Ok(false) => ConfigurationAction::Skip("configuration up-to-date".to_string()),
-            Err(e) => {
-                // Log a warning if evaluation fails but assume an update is needed to be safe.
-                log_warn!(
-                    "[Tools] Error evaluating configuration for {}: {}. Assuming update needed.",
-                    tool.name,
-                    e
-                );
-                ConfigurationAction::Update
-            }
-        }
-    }
-
     /// Combines the individual `VersionAction` and `ConfigurationAction` into a single
     /// `ToolAction`.
     ///
     /// The logic here prioritizes a full tool update over a configuration-only update.
+    ///
+    /// ## Parameters
+    /// - `version_action`: Version-related action decision
+    /// - `config_action`: Configuration-related action decision
+    ///
+    /// ## Returns
+    /// Combined `ToolAction` representing the overall required action
     fn combine_actions(
         &self,
         version_action: VersionAction,
@@ -214,6 +278,12 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     }
 
     /// Iterates through all tools in the configuration and processes each one.
+    ///
+    /// ## Parameters
+    /// - `tools`: Slice of tool entries to process
+    ///
+    /// ## Returns
+    /// Vector of tuples containing tool names and their processing results
     fn process_all_tools(&mut self, tools: &[ToolEntry]) -> Vec<(String, ToolProcessingResult)> {
         tools
             .iter()
@@ -226,6 +296,13 @@ impl<'a> ToolInstallationOrchestrator<'a> {
 
     /// Handles the complete processing pipeline for a single tool.
     /// This includes validation, action determination, and execution.
+    /// Now optimized to avoid duplicate SHA calculations by using cached evaluation results.
+    ///
+    /// ## Parameters
+    /// - `tool`: Tool entry to process
+    ///
+    /// ## Returns
+    /// `ToolProcessingResult` indicating the outcome of the processing
     fn process_individual_tool(&mut self, tool: &ToolEntry) -> ToolProcessingResult {
         log_debug!("[Tools] Processing tool: {}", tool.name.bright_green());
 
@@ -244,13 +321,20 @@ impl<'a> ToolInstallationOrchestrator<'a> {
 
         // Step 3: Determine and execute the required action.
         let current_state = self.state.tools.get(&tool.name);
-        let required_action = self.determine_required_action(tool, current_state);
+        let (required_action, cached_config_evaluation) =
+            self.determine_required_action(tool, current_state);
 
-        self.execute_action(tool, required_action)
+        self.execute_action(tool, required_action, cached_config_evaluation)
     }
 
     /// Validates that the command-line tool for the installer exists on the system.
     /// This prevents failed installations due to missing prerequisites like `brew` or `go`.
+    ///
+    /// ## Parameters
+    /// - `tool`: Tool entry to validate installer for
+    ///
+    /// ## Returns
+    /// `Ok(())` if installer is available, `Err(String)` with error message if not
     fn validate_installer_availability(&self, tool: &ToolEntry) -> Result<(), String> {
         let installer_name = tool.source.to_string().to_lowercase();
 
@@ -267,23 +351,53 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         }
     }
 
-    /// Executes the determined `ToolAction`.
-    fn execute_action(&mut self, tool: &ToolEntry, action: ToolAction) -> ToolProcessingResult {
+    /// Executes the determined `ToolAction` with optional cached configuration evaluation.
+    ///
+    /// ## Parameters
+    /// - `tool`: Tool entry to process
+    /// - `action`: Action to execute
+    /// - `cached_config_evaluation`: Optional pre-computed configuration evaluation
+    ///
+    /// ## Returns
+    /// `ToolProcessingResult` indicating the outcome of the action execution
+    fn execute_action(
+        &mut self,
+        tool: &ToolEntry,
+        action: ToolAction,
+        cached_config_evaluation: Option<ConfigurationEvaluationResult>,
+    ) -> ToolProcessingResult {
         match action {
             ToolAction::Skip(reason) => ToolProcessingResult::Skipped(reason),
             ToolAction::SkipConfigurationOnly(reason) => {
                 ToolProcessingResult::ConfigurationSkipped(reason)
             }
-            ToolAction::Install => self.execute_installation(tool, "Installing"),
-            ToolAction::Update => self.execute_installation(tool, "Updating"),
-            ToolAction::UpdateConfigurationOnly => self.execute_configuration_update(tool),
+            ToolAction::Install => {
+                self.execute_installation(tool, "Installing", cached_config_evaluation)
+            }
+            ToolAction::Update => {
+                self.execute_installation(tool, "Updating", cached_config_evaluation)
+            }
+            ToolAction::UpdateConfigurationOnly => {
+                self.execute_configuration_update(tool, cached_config_evaluation)
+            }
         }
     }
 
-    /// Handles the `UpdateConfigurationOnly` action.
+    /// Handles the `UpdateConfigurationOnly` action with cached evaluation.
     /// This is a specialized path that only processes the configuration manager without
     /// invoking the tool installer.
-    fn execute_configuration_update(&mut self, tool: &ToolEntry) -> ToolProcessingResult {
+    ///
+    /// ## Parameters
+    /// - `tool`: Tool entry to update configuration for
+    /// - `cached_config_evaluation`: Optional pre-computed configuration evaluation
+    ///
+    /// ## Returns
+    /// `ToolProcessingResult` indicating the outcome of configuration update
+    fn execute_configuration_update(
+        &mut self,
+        tool: &ToolEntry,
+        cached_config_evaluation: Option<ConfigurationEvaluationResult>,
+    ) -> ToolProcessingResult {
         log_info!("[Tools] Configuration Management...");
         log_info!(
             "[Tools] Updating configuration for: {}",
@@ -292,8 +406,12 @@ impl<'a> ToolInstallationOrchestrator<'a> {
 
         // Get the existing state for the tool.
         if let Some(mut existing_state) = self.state.tools.get(&tool.name).cloned() {
-            // Process the configuration and update the state if successful.
-            match self.process_configuration_management(tool, &mut existing_state) {
+            // Process the configuration with cached evaluation to avoid duplicate SHA calculations
+            match self.process_configuration_management(
+                tool,
+                &mut existing_state,
+                cached_config_evaluation,
+            ) {
                 Ok(()) => {
                     self.state.tools.insert(tool.name.clone(), existing_state);
                     ToolProcessingResult::ConfigurationUpdated
@@ -303,17 +421,27 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                 }
             }
         } else {
-            // This should not happen if the logic is correct, but it's a safe guard.
+            // This should not happen if the logic is correct, but it's a safeguard.
             ToolProcessingResult::Failed("Tool not found in state".to_string())
         }
     }
 
     /// Encapsulates the common installation logic for both `Install` and `Update` actions.
     /// It invokes the installer, handles post-installation commands, and updates the state.
+    /// Now uses cached configuration evaluation to avoid duplicate SHA calculations.
+    ///
+    /// ## Parameters
+    /// - `tool`: Tool entry to install or update
+    /// - `operation_type`: String describing the operation ("Installing" or "Updating")
+    /// - `cached_config_evaluation`: Optional pre-computed configuration evaluation
+    ///
+    /// ## Returns
+    /// `ToolProcessingResult` indicating the outcome of the installation
     fn execute_installation(
         &mut self,
         tool: &ToolEntry,
         operation_type: &str,
+        cached_config_evaluation: Option<ConfigurationEvaluationResult>,
     ) -> ToolProcessingResult {
         log_info!("[Tools] Installing {}...", "Tools".bright_green());
         self.display_installation_header(tool, operation_type);
@@ -321,9 +449,13 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         // Invoke the correct installer based on the tool's `source`.
         match self.invoke_appropriate_installer(tool) {
             Some(mut tool_state) => {
-                // Process configuration management as a non-fatal step.
+                // Process configuration management as a non-fatal step with cached evaluation.
                 // An error here will be logged as a warning but won't fail the overall installation.
-                if let Err(error) = self.process_configuration_management(tool, &mut tool_state) {
+                if let Err(error) = self.process_configuration_management(
+                    tool,
+                    &mut tool_state,
+                    cached_config_evaluation,
+                ) {
                     log_warn!(
                         "[Tools] Configuration management warning for {}: {}. Continuing.",
                         tool.name.yellow(),
@@ -384,6 +516,12 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     /// The `match` statement dispatches to a specific module (e.g., `github::install`).
     /// This design keeps the orchestration logic clean and separates it from the
     /// implementation details of each installer.
+    ///
+    /// ## Parameters
+    /// - `tool`: Tool entry to install
+    ///
+    /// ## Returns
+    /// `Some(ToolState)` if installation succeeded, `None` if it failed
     fn invoke_appropriate_installer(&self, tool: &ToolEntry) -> Option<ToolState> {
         match tool.source.to_string().to_lowercase().as_str() {
             "github" => github::install(tool),
@@ -406,22 +544,33 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     }
 
     /// Calls the `ConfigurationManagerProcessor` to process the configuration for a tool.
+    /// Now accepts cached evaluation results to avoid duplicate SHA calculations.
     ///
     /// This method is called after both successful installations and for
     /// `UpdateConfigurationOnly` actions.
+    ///
+    /// ## Parameters
+    /// - `tool`: Tool entry to process configuration for
+    /// - `tool_state`: Mutable reference to the tool's state
+    /// - `cached_config_evaluation`: Optional pre-computed configuration evaluation
+    ///
+    /// ## Returns
+    /// `Ok(())` if configuration processing succeeded, `Err` if it failed
     fn process_configuration_management(
         &self,
         tool: &ToolEntry,
         tool_state: &mut ToolState,
+        cached_config_evaluation: Option<ConfigurationEvaluationResult>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Get the existing configuration state from the tool's current state.
         let existing_config_state = tool_state.get_configuration_manager();
 
-        // Process the configuration and handle the result.
+        // Process the configuration using cached evaluation if available
         match self.config_processor.process_tool_configuration(
             &tool.name,
             &tool.configuration_manager,
             existing_config_state,
+            cached_config_evaluation,
         )? {
             Some(new_config_state) => {
                 // If a new state is returned, update the tool's state.
@@ -436,8 +585,18 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     }
 }
 
+// ============================================================================
+// INSTALLATION SUMMARY IMPLEMENTATION
+// ============================================================================
+
 impl InstallationSummary {
     /// Creates a new `InstallationSummary` from the raw `ToolProcessingResult`s.
+    ///
+    /// ## Parameters
+    /// - `results`: Vector of tool names and their processing results
+    ///
+    /// ## Returns
+    /// `InstallationSummary` with categorized results
     fn from_processing_results(results: Vec<(String, ToolProcessingResult)>) -> Self {
         let mut summary = Self {
             installed_tools: Vec::new(),
@@ -473,6 +632,9 @@ impl InstallationSummary {
 
     /// Checks if any state-changing operations (install, update, config update) occurred.
     /// This is used to decide whether the state file needs to be saved.
+    ///
+    /// ## Returns
+    /// `true` if any state changes occurred, `false` otherwise
     fn has_state_changes(&self) -> bool {
         !self.installed_tools.is_empty()
             || !self.updated_tools.is_empty()
@@ -560,12 +722,22 @@ impl InstallationSummary {
     }
 }
 
+// ============================================================================
+// PUBLIC FUNCTIONS
+// ============================================================================
+
 /// ### Public Functions
 /// The main public entry point for the tool installation process.
 ///
 /// This function sets up the installation configuration, initializes the orchestrator,
 /// and processes all tools. It then displays a summary and saves the final state
 /// if any changes were made.
+///
+/// ## Parameters
+/// - `tools_configuration`: Tool configuration containing all tool definitions
+/// - `state`: Mutable reference to the application state
+/// - `state_file_path`: Path to the state file for persistence
+/// - `force_update_latest`: Whether to force updates of "latest" version tools
 pub fn install_tools(
     tools_configuration: ToolConfig,
     state: &mut DevBoxState,
@@ -616,6 +788,14 @@ pub fn install_tools(
 ///
 /// This function provides a way to run custom commands, such as `pip install -r requirements.txt`,
 /// as part of the tool installation process. It handles logging and error reporting.
+///
+/// ## Parameters
+/// - `installer_prefix`: Prefix for log messages identifying the installer
+/// - `tool_entry`: Tool entry containing additional commands
+/// - `working_directory`: Directory where commands should be executed
+///
+/// ## Returns
+/// `Some(Vec<String>)` with executed commands if successful, `None` if no commands or failure
 pub fn execute_post_installation_commands(
     installer_prefix: &str,
     tool_entry: &ToolEntry,
