@@ -412,10 +412,16 @@ jobs:
           else
             echo "✅ Build successful!" >> $GITHUB_STEP_SUMMARY
           fi
+          
+          # Debug the analyze outputs from build job perspective  
+          echo "DEBUG FROM BUILD JOB:"
+          echo "should_release: '${{ needs.analyze.outputs.should_release }}'"
+          echo "release_type: '${{ needs.analyze.outputs.release_type }}'"
+          echo "branch_type: '${{ needs.analyze.outputs.branch_type }}'"
 
   release:
     needs: [analyze, build]
-    if: always() && needs.analyze.outputs.should_release == 'true' && needs.build.result == 'success'
+    if: needs.analyze.outputs.should_release == 'true'
     runs-on: ubuntu-latest
 
     steps:
