@@ -2,11 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.2.0] - 2025-09-23
-
-### "docs
-
-- Update documentation"
+## [0.3.0] - 2025-09-23
 
 ### Fix
 
@@ -40,18 +36,15 @@ All notable changes to this project will be documented in this file.
 - Code comment fix
 - Code comment and documentation
 - Some linting
-- Trigger release workflow
 
 ### 📚 Documentation
 
-- Updated documentation, add more about configuration management
-- Updated documentation, fixed formatting
+- Update documentation
 
 ### 🔧 Build System
 
 - Aesthetic changes.
 - Cargo Updates
-- Update GitHub workflow for releases
 
 ### 🔧 Continuous Integration
 
