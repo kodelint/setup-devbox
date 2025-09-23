@@ -314,16 +314,15 @@ The system intelligently locates configuration source files using this priority 
     >- `SBD_TOOL_CONFIGURATION_PATH`: Specific directory for tool configuration files
     >- Both expect organized folder structure with tool-specific subdirectories
     
-    📋 Example Resolution:
-    >```bash
-    > # Destination file: $HOME/.config/lsd/config.yaml
-    > # SBD_CONFIG_PATH: $HOME/Documents/SDB
-    > # Expected source file locations:
-    > # → $SBD_CONFIG_PATH/configs/tools/lsd/config.toml
-    > # → $SBD_CONFIG_PATH/configs/tools/lsd/icons.toml
-    > # File naming convention:
-    > # Source: config.toml (TOML format) → Destination: config.yaml (YAML format)
-    ```
+    >> 📋 Example Resolution:
+   > - Destination file: $HOME/.config/lsd/config.yaml 
+   > - SBD_CONFIG_PATH: $HOME/Documents/SDB 
+   > - Expected source file locations:
+   >   - $SBD_CONFIG_PATH/configs/tools/lsd/config.toml
+   >   - $SBD_CONFIG_PATH/configs/tools/lsd/icons.toml 
+   > - File naming convention:
+   >   - Source: config.toml (TOML format) → Destination: config.yaml (YAML format)
+
 
 2. Default Locations (Fallback):
    ```bash

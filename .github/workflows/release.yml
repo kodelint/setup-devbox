@@ -159,6 +159,11 @@ jobs:
           echo "release_type=$release_type" >> $GITHUB_OUTPUT
           echo "new_version=$new_version" >> $GITHUB_OUTPUT
           echo "should_release=$should_release" >> $GITHUB_OUTPUT
+          
+          # Debug output
+          echo "DEBUG: should_release=$should_release"
+          echo "DEBUG: release_type=$release_type" 
+          echo "DEBUG: new_version=$new_version"
 
       - name: Set feature version for artifacts
         if: steps.check.outputs.branch_type == 'feature'
@@ -410,7 +415,7 @@ jobs:
 
   release:
     needs: [analyze, build]
-    if: ${{ needs.analyze.outputs.should_release == 'true' }}
+    if: always() && needs.analyze.outputs.should_release == 'true' && needs.build.result == 'success'
     runs-on: ubuntu-latest
 
     steps:
