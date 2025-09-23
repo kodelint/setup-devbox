@@ -410,10 +410,16 @@ jobs:
 
   release:
     needs: [analyze, build]
-    if: needs.analyze.outputs.should_release == 'true'
+    if: ${{ needs.analyze.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
+      - name: Debug outputs
+        run: |
+          echo "should_release: '${{ needs.analyze.outputs.should_release }}'"
+          echo "branch_type: '${{ needs.analyze.outputs.branch_type }}'"
+          echo "release_type: '${{ needs.analyze.outputs.release_type }}'"
+          echo "new_version: '${{ needs.analyze.outputs.new_version }}'"
       - name: Checkout code
         uses: actions/checkout@v4
         with:

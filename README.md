@@ -267,5 +267,158 @@ settings:
       type: bool
 ```
 
+## 🔧 Configuration Manager:
+`setup-devbox` features a sophisticated Configuration Manager that ensures your tool configurations remain consistent and 
+version-controlled. This powerful subsystem detects and corrects configuration drift, maintaining your development 
+environment's integrity across installations and updates.
+
+```yaml
+tools:
+  - name: lsd
+    source: brew
+    version: latest
+    configuration_manager:               # 🎛️ Tool's configuration manager
+      enabled: true                      # ✅ Enable configuration management
+      tools_configuration_paths:         # 📁 Tools configuration paths to manage
+        - $HOME/.config/lsd/config.yaml  # 🔧 Main configuration file
+        - $HOME/.config/lsd/icons.yaml   # 🎨 Icons configuration file
+```
+
+### 🚀 How It Works
+
+#### 📊 Configuration Management Flow
+```text
+Source Template → Validation → Transformation → Deployment → State Tracking
+     ↓               ↓             ↓             ↓              ↓
+   TOML/JSON      Syntax Check   Format Convert  Copy to Dest   SHA256 Tracking
+     ↓               ↓             ↓             ↓              ↓
+  ~/.setup-devbox/  ✅ Valid     → YAML/JSON   → ~/.config/   → State Database
+  configs/tools/               (Target Format)    tool/
+```
+
+#### 🔍 Key Features
+
+- **🔒 SHA256 Hashing:** Tracks both source and destination file checksums
+- **📊 Drift Reporting:** Provides detailed reports on configuration differences
+- **🔄 Auto-Correction:** Automatically synchronizes configurations when drift is detected
+
+#### 📁 Smart Source File Resolution
+The system intelligently locates configuration source files using this priority order:
+1. Environment Variables (Highest Priority):
+   ```bash
+    export SBD_CONFIG_PATH="/custom/source_config_path"
+    export SBD_TOOL_CONFIGURATION_PATH="/custom/source_config_path/configs/tools/"
+   ```
+    >> 📝 **Important Notes:**
+    >- `SBD_CONFIG_PATH`: Root configuration directory for entire setup-devbox
+    >- `SBD_TOOL_CONFIGURATION_PATH`: Specific directory for tool configuration files
+    >- Both expect organized folder structure with tool-specific subdirectories
+    
+    📋 Example Resolution:
+    >```bash
+    > # Destination file: $HOME/.config/lsd/config.yaml
+    > # SBD_CONFIG_PATH: $HOME/Documents/SDB
+    > # Expected source file locations:
+    > # → $SBD_CONFIG_PATH/configs/tools/lsd/config.toml
+    > # → $SBD_CONFIG_PATH/configs/tools/lsd/icons.toml
+    > # File naming convention:
+    > # Source: config.toml (TOML format) → Destination: config.yaml (YAML format)
+    ```
+
+2. Default Locations (Fallback):
+   ```bash
+   $HOME/.setup-devbox/configs/tools/<<tool_name>>/
+   ```
+
+#### Advanced Multi-File Management
+
+ ```yaml
+  tools:
+    - name: nvim
+      source: brew
+      configuration_manager:
+        enabled: true
+        tools_configuration_paths:
+          - $HOME/.config/nvim/init.vim
+          - $HOME/.config/nvim/coc-settings.json
+          - $HOME/.config/nvim/lua/plugins.lua
+        additional_cmd: 
+        - nvim --headless +'checkhealth' +qall  # 🛠️ Pre-apply validation
+ ```
+
+### 📊 State Management
+This is how the `state.json` files looks
+
+```json
+  "lsd": {
+    "version": "1.1.5",
+    "install_path": "/Users/kodelint/.cargo/bin/lsd",
+    "installed_by_devbox": true,
+    "install_method": "cargo-install",
+    "renamed_to": null,
+    "package_type": "rust-crate",
+    "repo": null,
+    "tag": null,
+    "options": null,
+    "url": null,
+    "last_updated": "2025-09-05T16:45:26.737584+00:00",
+    "executable_path_after_extract": null,
+    "additional_cmd_executed": null,
+    "configuration_manager": {
+      "enabled": true,
+      "tools_configuration_paths": [
+        "$HOME/.config/lsd/config.yaml",
+        "$HOME/.config/lsd/icons.yaml"
+      ],
+      "source_configuration_sha": "66ce9065be901....",
+      "destination_configuration_sha": "d56d715d7072..."
+    }
+  },
+```
+
+### 🔔 Drift Detection Alerts
+```bash
+  ...
+  ...
+  TOOLS:
+  =======
+  [INFO] [Tools] Configuration Management...
+  [INFO] [Tools] Updating configuration for: Ghostty
+  [INFO] [Tools] Configuration written to: /Users/kodelint/.config/ghostty/config
+```
+
+### ✅ Recommended Configuration Structure
+```bash
+>> ls -l --tree SDB
+ls --tree SDB
+📂  SDB
+├── 📂  configs
+│   ├──   config.yaml
+│   ├──   fonts.yaml
+│   ├──   settings.yaml
+│   ├──   shellrc.yaml
+│   ├── 📂  tools
+│   │   ├── 📂  autin
+│   │   │   └──   atuin.toml
+│   │   ├── 📂  ghostty
+│   │   │   └──   config.toml
+│   │   ├── 📂  helix
+│   │   │   └──   config.toml
+│   │   ├── 📂  lsd
+│   │   │   ├──   config.toml
+│   │   │   └──   icons.toml
+│   │   ├── 📂  starship
+│   │   │   └──   starship.toml
+│   │   ├── 📂  uv
+│   │   │   └──   uv.toml
+│   │   └── 📂  zed
+│   │       └──   settings.toml
+│   └──   tools.yaml
+└──   state.json
+```
+The Configuration Manager ensures your development tools maintain consistent settings across all your machines, 
+providing enterprise-grade configuration management with developer-friendly simplicity. 🚀
+
+
 ## 🤝 Contributing
 Contributions are welcome! If you find a bug, have a feature request, or want to contribute code, please open an issue or submit a pull request.
