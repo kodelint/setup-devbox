@@ -11,12 +11,12 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     outputs:
-      should_release: ${{ steps.check.outputs.should_release }}
+      should_release: ${{ steps.version.outputs.should_release || 'false' }}
       should_build: ${{ steps.check.outputs.should_build }}
-      new_version: ${{ steps.version.outputs.new_version }}
+      new_version: ${{ steps.version.outputs.new_version || steps.feature_version.outputs.new_version }}
       is_prerelease: ${{ steps.check.outputs.is_prerelease }}
       branch_type: ${{ steps.check.outputs.branch_type }}
-      release_type: ${{ steps.version.outputs.release_type }}
+      release_type: ${{ steps.version.outputs.release_type || 'none' }}
 
     steps:
       - name: Checkout code
@@ -48,22 +48,18 @@ jobs:
           
           if [[ "$branch" == "main" ]]; then
             echo "branch_type=main" >> $GITHUB_OUTPUT
-            echo "should_release=pending" >> $GITHUB_OUTPUT
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
           elif [[ "$branch" == "development" ]]; then
             echo "branch_type=development" >> $GITHUB_OUTPUT
-            echo "should_release=pending" >> $GITHUB_OUTPUT
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "is_prerelease=true" >> $GITHUB_OUTPUT
           elif [[ "$branch" == feature/* ]] || [[ "$branch" == hotfix/* ]] || [[ "$branch" == bugfix/* ]]; then
             echo "branch_type=feature" >> $GITHUB_OUTPUT
-            echo "should_release=false" >> $GITHUB_OUTPUT
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
           else
             echo "branch_type=other" >> $GITHUB_OUTPUT
-            echo "should_release=false" >> $GITHUB_OUTPUT
             echo "should_build=false" >> $GITHUB_OUTPUT
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
           fi
@@ -114,11 +110,11 @@ jobs:
             if [[ "${{ steps.check.outputs.branch_type }}" == "development" ]]; then
               # For development branch, create pre-release
               if [[ "$release_type" == "major" ]]; then
-                new_version=$(cargo release version --execute major --no-confirm 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
+                new_version=$(cargo release version --dry-run major 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
               elif [[ "$release_type" == "minor" ]]; then
-                new_version=$(cargo release version --execute minor --no-confirm 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
+                new_version=$(cargo release version --dry-run minor 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
               else
-                new_version=$(cargo release version --execute patch --no-confirm 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
+                new_version=$(cargo release version --dry-run patch 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
               fi
               # Add beta suffix for development releases
               if [[ -n "$new_version" ]]; then
@@ -412,16 +408,10 @@ jobs:
           else
             echo "✅ Build successful!" >> $GITHUB_STEP_SUMMARY
           fi
-          
-          # Debug the analyze outputs from build job perspective  
-          echo "DEBUG FROM BUILD JOB:"
-          echo "should_release: '${{ needs.analyze.outputs.should_release }}'"
-          echo "release_type: '${{ needs.analyze.outputs.release_type }}'"
-          echo "branch_type: '${{ needs.analyze.outputs.branch_type }}'"
 
   release:
     needs: [analyze, build]
-    if: needs.analyze.outputs.should_release == 'true'
+    if: needs.analyze.outputs.should_release == 'true' && needs.build.result == 'success'
     runs-on: ubuntu-latest
 
     steps:
