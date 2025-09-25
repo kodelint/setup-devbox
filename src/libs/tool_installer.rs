@@ -33,9 +33,7 @@ use crate::libs::configuration_manager::ConfigurationEvaluationResult;
 use crate::libs::state_management::save_state_to_file;
 use crate::libs::utilities::assets::{is_timestamp_older_than, parse_duration, time_since};
 use crate::libs::utilities::misc_utils::format_duration;
-use crate::libs::utilities::platform::{
-    check_installer_command_available, execute_hooks,
-};
+use crate::libs::utilities::platform::{check_installer_command_available, execute_hooks};
 use crate::schemas::configuration_management::ConfigurationManagerProcessor;
 // Import data schemas and the configuration processor
 use crate::schemas::state_file::{DevBoxState, ToolState};
