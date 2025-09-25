@@ -438,14 +438,14 @@ pub struct ToolEntry {
     /// ## Examples
     ///
     /// ```yaml
-    /// additional_cmd:
+    /// post_installation_hooks:
     ///   - "cp -r runtime $HOME/.config/helix/"
     ///   - "mkdir -p $HOME/.local/share/helix"
     ///   - "ln -sf $(pwd)/themes $HOME/.config/helix/themes"
     ///   - "chmod +x contrib/completion.sh"
     /// ```
     #[serde(default)]
-    pub additional_cmd: Option<Vec<String>>,
+    pub post_installation_hooks: Option<Vec<String>>,
 
     /// Configuration file management settings for this tool.
     ///

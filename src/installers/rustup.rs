@@ -282,7 +282,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         executable_path_after_extract: None,
         // Record any additional commands that were executed during installation.
         // This is useful for tracking what was done and potentially for cleanup during uninstall.
-        additional_cmd_executed: tool_entry.additional_cmd.clone(),
+        executed_post_installation_hooks: tool_entry.post_installation_hooks.clone(),
         configuration_manager: None,
     })
 }

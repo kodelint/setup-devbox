@@ -143,7 +143,7 @@ fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
             rename_to: tool_state.renamed_to,
             options: tool_state.options,
             executable_path_after_extract: tool_state.executable_path_after_extract,
-            additional_cmd: tool_state.additional_cmd_executed,
+            post_installation_hooks: tool_state.executed_post_installation_hooks,
             configuration_manager: Default::default(),
         };
         tool_entry
