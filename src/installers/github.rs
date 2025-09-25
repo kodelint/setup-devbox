@@ -48,7 +48,7 @@ use crate::schemas::common::{Release, ReleaseAsset};
 use crate::schemas::state_file::ToolState;
 use crate::schemas::tools::ToolEntry;
 
-use crate::libs::tool_installer::execute_post_installation_commands;
+use crate::libs::tool_installer::execute_post_installation_hooks;
 use crate::libs::utilities::assets::{current_timestamp, install_dmg};
 // Custom logging macros. These are used throughout the module to provide informative output
 // during the installation process, aiding in debugging and user feedback.
@@ -583,7 +583,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // in the tool configuration. These commands are often used for post-installation setup,
     // such as copying configuration files, creating directories, or setting up symbolic links.
     // Optional - failure won't stop installation
-    let executed_additional_commands = execute_post_installation_commands(
+    let executed_additional_commands = execute_post_installation_hooks(
         "[GitHub Installer]",
         tool_entry,
         &additional_cmd_working_dir,
@@ -637,7 +637,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         executable_path_after_extract: None,
         // Record any additional commands that were executed during installation.
         // This is useful for tracking what was done and potentially for cleanup during uninstall.
-        additional_cmd_executed: executed_additional_commands,
+        executed_post_installation_hooks: executed_additional_commands,
         configuration_manager: None,
     })
 }

@@ -34,7 +34,7 @@ use crate::libs::state_management::save_state_to_file;
 use crate::libs::utilities::assets::{is_timestamp_older_than, parse_duration, time_since};
 use crate::libs::utilities::misc_utils::format_duration;
 use crate::libs::utilities::platform::{
-    check_installer_command_available, execute_additional_commands,
+    check_installer_command_available, execute_hooks,
 };
 use crate::schemas::configuration_management::ConfigurationManagerProcessor;
 // Import data schemas and the configuration processor
@@ -790,15 +790,15 @@ pub fn install_tools(
 ///
 /// ## Returns
 /// `Some(Vec<String>)` with executed commands if successful, `None` if no commands or failure
-pub fn execute_post_installation_commands(
+pub fn execute_post_installation_hooks(
     installer_prefix: &str,
     tool_entry: &ToolEntry,
     working_directory: &std::path::Path,
 ) -> Option<Vec<String>> {
     // Return `None` if there are no additional commands.
-    let additional_commands = tool_entry.additional_cmd.as_ref()?;
+    let post_install_hooks = tool_entry.post_installation_hooks.as_ref()?;
 
-    if additional_commands.is_empty() {
+    if post_install_hooks.is_empty() {
         log_debug!(
             "[Tools] {} No additional commands for {}",
             installer_prefix,
@@ -810,7 +810,7 @@ pub fn execute_post_installation_commands(
     log_info!(
         "[Tools] {} Executing {} additional command(s) for {}",
         installer_prefix,
-        additional_commands.len().to_string().yellow(),
+        post_install_hooks.len().to_string().yellow(),
         tool_entry.name.bold()
     );
 
@@ -821,9 +821,9 @@ pub fn execute_post_installation_commands(
     );
 
     // Delegate the actual command execution to a separate utility function.
-    match execute_additional_commands(
+    match execute_hooks(
         installer_prefix,
-        additional_commands,
+        post_install_hooks,
         working_directory,
         &tool_entry.name,
     ) {

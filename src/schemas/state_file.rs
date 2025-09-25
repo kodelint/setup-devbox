@@ -311,7 +311,7 @@ pub struct ToolState {
     /// ## Default Behavior
     /// `#[serde(default)]` ensures empty command lists are stored as `None`.
     #[serde(default)]
-    pub additional_cmd_executed: Option<Vec<String>>,
+    pub executed_post_installation_hooks: Option<Vec<String>>,
 
     /// Configuration management state for this tool.
     ///

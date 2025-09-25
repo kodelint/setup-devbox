@@ -19,7 +19,7 @@ use crate::{log_debug, log_error, log_info, log_warn};
 // For adding color to terminal output.
 use colored::Colorize;
 // For executing external commands and capturing their output.
-use crate::libs::tool_installer::execute_post_installation_commands;
+use crate::libs::tool_installer::execute_post_installation_hooks;
 use crate::libs::utilities::misc_utils::{default_python_path, extract_version_number};
 use serde_json::Value;
 use std::process::{Command, Output};
@@ -174,7 +174,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
 
         // Execute additional commands (optional - failure won't stop installation)
-        let executed_additional_commands = execute_post_installation_commands(
+        let executed_additional_commands = execute_post_installation_hooks(
             "[UV Installer]",
             tool_entry,
             &additional_cmd_working_dir,
@@ -234,7 +234,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // Record any additional commands that were executed during installation.
             // This is useful for tracking what was done and potentially for cleanup during uninstall.
             // additional_cmd_executed: tool_entry.additional_cmd.clone(),
-            additional_cmd_executed: executed_additional_commands,
+            executed_post_installation_hooks: executed_additional_commands,
             configuration_manager: None,
         })
     } else {

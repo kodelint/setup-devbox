@@ -354,7 +354,7 @@ pub fn check_installer_command_available(command_name: &str) -> Result<(), Insta
 /// - No sandboxing or privilege restriction is applied
 /// - Input validation should be performed by the caller to prevent command injection
 /// - Consider the security implications of executing user-provided commands
-pub fn execute_additional_commands(
+pub fn execute_hooks(
     installer_prefix: &str,
     commands: &[String],
     working_dir: &std::path::Path,
