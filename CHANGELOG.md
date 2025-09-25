@@ -2,15 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2025-09-25
+
+### 🏠 Miscellaneous Tasks
+
+- Format check
+
+### 🐛 Bug Fixes
+
+- Change field name for `ToolEntry` and `ToolState`
+
+### 🔧 Build System
+
+- Fixed the definition for bugs
+
 ## [0.3.0] - 2025-09-23
 
 ### Fix
 
 - Bug in UV installer
-
-### Bug
-
-- Fix the environment variable `SDB_CONFIG_PATH`
 
 ### ♻️ Refactor
 
@@ -36,6 +46,11 @@ All notable changes to this project will be documented in this file.
 - Code comment fix
 - Code comment and documentation
 - Some linting
+- **release**: 0.3.0 [skip ci]
+
+### 🐛 Bug Fixes
+
+- Fix the environment variable `SDB_CONFIG_PATH`
 
 ### 📚 Documentation
 
