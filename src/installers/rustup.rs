@@ -225,8 +225,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Determine the installation path.
     // Rustup typically installs toolchains under `~/.rustup/toolchains/<toolchain_name>/bin`.
     // We construct this path to record it in `ToolState` for future reference.
-    let install_path = if let Ok(mut rustup_home) = 
-        env::var("RUSTUP_HOME") {
+    let install_path = if let Ok(mut rustup_home) = env::var("RUSTUP_HOME") {
         // Case 1: RUSTUP_HOME is set. Use $RUSTUP_HOME/toolchains/<toolchain_name>/bin
         rustup_home.push_str(&format!("/toolchains/{toolchain_name}/bin"));
         PathBuf::from(rustup_home)
@@ -236,13 +235,17 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         PathBuf::from(home)
     } else {
         // Case 3: Neither RUSTUP_HOME nor HOME is set. Use a hardcoded default.
-        log_warn!("[Rustup Installer] Neither RUSTUP_HOME nor HOME environment variables set, \
-        defaulting to /usr/local/bin/");
+        log_warn!(
+            "[Rustup Installer] Neither RUSTUP_HOME nor HOME environment variables set, \
+        defaulting to /usr/local/bin/"
+        );
         PathBuf::from("/usr/local/bin/")
     };
 
-    log_debug!("[Rustup Installer] Determined installation path: {}", 
-        format!("{}", install_path.display()).cyan());
+    log_debug!(
+        "[Rustup Installer] Determined installation path: {}",
+        format!("{}", install_path.display()).cyan()
+    );
 
     // Return ToolState for Tracking
     // Construct a `ToolState` object to record the details of this successful installation.

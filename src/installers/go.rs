@@ -27,9 +27,9 @@ use colored::Colorize;
 use std::process::{Command, Output};
 // For working with file paths, specifically to construct installation paths.
 // `PathBuf` is used here primarily for constructing the `install_path` for the `ToolState`.
+use crate::libs::tool_installer::execute_post_installation_hooks;
 use crate::libs::utilities::assets::current_timestamp;
 use std::path::PathBuf;
-use crate::libs::tool_installer::execute_post_installation_hooks;
 
 /// Installs a Go binary or module using the `go install` command.
 ///
@@ -166,43 +166,54 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // This logic attempts to construct that common default path.
         let install_path = if let Some(path) = get_go_env_path("GOBIN", &tool_entry.name) {
             // 1. Get the path from 'go env GOBIN'
-            log_debug!("[Go Installer] Using path from 'go env GOBIN': {}", path.display());
+            log_debug!(
+                "[Go Installer] Using path from 'go env GOBIN': {}",
+                path.display()
+            );
             path
         } else if let Some(go_path) = std::env::var_os("GOPATH") {
             // 2. Look for "GOPATH" environment variable (traditional check)
-            log_debug!("[Go Installer] Using GOPATH env var: {}", PathBuf::from(&go_path).display());
-            PathBuf::from(go_path)
-                .join("bin")
-                .join(&tool_entry.name)
+            log_debug!(
+                "[Go Installer] Using GOPATH env var: {}",
+                PathBuf::from(&go_path).display()
+            );
+            PathBuf::from(go_path).join("bin").join(&tool_entry.name)
         } else if let Some(home_path_os) = std::env::var_os("HOME") {
             // 3. Look for "$HOME" and build the path "$HOME/go/bin"
-            log_debug!("[Go Installer] Using default $HOME/go/bin path: {}", PathBuf::from(&home_path_os).display());
+            log_debug!(
+                "[Go Installer] Using default $HOME/go/bin path: {}",
+                PathBuf::from(&home_path_os).display()
+            );
             PathBuf::from(home_path_os)
                 .join("go")
                 .join("bin")
                 .join(&tool_entry.name)
         } else {
             // 4. The default system path
-            log_warn!("[Go Installer] No environment variables found. Defaulting to /usr/local/bin/");
+            log_warn!(
+                "[Go Installer] No environment variables found. Defaulting to /usr/local/bin/"
+            );
             PathBuf::from("/usr/local/bin/").join(&tool_entry.name)
         };
 
-        log_debug!("[Go Installer] Determined installation path: {}",
-            format!("{}", install_path.display()).cyan());
+        log_debug!(
+            "[Go Installer] Determined installation path: {}",
+            format!("{}", install_path.display()).cyan()
+        );
 
         // Execute Post installation hooks (if specified)
         // After the main installation is complete, execute any additional commands specified
         // in the tool configuration. These commands are often used for post-installation setup,
         // such as copying configuration files, creating directories, or setting up symbolic links.
         // Optional - failure won't stop installation
-        let executed_post_installation_hooks = execute_post_installation_hooks(
-            "[Go Installer]",
-            tool_entry,
-            &install_path,
-        );
+        let executed_post_installation_hooks =
+            execute_post_installation_hooks("[Go Installer]", tool_entry, &install_path);
         // If execution reaches this point, the installation was successful.
-        log_info!("[Go Installer] Installation of {} completed successfully at {}!",
-            tool_entry.name.to_string().bold(), format!("{}", install_path.display()).green());
+        log_info!(
+            "[Go Installer] Installation of {} completed successfully at {}!",
+            tool_entry.name.to_string().bold(),
+            format!("{}", install_path.display()).green()
+        );
 
         // Return ToolState for Tracking
         // Construct a `ToolState` object to record the details of this successful installation.
@@ -273,7 +284,6 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         None // Return None to indicate failure.
     }
 }
-
 
 // Helper function to safely get the path from 'go env <ENV_VAR>'
 // The function now takes the environment variable name (e.g., "GOBIN", "GOPATH")

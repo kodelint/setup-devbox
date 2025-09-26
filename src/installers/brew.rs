@@ -23,8 +23,8 @@ use crate::schemas::state_file::ToolState;
 use crate::schemas::tools::ToolEntry;
 // Custom logging macros. These are used throughout the module to provide informative output
 // during the installation process, aiding in debugging and user feedback.
-use crate::{log_debug, log_error, log_info, log_warn};
 use crate::libs::tool_installer::execute_post_installation_hooks;
+use crate::{log_debug, log_error, log_info, log_warn};
 
 /// Installs a tool using the Homebrew package manager.
 ///

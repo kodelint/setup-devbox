@@ -515,7 +515,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                         post_installation_hooks_working_dir = grandparent.to_path_buf();
                         log_debug!(
                             "[GitHub Installer] Using grandparent directory for additional commands: {}",
-                            post_installation_hooks_working_dir.display().to_string().cyan()
+                            post_installation_hooks_working_dir
+                                .display()
+                                .to_string()
+                                .cyan()
                         );
                     } else {
                         post_installation_hooks_working_dir = content_root_path;
@@ -525,7 +528,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                     post_installation_hooks_working_dir = parent_dir.to_path_buf();
                     log_debug!(
                         "[GitHub Installer] Using parent directory for additional commands: {}",
-                        post_installation_hooks_working_dir.display().to_string().cyan()
+                        post_installation_hooks_working_dir
+                            .display()
+                            .to_string()
+                            .cyan()
                     );
                 }
             } else {
@@ -533,7 +539,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 post_installation_hooks_working_dir = content_root_path;
                 log_debug!(
                     "[GitHub Installer] Using extraction root for additional commands: {}",
-                    post_installation_hooks_working_dir.display().to_string().cyan()
+                    post_installation_hooks_working_dir
+                        .display()
+                        .to_string()
+                        .cyan()
                 );
             }
             log_debug!(

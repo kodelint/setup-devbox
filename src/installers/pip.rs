@@ -27,9 +27,9 @@ use colored::Colorize;
 use std::process::{Command, Output};
 // For working with file paths in an OS-agnostic manner.
 // `PathBuf` is used here primarily for constructing the `install_path` for the `ToolState`.
+use crate::libs::tool_installer::execute_post_installation_hooks;
 use crate::libs::utilities::assets::current_timestamp;
 use std::path::PathBuf;
-use crate::libs::tool_installer::execute_post_installation_hooks;
 
 /// Installs a Python package using `pip` (or `pip3`).
 ///
@@ -88,8 +88,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         "pip"
     } else {
         // Neither pip nor pip3 found, critical error.
-        log_error!("[Pip Installer] 'pip' or 'pip3' command not found. Please ensure Python and \
-        Pip are installed and in your PATH.");
+        log_error!(
+            "[Pip Installer] 'pip' or 'pip3' command not found. Please ensure Python and \
+        Pip are installed and in your PATH."
+        );
         return None; // Cannot proceed without a valid pip executable.
     };
 
@@ -169,22 +171,24 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // Main logic using the new consolidated function
         let install_path = determine_pip_install_path(&tool_entry.name, &tool_entry.options);
 
-        log_debug!("[Pip Installer] Determined installation path: {}",
-            format!("{}", install_path.display()).cyan());
+        log_debug!(
+            "[Pip Installer] Determined installation path: {}",
+            format!("{}", install_path.display()).cyan()
+        );
 
         // 4. Execute Additional Commands (if specified)
         // After the main installation is complete, execute any additional commands specified
         // in the tool configuration. These commands are often used for post-installation setup,
         // such as copying configuration files, creating directories, or setting up symbolic links.
         // Optional - failure won't stop installation
-        let executed_post_installation_hooks = execute_post_installation_hooks(
-            "[GitHub Installer]",
-            tool_entry,
-            &install_path,
-        );
+        let executed_post_installation_hooks =
+            execute_post_installation_hooks("[GitHub Installer]", tool_entry, &install_path);
         // If execution reaches this point, the installation was successful.
-        log_info!("[GitHub Installer] Installation of {} completed successfully at {}!",
-            tool_entry.name.to_string().bold(), install_path.display().to_string().green());
+        log_info!(
+            "[GitHub Installer] Installation of {} completed successfully at {}!",
+            tool_entry.name.to_string().bold(),
+            install_path.display().to_string().green()
+        );
 
         // 5. Return ToolState for Tracking
         // Construct a `ToolState` object to record the details of this successful installation.
@@ -283,9 +287,11 @@ fn determine_pip_install_path(tool_name: &str, options: &Option<Vec<String>>) ->
         if let Ok(home) = env::var("HOME") {
             log_debug!("[Pip Path] Falling back to $HOME/.local/bin/.");
             // Returns $HOME/.local/bin/<tool_name>
-            return PathBuf::from(home).join(".local").join("bin").join(tool_name);
+            return PathBuf::from(home)
+                .join(".local")
+                .join("bin")
+                .join(tool_name);
         }
-
     } else {
         // --- 2. SYSTEM-WIDE INSTALL PATH ---
         log_debug!("[Pip Path] Determining path for system-wide install.");

@@ -36,8 +36,8 @@ use crate::libs::utilities::assets::current_timestamp;
 //   - `log_error!`: For critical failures.
 //   - `log_info!`: For general progress updates.
 //   - `log_warn!`: For non-critical issues or warnings.
-use crate::{log_debug, log_error, log_info, log_warn};
 use crate::libs::tool_installer::execute_post_installation_hooks;
+use crate::{log_debug, log_error, log_info, log_warn};
 
 /// Installs a Rust crate using the `cargo install` command.
 ///
@@ -152,15 +152,11 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // 1. CARGO_INSTALL_ROOT: Explicit installation directory override.
             log_debug!("[Cargo Installer] Using CARGO_INSTALL_ROOT: {}", root);
             PathBuf::from(root).join(&tool_entry.name)
-
         } else if let Ok(cargo_home) = env::var("CARGO_HOME") {
             // 2. CARGO_HOME: Cargo's primary configuration root.
             // The binary path is typically $CARGO_HOME/bin.
             log_debug!("[Cargo Installer] Using CARGO_HOME: {}", cargo_home);
-            PathBuf::from(cargo_home)
-                .join("bin")
-                .join(&tool_entry.name)
-
+            PathBuf::from(cargo_home).join("bin").join(&tool_entry.name)
         } else if let Ok(home) = env::var("HOME") {
             // 3. $HOME: The most common default path for Cargo if CARGO_HOME isn't set.
             // This is $HOME/.cargo/bin.
@@ -169,7 +165,6 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 .join(".cargo")
                 .join("bin")
                 .join(&tool_entry.name)
-
         } else if let Ok(rustup_home) = env::var("RUSTUP_HOME") {
             // 4. RUSTUP_HOME: Fallback to a structure potentially related to Rustup's location.
             // We assume a path like $RUSTUP_HOME/cargo/bin if neither of the common paths were found.
@@ -178,29 +173,32 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 .join("cargo")
                 .join("bin")
                 .join(&tool_entry.name)
-
         } else {
             // Final Fallback: Hardcoded system path.
-            log_warn!("[Cargo Installer] No environment variables found. Defaulting to /usr/local/bin/");
+            log_warn!(
+                "[Cargo Installer] No environment variables found. Defaulting to /usr/local/bin/"
+            );
             PathBuf::from("/usr/local/bin/").join(&tool_entry.name)
         };
 
-        log_debug!("[Cargo Installer] Determined installation path: {}",
-            format!("{}", install_path.display()).cyan());
+        log_debug!(
+            "[Cargo Installer] Determined installation path: {}",
+            format!("{}", install_path.display()).cyan()
+        );
 
         // 7. Execute Post installation hooks (if specified)
         // After the main installation is complete, execute any additional commands specified
         // in the tool configuration. These commands are often used for post-installation setup,
         // such as copying configuration files, creating directories, or setting up symbolic links.
         // Optional - failure won't stop installation
-        let executed_post_installation_hooks = execute_post_installation_hooks(
-            "[Cargo Installer]",
-            tool_entry,
-            &install_path,
-        );
+        let executed_post_installation_hooks =
+            execute_post_installation_hooks("[Cargo Installer]", tool_entry, &install_path);
         // If execution reaches this point, the installation was successful.
-        log_info!("[Cargo Installer] Installation of {} completed successfully at {}!",
-            tool_entry.name.to_string().bold(), format!("{}", install_path.display()).green());
+        log_info!(
+            "[Cargo Installer] Installation of {} completed successfully at {}!",
+            tool_entry.name.to_string().bold(),
+            format!("{}", install_path.display()).green()
+        );
 
         // 8. Return ToolState for Tracking
         // Construct a `ToolState` object to record the details of this successful installation.
