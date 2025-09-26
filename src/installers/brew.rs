@@ -24,6 +24,7 @@ use crate::schemas::tools::ToolEntry;
 // Custom logging macros. These are used throughout the module to provide informative output
 // during the installation process, aiding in debugging and user feedback.
 use crate::{log_debug, log_error, log_info, log_warn};
+use crate::libs::tool_installer::execute_post_installation_hooks;
 
 /// Installs a tool using the Homebrew package manager.
 ///
@@ -151,6 +152,9 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // The binary name itself might be renamed if `tool.rename_to` is specified.
     let bin_name = tool_entry.rename_to.clone().unwrap_or_else(|| name.clone());
     let install_path = PathBuf::from(format!("{brew_prefix}/bin/{bin_name}"));
+    // Variable to track the working directory for additional commands execution.
+    // For archives, this will be the extraction directory; for binaries, the download directory.
+    let post_installation_hooks_working_dir = PathBuf::from(format!("{brew_prefix}/bin/"));
 
     log_debug!(
         "[Brew Installer] Expected final binary path for {}: {}",
@@ -158,7 +162,24 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         install_path.display().to_string().cyan()
     );
 
-    // 4. Return ToolState for Tracking
+    // 4. Execute Post installation hooks (if specified)
+    // After the main installation is complete, execute any additional commands specified
+    // in the tool configuration. These commands are often used for post-installation setup,
+    // such as copying configuration files, creating directories, or setting up symbolic links.
+    // Optional - failure won't stop installation
+    let executed_post_installation_hooks = execute_post_installation_hooks(
+        "[Brew Installer]",
+        tool_entry,
+        &post_installation_hooks_working_dir,
+    );
+    // If execution reaches this point, the installation was successful.
+    log_info!(
+        "[Brew Installer] Installation of {} completed successfully at {}!",
+        tool_entry.name.to_string().bold(),
+        install_path.clone().display().to_string().green()
+    );
+
+    // 5. Return ToolState for Tracking
     // Construct a `ToolState` object to record the details of this successful installation.
     // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
     // what tools are installed, where they are, and how they were installed. This is crucial
@@ -199,7 +220,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         last_updated: Some(current_timestamp()),
         // Record any additional commands that were executed during installation.
         // This is useful for tracking what was done and potentially for cleanup during uninstall.
-        executed_post_installation_hooks: tool_entry.post_installation_hooks.clone(),
+        executed_post_installation_hooks,
         configuration_manager: None,
     })
 }

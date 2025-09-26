@@ -225,17 +225,24 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Determine the installation path.
     // Rustup typically installs toolchains under `~/.rustup/toolchains/<toolchain_name>/bin`.
     // We construct this path to record it in `ToolState` for future reference.
-    let install_path = if let Ok(mut home) = env::var("HOME") {
+    let install_path = if let Ok(mut rustup_home) = 
+        env::var("RUSTUP_HOME") {
+        // Case 1: RUSTUP_HOME is set. Use $RUSTUP_HOME/toolchains/<toolchain_name>/bin
+        rustup_home.push_str(&format!("/toolchains/{toolchain_name}/bin"));
+        PathBuf::from(rustup_home)
+    } else if let Ok(mut home) = env::var("HOME") {
+        // Case 2: RUSTUP_HOME is not set, but HOME is. Use $HOME/.rustup/toolchains/<toolchain_name>/bin
         home.push_str(&format!("/.rustup/toolchains/{toolchain_name}/bin"));
-        PathBuf::from(home).to_string_lossy().into_owned()
+        PathBuf::from(home)
     } else {
-        // Fallback if HOME directory cannot be determined, though this might be less accurate
-        // for rustup which heavily relies on the user's home directory structure.
-        log_warn!(
-            "[Rustup Installer] Could not determine HOME directory. Using generic fallback for toolchain path."
-        );
-        "/usr/local/bin/".to_string()
+        // Case 3: Neither RUSTUP_HOME nor HOME is set. Use a hardcoded default.
+        log_warn!("[Rustup Installer] Neither RUSTUP_HOME nor HOME environment variables set, \
+        defaulting to /usr/local/bin/");
+        PathBuf::from("/usr/local/bin/")
     };
+
+    log_debug!("[Rustup Installer] Determined installation path: {}", 
+        format!("{}", install_path.display()).cyan());
 
     // Return ToolState for Tracking
     // Construct a `ToolState` object to record the details of this successful installation.
@@ -249,7 +256,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // The canonical path where the tool's executable was installed. This is the path
         // that will be recorded in the `state.json` file.
         // The path where the toolchain binaries are expected.
-        install_path,
+        install_path: install_path.to_string_lossy().into_owned(),
         // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
         // between tools managed by our system and those installed manually.
         installed_by_devbox: true,

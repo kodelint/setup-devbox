@@ -5,6 +5,7 @@
 // The goal is to integrate Rust tool installation seamlessly into the `devbox` ecosystem,
 // handling common scenarios like specifying versions and passing additional Cargo options.
 
+use std::env;
 // Standard library imports:
 // `std::path::PathBuf`: Provides an owned, OS-agnostic path. It's used here for building the
 //                       installation path of the binary (e.g., `~/.cargo/bin/my-tool`).
@@ -36,6 +37,7 @@ use crate::libs::utilities::assets::current_timestamp;
 //   - `log_info!`: For general progress updates.
 //   - `log_warn!`: For non-critical issues or warnings.
 use crate::{log_debug, log_error, log_info, log_warn};
+use crate::libs::tool_installer::execute_post_installation_hooks;
 
 /// Installs a Rust crate using the `cargo install` command.
 ///
@@ -146,27 +148,61 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // 6. Determine Installation Path
         // Cargo typically installs binaries into `~/.cargo/bin/`. We need to construct this path dynamically.
         // `std::env::var("HOME")` safely gets the user's home directory.
-        let install_path = if let Ok(mut home) = std::env::var("HOME") {
-            home.push_str("/.cargo/bin/"); // Append the standard Cargo bin directory.
-            // Join the bin directory with the tool's name to get the full binary path.
-            PathBuf::from(home)
-                .join(&tool_entry.name)
-                .to_string_lossy() // Converts `PathBuf` to an owned string, handling platform differences.
-                .into_owned()
-        } else {
-            // Fallback path if the HOME environment variable is not set.
-            // This is a less reliable default but provides a reasonable guess for common systems.
-            log_warn!(
-                "[Cargo Installer] HOME environment variable not set, defaulting install path to /usr/local/bin/"
-            );
-            "/usr/local/bin/".to_string()
-        };
-        log_debug!(
-            "[Cargo Installer] Determined installation path: {}",
-            install_path.cyan()
-        );
+        let install_path = if let Ok(root) = env::var("CARGO_INSTALL_ROOT") {
+            // 1. CARGO_INSTALL_ROOT: Explicit installation directory override.
+            log_debug!("[Cargo Installer] Using CARGO_INSTALL_ROOT: {}", root);
+            PathBuf::from(root).join(&tool_entry.name)
 
-        // 7. Return ToolState for Tracking
+        } else if let Ok(cargo_home) = env::var("CARGO_HOME") {
+            // 2. CARGO_HOME: Cargo's primary configuration root.
+            // The binary path is typically $CARGO_HOME/bin.
+            log_debug!("[Cargo Installer] Using CARGO_HOME: {}", cargo_home);
+            PathBuf::from(cargo_home)
+                .join("bin")
+                .join(&tool_entry.name)
+
+        } else if let Ok(home) = env::var("HOME") {
+            // 3. $HOME: The most common default path for Cargo if CARGO_HOME isn't set.
+            // This is $HOME/.cargo/bin.
+            log_debug!("[Cargo Installer] Using default $HOME path: {}", home);
+            PathBuf::from(home)
+                .join(".cargo")
+                .join("bin")
+                .join(&tool_entry.name)
+
+        } else if let Ok(rustup_home) = env::var("RUSTUP_HOME") {
+            // 4. RUSTUP_HOME: Fallback to a structure potentially related to Rustup's location.
+            // We assume a path like $RUSTUP_HOME/cargo/bin if neither of the common paths were found.
+            log_debug!("[Cargo Installer] Using RUSTUP_HOME: {}", rustup_home);
+            PathBuf::from(rustup_home)
+                .join("cargo")
+                .join("bin")
+                .join(&tool_entry.name)
+
+        } else {
+            // Final Fallback: Hardcoded system path.
+            log_warn!("[Cargo Installer] No environment variables found. Defaulting to /usr/local/bin/");
+            PathBuf::from("/usr/local/bin/").join(&tool_entry.name)
+        };
+
+        log_debug!("[Cargo Installer] Determined installation path: {}",
+            format!("{}", install_path.display()).cyan());
+
+        // 7. Execute Post installation hooks (if specified)
+        // After the main installation is complete, execute any additional commands specified
+        // in the tool configuration. These commands are often used for post-installation setup,
+        // such as copying configuration files, creating directories, or setting up symbolic links.
+        // Optional - failure won't stop installation
+        let executed_post_installation_hooks = execute_post_installation_hooks(
+            "[Cargo Installer]",
+            tool_entry,
+            &install_path,
+        );
+        // If execution reaches this point, the installation was successful.
+        log_info!("[Cargo Installer] Installation of {} completed successfully at {}!",
+            tool_entry.name.to_string().bold(), format!("{}", install_path.display()).green());
+
+        // 8. Return ToolState for Tracking
         // Construct a `ToolState` object to record the details of this successful installation.
         // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
         // what tools are installed, where they are, and how they were installed.
@@ -175,7 +211,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             version: determine_installed_version(tool_entry, is_git_install),
             // The canonical path where the tool's executable was installed. This is the path
             // that will be recorded in the `state.json` file.
-            install_path,
+            install_path: install_path.to_string_lossy().into_owned(),
             // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
             // between tools managed by our system and those installed manually.
             installed_by_devbox: true,
@@ -205,7 +241,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             executable_path_after_extract: None,
             // Record any additional commands that were executed during installation.
             // This is useful for tracking what was done and potentially for cleanup during uninstall.
-            executed_post_installation_hooks: tool_entry.post_installation_hooks.clone(),
+            executed_post_installation_hooks,
             configuration_manager: None,
         })
     } else {

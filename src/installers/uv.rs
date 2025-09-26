@@ -174,7 +174,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
 
         // Execute additional commands (optional - failure won't stop installation)
-        let executed_additional_commands = execute_post_installation_hooks(
+        let executed_post_installation_hooks = execute_post_installation_hooks(
             "[UV Installer]",
             tool_entry,
             &additional_cmd_working_dir,
@@ -234,7 +234,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             // Record any additional commands that were executed during installation.
             // This is useful for tracking what was done and potentially for cleanup during uninstall.
             // additional_cmd_executed: tool_entry.additional_cmd.clone(),
-            executed_post_installation_hooks: executed_additional_commands,
+            executed_post_installation_hooks,
             configuration_manager: None,
         })
     } else {
