@@ -20,7 +20,8 @@ body = """
 {% for group, commits in commits | group_by(attribute="group") %}
     ### {{ group | upper_first }}
     {% for commit in commits %}
-        - {% if commit.scope %}**{{ commit.scope }}**: {% endif %}{{ commit.message | upper_first }}\
+        - {% if commit.scope %}**{{ commit.scope }}**: {% endif %}{{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}]({{ commit.links.commit }}))\
+          {% if commit.author.name -%} (by {{ commit.author.name }}){% endif %}\
     {% endfor %}
 {% endfor %}\n
 """
@@ -28,7 +29,6 @@ body = """
 trim = true
 # changelog footer
 footer = """
-<!-- autogenerate changelong -->
 """
 
 [git]
@@ -40,11 +40,16 @@ filter_unconventional = true
 split_commits = false
 # regex for preprocessing the commit messages
 commit_preprocessors = [
-    # replace issue numbers
-    { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](https://github.com/your-org/your-repo/issues/${2}))"},
+    # Replace issue numbers and create a link to GitHub (assuming GitHub/similar)
+    { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](https://github.com/kodelint/setup-devbox/issues/${2}))"},
+    # Preprocessor for adding the commit link directly.
+    # The `git-cliff` templating engine will use `commit.links.commit` for this.
+    { pattern = '^(.*)$', replace = "${1}", replace_with = "https://github.com/kodelint/setup-devbox/commit/git_hash" },
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
+    # Explicitly capture breaking changes and place them at the top.
+    { body = ".*BREAKING CHANGE:.*", group = "💥 Breaking Changes" },
     { message = "^feat", group = "🚀 Features" },
     { message = "^bug", group = "🐛 Bug Fixes" },
     { message = "^doc", group = "📚 Documentation" },

@@ -357,7 +357,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     // Variable to track the working directory for additional commands execution.
     // For archives, this will be the extraction directory; for binaries/pkg/dmg, the download directory.
-    let mut additional_cmd_working_dir = install_temp_root.path().to_path_buf();
+    let mut post_installation_hooks_working_dir = install_temp_root.path().to_path_buf();
 
     // 8. Install Based on File Type
     // This `match` statement serves as the primary dispatcher for installation logic,
@@ -512,28 +512,37 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 {
                     if let Some(grandparent) = parent_dir.parent() {
                         // Use the grandparent (e.g., helix-25.07.1/) as the content root
-                        additional_cmd_working_dir = grandparent.to_path_buf();
+                        post_installation_hooks_working_dir = grandparent.to_path_buf();
                         log_debug!(
                             "[GitHub Installer] Using grandparent directory for additional commands: {}",
-                            additional_cmd_working_dir.display().to_string().cyan()
+                            post_installation_hooks_working_dir
+                                .display()
+                                .to_string()
+                                .cyan()
                         );
                     } else {
-                        additional_cmd_working_dir = content_root_path;
+                        post_installation_hooks_working_dir = content_root_path;
                     }
                 } else {
                     // Executable is not in a bin/ directory, use its parent directory
-                    additional_cmd_working_dir = parent_dir.to_path_buf();
+                    post_installation_hooks_working_dir = parent_dir.to_path_buf();
                     log_debug!(
                         "[GitHub Installer] Using parent directory for additional commands: {}",
-                        additional_cmd_working_dir.display().to_string().cyan()
+                        post_installation_hooks_working_dir
+                            .display()
+                            .to_string()
+                            .cyan()
                     );
                 }
             } else {
                 // Fallback to the extraction root if we can't determine the parent
-                additional_cmd_working_dir = content_root_path;
+                post_installation_hooks_working_dir = content_root_path;
                 log_debug!(
                     "[GitHub Installer] Using extraction root for additional commands: {}",
-                    additional_cmd_working_dir.display().to_string().cyan()
+                    post_installation_hooks_working_dir
+                        .display()
+                        .to_string()
+                        .cyan()
                 );
             }
             log_debug!(
@@ -583,10 +592,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // in the tool configuration. These commands are often used for post-installation setup,
     // such as copying configuration files, creating directories, or setting up symbolic links.
     // Optional - failure won't stop installation
-    let executed_additional_commands = execute_post_installation_hooks(
+    let executed_post_installation_hooks = execute_post_installation_hooks(
         "[GitHub Installer]",
         tool_entry,
-        &additional_cmd_working_dir,
+        &post_installation_hooks_working_dir,
     );
     // If execution reaches this point, the installation was successful.
     log_info!(
@@ -637,7 +646,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         executable_path_after_extract: None,
         // Record any additional commands that were executed during installation.
         // This is useful for tracking what was done and potentially for cleanup during uninstall.
-        executed_post_installation_hooks: executed_additional_commands,
+        executed_post_installation_hooks,
         configuration_manager: None,
     })
 }

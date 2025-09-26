@@ -99,7 +99,7 @@ fn write_yaml_file<T: serde::Serialize>(path: &PathBuf, data: &T) -> Result<(), 
 
 /// Reads `DevBoxState` from `state_path` and generates corresponding YAML config files
 /// (`config.yaml`, `tools.yaml`, `settings.yaml`, `fonts.yaml`) in `output_dir`.
-fn sync_state_to_configs(state_path: &PathBuf, output_dir: &PathBuf) {
+fn sync_state_to_configs(state_path: &Path, output_dir: &PathBuf) {
     log_info!(
         "[Sync:Config] Attempting to sync config files from state: {}",
         state_path.display().to_string().cyan()

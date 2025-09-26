@@ -334,7 +334,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         // Only validate installers that require a system command to be present.
         if matches!(
             installer_name.as_str(),
-            "brew" | "go" | "cargo" | "rustup" | "pip" | "uv"
+            "brew" | "go" | "cargo" | "rustup" | "pip3" | "uv"
         ) {
             check_installer_command_available(&installer_name)
                 .map_err(|error| format!("Installer '{installer_name}' not available: {error}"))

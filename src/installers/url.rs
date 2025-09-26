@@ -32,8 +32,8 @@ use std::path::{Path, PathBuf};
 // External crate imports:
 // `tempfile`: For creating temporary files and directories. Useful for downloads
 //             to avoid polluting the main file system until installation is complete.
+use crate::libs::tool_installer::execute_post_installation_hooks;
 use tempfile::tempdir;
-
 // Internal utility module imports:
 // `download_file`: A custom utility function for downloading files, likely wrapping `ureq`.
 // `detect_file_type_from_filename`: A utility to guess file types based on name/extension.
@@ -334,7 +334,21 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         );
     }
 
-    // 6. Return ToolState for Tracking
+    // 6. Execute Post installation hooks (if specified)
+    // After the main installation is complete, execute any additional commands specified
+    // in the tool configuration. These commands are often used for post-installation setup,
+    // such as copying configuration files, creating directories, or setting up symbolic links.
+    // Optional - failure won't stop installation
+    let executed_post_installation_hooks =
+        execute_post_installation_hooks("[URL Installer]", tool_entry, &tool_install_dir);
+    // If execution reaches this point, the installation was successful.
+    log_info!(
+        "[URL Installer] Installation of {} completed successfully at {}!",
+        tool_entry.name.to_string().bold(),
+        format!("{}", tool_install_dir.display()).green()
+    );
+
+    // 7. Return ToolState for Tracking
     // Construct a `ToolState` object to record the details of this successful installation.
     // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
     // what tools are installed, where they are, and how they were installed. This is crucial
@@ -375,7 +389,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         executable_path_after_extract: executable_path_after_extract_for_state,
         // Record any additional commands that were executed during installation.
         // This is useful for tracking what was done and potentially for cleanup during uninstall.
-        executed_post_installation_hooks: tool_entry.post_installation_hooks.clone(),
+        executed_post_installation_hooks,
         configuration_manager: None,
     })
 }

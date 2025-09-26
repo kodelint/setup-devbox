@@ -2,6 +2,7 @@
 // It acts as a specialized installer within the `setup-devbox` application,
 // handling the nuances of `pip` commands, versioning, and additional options.
 
+use std::env;
 // Internal module imports:
 // `ToolEntry`: Represents a single tool's configuration as defined in your `tools.yaml` file.
 //              It's a struct that contains all possible configuration fields for a tool,
@@ -26,6 +27,7 @@ use colored::Colorize;
 use std::process::{Command, Output};
 // For working with file paths in an OS-agnostic manner.
 // `PathBuf` is used here primarily for constructing the `install_path` for the `ToolState`.
+use crate::libs::tool_installer::execute_post_installation_hooks;
 use crate::libs::utilities::assets::current_timestamp;
 use std::path::PathBuf;
 
@@ -78,16 +80,17 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // If 'pip3 --version' works, we use 'pip3'.
     // Otherwise, we try 'pip --version'.
     // If neither is found, we log an error and cannot proceed.
-    let pip_command = if Command::new("pip3").arg("--version").output().is_ok() {
-        // If pip3 is found and executable, use it.
+    let pip_command = if Command::new("pip3").arg("--version").status().is_ok() {
+        // Check if the command can be found and executed.
         "pip3"
-    } else if Command::new("pip").arg("--version").output().is_ok() {
+    } else if Command::new("pip").arg("--version").status().is_ok() {
         // If pip3 isn't found, try 'pip'.
         "pip"
     } else {
         // Neither pip nor pip3 found, critical error.
         log_error!(
-            "[Pip Installer] 'pip' or 'pip3' command not found. Please ensure Python and Pip are installed and in your PATH."
+            "[Pip Installer] 'pip' or 'pip3' command not found. Please ensure Python and \
+        Pip are installed and in your PATH."
         );
         return None; // Cannot proceed without a valid pip executable.
     };
@@ -165,25 +168,29 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // This attempts to provide a common path, especially relevant for executables installed
         // into the user's local bin directory (e.g., `~/.local/bin/black` for the `black` package).
         // A more robust solution for libraries might involve parsing `pip show <package>` output for 'Location'.
-        let install_path = if let Ok(mut home) = std::env::var("HOME") {
-            // If the HOME environment variable is found, append the typical user-local bin path.
-            // This is where many `pip --user` installed scripts/executables end up.
-            home.push_str("/.local/bin/");
-            // Construct the full path, joining the base path with the package name (assuming it might be an executable).
-            PathBuf::from(home)
-                .join(&tool_entry.name)
-                .to_string_lossy()
-                .into_owned()
-        } else {
-            // If HOME directory cannot be determined, fall back to a generic system-wide bin path.
-            // This is less accurate but provides a placeholder.
-            log_warn!(
-                "[Pip Installer] Could not determine HOME directory. Using generic fallback for pip package path."
-            );
-            "/usr/local/bin/".to_string()
-        };
+        // Main logic using the new consolidated function
+        let install_path = determine_pip_install_path(&tool_entry.name, &tool_entry.options);
 
-        // 4. Return ToolState for Tracking
+        log_debug!(
+            "[Pip Installer] Determined installation path: {}",
+            format!("{}", install_path.display()).cyan()
+        );
+
+        // 4. Execute Additional Commands (if specified)
+        // After the main installation is complete, execute any additional commands specified
+        // in the tool configuration. These commands are often used for post-installation setup,
+        // such as copying configuration files, creating directories, or setting up symbolic links.
+        // Optional - failure won't stop installation
+        let executed_post_installation_hooks =
+            execute_post_installation_hooks("[GitHub Installer]", tool_entry, &install_path);
+        // If execution reaches this point, the installation was successful.
+        log_info!(
+            "[GitHub Installer] Installation of {} completed successfully at {}!",
+            tool_entry.name.to_string().bold(),
+            install_path.display().to_string().green()
+        );
+
+        // 5. Return ToolState for Tracking
         // Construct a `ToolState` object to record the details of this successful installation.
         // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
         // what tools are installed, where they are, and how they were installed. This is crucial
@@ -196,7 +203,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
                 .unwrap_or_else(|| "latest".to_string()),
             // The canonical path where the tool's executable was installed. This is the path
             // that will be recorded in the `state.json` file.
-            install_path,
+            install_path: install_path.to_string_lossy().into_owned(),
             // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
             // between tools managed by our system and those installed manually.
             installed_by_devbox: true,
@@ -227,7 +234,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             executable_path_after_extract: None,
             // Record any additional commands that were executed during installation.
             // This is useful for tracking what was done and potentially for cleanup during uninstall.
-            executed_post_installation_hooks: tool_entry.post_installation_hooks.clone(),
+            executed_post_installation_hooks,
             configuration_manager: None,
         })
     } else {
@@ -251,4 +258,95 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         // Return `None` to signal that the installation was unsuccessful.
         None
     }
+}
+
+// Main function to determine the installation path based on user options.
+fn determine_pip_install_path(tool_name: &str, options: &Option<Vec<String>>) -> PathBuf {
+    // Determine if "--user" option is present
+    let installing_as_user = if let Some(opts) = options {
+        opts.iter().any(|opt| opt == "--user")
+    } else {
+        false
+    };
+
+    // --- 1. USER-LOCAL INSTALL PATH ---
+    if installing_as_user {
+        log_debug!("[Pip Path] Determining path for '--user' install.");
+
+        // A. Try to query Python for USER_BASE
+        for python_cmd in ["python3", "python"] {
+            let command = &[python_cmd, "-m", "site"];
+            if let Some(path_str) = execute_and_parse_command(command, "USER_BASE:") {
+                log_debug!("[Pip Path] Found path via '{} -m site'.", python_cmd);
+                // Returns $USER_BASE/bin/<tool_name>
+                return PathBuf::from(path_str).join("bin").join(tool_name);
+            }
+        }
+
+        // B. Fallback for '--user': The manual default path ($HOME/.local/bin)
+        if let Ok(home) = env::var("HOME") {
+            log_debug!("[Pip Path] Falling back to $HOME/.local/bin/.");
+            // Returns $HOME/.local/bin/<tool_name>
+            return PathBuf::from(home)
+                .join(".local")
+                .join("bin")
+                .join(tool_name);
+        }
+    } else {
+        // --- 2. SYSTEM-WIDE INSTALL PATH ---
+        log_debug!("[Pip Path] Determining path for system-wide install.");
+
+        // A. Try to derive path from 'pip3 show' (best system guess)
+        let package_name = tool_name; // Assuming tool_name is the package name
+        let command = &["pip3", "show", package_name];
+        if let Some(path_str) = execute_and_parse_command(command, "Location:") {
+            let mut location_path = PathBuf::from(path_str);
+
+            // Brittle pop() logic to convert Location (/.../lib/site-packages) to Bin path
+            if location_path.pop() && location_path.pop() && location_path.pop() {
+                log_debug!("[Pip Path] Derived system path from 'pip3 show Location'.");
+                return location_path.join("bin").join(tool_name);
+            }
+        }
+
+        // B. Final System Fallback: Standard system path
+        log_debug!("[Pip Path] Defaulting to /usr/local/bin/.");
+        return PathBuf::from("/usr/local/bin/").join(tool_name);
+    }
+
+    // --- 3. LAST RESORT DEFAULT ---
+    // This is reached only if it was a '--user' install AND both Python query and $HOME failed.
+    if let Ok(home) = env::var("HOME") {
+        // As per your final requirement, default to $HOME/bin/
+        log_error!("[Pip Path] CRITICAL: Failed all user-local checks. Defaulting to $HOME/bin/.");
+        return PathBuf::from(home).join("bin").join(tool_name);
+    }
+
+    // If HOME is not even set (extremely rare)
+    log_error!("[Pip Path] CRITICAL: HOME not set. Defaulting to /bin/.");
+    PathBuf::from("/bin/").join(tool_name)
+}
+
+// Helper function: Executes a command and tries to extract a key/value path (Kept for external command parsing).
+fn execute_and_parse_command(command_parts: &[&str], key: &str) -> Option<String> {
+    let program = command_parts.get(0)?;
+    let args = command_parts.get(1..)?;
+
+    match Command::new(program).args(args).output() {
+        Ok(output) if output.status.success() => {
+            let output_str = String::from_utf8_lossy(&output.stdout);
+
+            for line in output_str.lines() {
+                // Check for the specific key (e.g., "Location:", "USER_BASE:")
+                if line.starts_with(key) {
+                    let path_str = line.splitn(2, ':').nth(1).unwrap_or("").trim();
+                    if !path_str.is_empty() {
+                        return Some(path_str.to_string());
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    None
 }
