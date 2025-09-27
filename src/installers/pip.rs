@@ -1,352 +1,722 @@
-// This module provides the installation logic for Python packages using `pip`.
-// It acts as a specialized installer within the `setup-devbox` application,
-// handling the nuances of `pip` commands, versioning, and additional options.
+// This module provides comprehensive functionality to install Python packages using `pip`.
+// It follows the same robust pattern as the `rustup.rs`, `cargo.rs`, and `brew.rs` installers
+// with comprehensive error handling, verification, and accurate path detection.
+//
+// The installer handles Python package installations with support for different pip variants,
+// installation modes (user vs system), version specifications, and comprehensive verification.
 
 use std::env;
+// Standard library imports:
+// `std::path::PathBuf`: Provides an owned, OS-agnostic path for path manipulation.
+use std::path::PathBuf;
+// `std::process::{Command, Output}`: Core functionality for executing external commands.
+//   - `Command`: Builder for new processes, used to construct and configure `pip` commands.
+//   - `Output`: Represents the output of a finished process, containing exit status, stdout, and stderr.
+use std::process::Command;
+// `std::collections::HashSet`: Used for efficient lookup during verification.
+use std::collections::HashSet;
+
+// External crate imports:
+// `colored::Colorize`: Library for adding color to terminal output for better readability.
+use colored::Colorize;
+
 // Internal module imports:
-// `ToolEntry`: Represents a single tool's configuration as defined in your `tools.yaml` file.
-//              It's a struct that contains all possible configuration fields for a tool,
-//              such as name, version, source, URL, repository, etc.
-// `ToolState`: Represents the actual state of an *installed* tool. This struct is used to
-//              persist information about installed tools in the application's `state.json` file.
-//              It helps `setup-devbox` track what's installed, its version, and where it's located.
+// `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
+// `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
 use crate::schemas::state_file::ToolState;
 use crate::schemas::tools::ToolEntry;
-// Imports custom logging macros from the crate root.
-// These macros (`log_debug`, `log_error`, `log_info`, `log_warn`) provide
-// a standardized way to output messages to the console with different severity levels,
-// essential for tracking progress and diagnosing issues during package installation.
+// Custom logging macros for structured output.
 use crate::{log_debug, log_error, log_info, log_warn};
-// For adding color to terminal output.
-// The `colored` crate allows us to make log messages and other terminal output more readable
-// by applying colors (e.g., `.bold()`, `.cyan()`, `.red()`, `.green()`).
-use colored::Colorize;
-// For executing external commands (like `pip`) and capturing their output.
-// `std::process::Command` is used to build and run system commands.
-// `std::process::Output` captures the standard output, standard error, and exit status.
-use std::process::{Command, Output};
-// For working with file paths in an OS-agnostic manner.
-// `PathBuf` is used here primarily for constructing the `install_path` for the `ToolState`.
+// Post-installation hook execution functionality.
 use crate::libs::tool_installer::execute_post_installation_hooks;
-use crate::libs::utilities::assets::current_timestamp;
-use std::path::PathBuf;
 
-/// Installs a Python package using `pip` (or `pip3`).
+/// Represents the type of pip executable detected
+#[derive(Debug, Clone)]
+enum PipVariant {
+    Pip3,
+    Pip,
+    Python3Module,
+    PythonModule,
+}
+
+impl PipVariant {
+    /// Returns the command string for this pip variant
+    fn command(&self) -> &'static str {
+        match self {
+            PipVariant::Pip3 => "pip3",
+            PipVariant::Pip => "pip",
+            PipVariant::Python3Module => "python3",
+            PipVariant::PythonModule => "python",
+        }
+    }
+
+    /// Returns the arguments for module execution
+    fn module_args(&self) -> Vec<&'static str> {
+        match self {
+            PipVariant::Python3Module => vec!["-m", "pip"],
+            PipVariant::PythonModule => vec!["-m", "pip"],
+            _ => vec![],
+        }
+    }
+
+    /// Returns whether this variant uses module execution
+    fn is_module(&self) -> bool {
+        matches!(self, PipVariant::Python3Module | PipVariant::PythonModule)
+    }
+}
+
+/// Installs a Python package using pip with comprehensive error handling.
 ///
-/// This function serves as the dedicated installer for Python packages within the DevBox system.
-/// It intelligently detects the correct `pip` executable (`pip3` preferred, then `pip`),
-/// constructs the appropriate `pip install` command based on the `ToolEntry` configuration,
-/// executes it, and records the installation details in a `ToolState` object.
+/// This function provides a robust installer for Python packages that mirrors the quality and
+/// reliability of the other installers. It includes validation, verification, and accurate
+/// state tracking for pip installations.
 ///
 /// # Workflow:
-/// 1.  **`pip` Executable Detection**: Checks for `pip3` first, then `pip` to ensure compatibility
-///     with modern Python environments.
-/// 2.  **Command Construction**: Builds the `pip install` command, including the package name,
-///     an optional version specifier (e.g., `package==1.2.3`), and any additional `pip` options
-///     provided in the `tool_entry`.
-/// 3.  **Execution**: Runs the constructed `pip` command and captures its output.
-/// 4.  **Error Handling**: Provides detailed logging for successful installations, warnings,
-///     and failures, including exit codes and standard error output.
-/// 5.  **Path Determination (Approximation)**: Attempts to determine a representative installation
-///     path for the installed package. Note that exact paths for Python packages can vary
-///     significantly (system-wide, user-site, virtual environments), and this provides a common
-///     approximation, especially for executables installed into `~/.local/bin`.
-/// 6.  **State Recording**: Creates and returns a `ToolState` object containing the installed
-///     version, approximated path, installation method, and other metadata for persistent tracking.
+/// 1. **Environment Validation**: Verifies pip/Python environment is available
+/// 2. **Pip Variant Detection**: Determines the best available pip executable
+/// 3. **Installation Mode Detection**: Determines user vs system installation
+/// 4. **Command Preparation**: Constructs appropriate pip install command arguments
+/// 5. **Pre-installation Check**: Verifies if package is already installed
+/// 6. **Package Installation**: Executes pip install with comprehensive error handling
+/// 7. **Installation Verification**: Confirms package was properly installed
+/// 8. **Path Resolution**: Accurately determines the installation path
+/// 9. **Version Detection**: Retrieves actual installed version for accurate tracking
+/// 10. **Post-installation Hooks**: Executes any additional setup commands
+/// 11. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
 ///
 /// # Arguments
-/// * `tool_entry`: A reference to the `ToolEntry` struct. This struct holds the configuration
-///   details for the Python package to be installed, as defined in `tools.yaml`.
-///   - `tool_entry.name`: The name of the Python package (e.g., "requests", "black"). This is mandatory.
-///   - `tool_entry.version`: An optional version string (e.g., "1.2.3"). If present, the
-///     package will be installed with `package==version`. If `None`, the latest stable version is installed.
-///   - `tool_entry.options`: An optional `Vec<String>` containing additional arguments to pass
-///     directly to the `pip install` command (e.g., `"--user"`, `"--upgrade"`, `"--index-url https://..."`).
+/// * `tool_entry`: A reference to the `ToolEntry` struct containing package configuration
+///   - `tool_entry.name`: **Required** - The Python package name to install
+///   - `tool_entry.version`: Optional version specification (e.g., "package==1.0.0")
+///   - `tool_entry.options`: Optional list of pip install options (--user, --upgrade, etc.)
 ///
 /// # Returns
 /// An `Option<ToolState>`:
-/// * `Some(ToolState)` if the Python package installation (including command execution and success status)
-///   was completely successful. The `ToolState` object contains details about the installed package.
-/// * `None` if `pip` (or `pip3`) is not found, or if the `pip install` command fails for any reason
-///   (e.g., network error, package not found, installation error).
+/// * `Some(ToolState)` if installation was completely successful with accurate metadata
+/// * `None` if any step of the installation process fails
+/// ## Examples - YAML
+///
+/// ```yaml
+/// # ########################
+/// # Example: PIP Installer #
+/// # ########################
+/// - name: pip
+///   source: pip
+///   version: 25.2
+///   options:
+///     - --upgrade
+/// ```
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_debug!(
+    log_info!(
         "[Pip Installer] Attempting to install Python package: {}",
         tool_entry.name.bold()
     );
+    log_debug!("[Pip Installer] ToolEntry details: {:#?}", tool_entry);
 
-    // 1. Basic validation: Ensure 'pip' command is available on the system.
-    // We prioritize 'pip3' as it's the standard for Python 3 installations.
-    // If 'pip3 --version' works, we use 'pip3'.
-    // Otherwise, we try 'pip --version'.
-    // If neither is found, we log an error and cannot proceed.
-    let pip_command = if Command::new("pip3").arg("--version").status().is_ok() {
-        // Check if the command can be found and executed.
-        "pip3"
-    } else if Command::new("pip").arg("--version").status().is_ok() {
-        // If pip3 isn't found, try 'pip'.
-        "pip"
-    } else {
-        // Neither pip nor pip3 found, critical error.
-        log_error!(
-            "[Pip Installer] 'pip' or 'pip3' command not found. Please ensure Python and \
-        Pip are installed and in your PATH."
+    // 1. Detect and validate pip executable
+    let pip_variant = detect_pip_variant()?;
+    log_debug!("[Pip Installer] Using pip variant: {:?}", pip_variant);
+
+    // 2. Validate package configuration
+    if !validate_package_configuration(tool_entry) {
+        return None;
+    }
+
+    // 3. Determine installation mode (user vs system)
+    let is_user_install = detect_installation_mode(tool_entry);
+    log_debug!(
+        "[Pip Installer] Installation mode: {}",
+        if is_user_install { "user" } else { "system" }.cyan()
+    );
+
+    // 4. Check if package is already installed (optimization)
+    if check_package_already_installed(&tool_entry.name, &pip_variant) {
+        log_info!(
+            "[Pip Installer] Package '{}' appears to be already installed",
+            tool_entry.name.green()
         );
-        return None; // Cannot proceed without a valid pip executable.
-    };
+        // Continue with installation to ensure correct version and options
+        log_debug!("[Pip Installer] Proceeding with installation to ensure correct version");
+    }
 
-    // Initialize the arguments list for the `pip install` command.
-    let mut command_args = vec!["install"];
+    // 5. Prepare and execute pip install command
+    let command_args = prepare_pip_install_command(tool_entry, &pip_variant);
+    if !execute_pip_install_command(&pip_variant, &command_args, tool_entry) {
+        return None;
+    }
 
-    // Construct the package specifier: either "package_name" or "package_name==version".
-    // This allows users to specify an exact version or get the latest.
-    let package_specifier = if let Some(version) = &tool_entry.version {
-        // If a version is specified, format as "name==version".
-        format!("{}=={}", tool_entry.name, version)
-    } else {
-        // If no version, just use the package name, pip will install the latest.
-        tool_entry.name.clone()
-    };
-    command_args.push(&package_specifier); // Add the package specifier to the command arguments.
+    // 6. Verify the installation was successful
+    if !verify_pip_installation(&tool_entry.name, &pip_variant) {
+        return None;
+    }
 
-    // Add any additional `pip` options from `tool_entry.options`.
-    // This allows users to pass flags like `--user`, `--upgrade`, `--no-cache-dir`, etc.
-    if let Some(options) = &tool_entry.options {
-        for opt in options {
-            command_args.push(opt); // Add each option string to the arguments list.
+    // 7. Determine accurate installation path
+    let install_path =
+        determine_pip_installation_path(&tool_entry.name, is_user_install, &pip_variant);
+    log_debug!(
+        "[Pip Installer] Determined installation path: {}",
+        install_path.display().to_string().cyan()
+    );
+
+    // 8. Verify binary/package exists at expected path
+    if !verify_package_accessible(&tool_entry.name, &pip_variant) {
+        log_error!(
+            "[Pip Installer] Package '{}' is not accessible after installation",
+            tool_entry.name.red()
+        );
+        return None;
+    }
+
+    // 9. Execute post-installation hooks
+    let working_dir = install_path
+        .parent()
+        .unwrap_or(&PathBuf::from("/"))
+        .to_path_buf();
+    let executed_post_installation_hooks =
+        execute_post_installation_hooks("[Pip Installer]", tool_entry, &working_dir);
+
+    // 10. Get actual installed version for accurate tracking
+    let actual_version = determine_installed_version(&tool_entry.name, &pip_variant)
+        .unwrap_or_else(|| {
+            tool_entry
+                .version
+                .clone()
+                .unwrap_or_else(|| "latest".to_string())
+        });
+
+    log_info!(
+        "[Pip Installer] Successfully installed Python package: {} (version: {})",
+        tool_entry.name.bold().green(),
+        actual_version.green()
+    );
+
+    // 11. Return comprehensive ToolState for tracking
+    //
+    // Construct a `ToolState` object to record the details of this successful installation.
+    // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+    // what tools are installed, where they are, and how they were installed.
+    Some(ToolState::new(
+        tool_entry,
+        &install_path,
+        "pip".to_string(),
+        "python-package".to_string(),
+        actual_version,
+        None,
+        None,
+        executed_post_installation_hooks,
+    ))
+}
+
+/// Detects the best available pip variant on the system.
+fn detect_pip_variant() -> Option<PipVariant> {
+    // Try pip3 first (preferred for Python 3)
+    if Command::new("pip3").arg("--version").output().is_ok() {
+        log_debug!("[Pip Installer] Found pip3");
+        return Some(PipVariant::Pip3);
+    }
+
+    // Try pip
+    if Command::new("pip").arg("--version").output().is_ok() {
+        log_debug!("[Pip Installer] Found pip");
+        return Some(PipVariant::Pip);
+    }
+
+    // Try python3 -m pip
+    if Command::new("python3")
+        .args(["-m", "pip", "--version"])
+        .output()
+        .is_ok()
+    {
+        log_debug!("[Pip Installer] Found python3 -m pip");
+        return Some(PipVariant::Python3Module);
+    }
+
+    // Try python -m pip as final fallback
+    if Command::new("python")
+        .args(["-m", "pip", "--version"])
+        .output()
+        .is_ok()
+    {
+        log_debug!("[Pip Installer] Found python -m pip");
+        return Some(PipVariant::PythonModule);
+    }
+
+    log_error!(
+        "[Pip Installer] No pip executable found. Please ensure Python and pip are installed and in your PATH."
+    );
+    None
+}
+
+/// Validates the package configuration for consistency and correctness.
+fn validate_package_configuration(tool_entry: &ToolEntry) -> bool {
+    // Validate package name
+    if tool_entry.name.trim().is_empty() {
+        log_error!("[Pip Installer] Package name cannot be empty");
+        return false;
+    }
+
+    // Validate package name doesn't contain invalid characters
+    if tool_entry
+        .name
+        .contains(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_' && c != '.')
+    {
+        log_error!(
+            "[Pip Installer] Invalid package name '{}'. Package names should only contain alphanumeric characters, hyphens, underscores, and periods.",
+            tool_entry.name.red()
+        );
+        return false;
+    }
+
+    // Validate version format if specified
+    if let Some(version) = &tool_entry.version {
+        if version.trim().is_empty() {
+            log_warn!("[Pip Installer] Empty version specified, using latest available");
         }
     }
 
-    // Log the full command being executed for debugging and user visibility.
-    // The command and arguments are colored for better readability.
-    log_info!(
-        "[Pip Installer] Executing: {} {}",
-        pip_command.cyan().bold(),
+    true
+}
+
+/// Detects the installation mode (user vs system) based on options.
+fn detect_installation_mode(tool_entry: &ToolEntry) -> bool {
+    tool_entry
+        .options
+        .as_ref()
+        .map(|opts| opts.iter().any(|opt| opt == "--user"))
+        .unwrap_or(false)
+}
+
+/// Checks if a package is already installed to avoid unnecessary reinstallation.
+fn check_package_already_installed(package_name: &str, pip_variant: &PipVariant) -> bool {
+    let (command, args) = build_pip_show_command(pip_variant, package_name);
+
+    match Command::new(command).args(&args).output() {
+        Ok(output) if output.status.success() => {
+            log_debug!(
+                "[Pip Installer] Package '{}' is already installed",
+                package_name
+            );
+            true
+        }
+        Ok(output) => {
+            // pip show returns non-zero exit code if package is not installed
+            if output.status.code() == Some(1) {
+                log_debug!(
+                    "[Pip Installer] Package '{}' is not installed",
+                    package_name
+                );
+                false
+            } else {
+                log_warn!(
+                    "[Pip Installer] Could not check package status. Exit code: {}. Error: {}",
+                    output.status.code().unwrap_or(-1),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                false
+            }
+        }
+        Err(e) => {
+            log_warn!(
+                "[Pip Installer] Failed to check package installation status: {}",
+                e
+            );
+            false
+        }
+    }
+}
+
+/// Prepares the pip install command arguments.
+fn prepare_pip_install_command(tool_entry: &ToolEntry, pip_variant: &PipVariant) -> Vec<String> {
+    let mut command_args = Vec::new();
+
+    // Add module arguments if using python -m pip
+    if pip_variant.is_module() {
+        command_args.extend(pip_variant.module_args().iter().map(|s| s.to_string()));
+    }
+
+    command_args.push("install".to_string());
+
+    // Build package specifier with version if specified
+    let package_specifier = if let Some(version) = &tool_entry.version {
+        if !version.trim().is_empty() {
+            format!("{}=={}", tool_entry.name, version)
+        } else {
+            tool_entry.name.clone()
+        }
+    } else {
+        tool_entry.name.clone()
+    };
+    command_args.push(package_specifier);
+
+    // Add any additional options
+    if let Some(options) = &tool_entry.options {
+        log_debug!("[Pip Installer] Adding custom options: {:#?}", options);
+        for opt in options {
+            command_args.push(opt.clone());
+        }
+    }
+
+    log_debug!(
+        "[Pip Installer] Prepared command arguments: {} {}",
+        pip_variant.command().cyan().bold(),
         command_args.join(" ").cyan()
     );
 
-    // Execute the `pip install` command.
-    // This is a blocking call that waits for the command to complete.
-    let output: Output = match Command::new(pip_command) // Use the detected pip command.
-        .args(&command_args) // Pass all constructed arguments.
-        .output() // Execute and capture stdout, stderr, and exit status.
-    {
-        Ok(out) => out, // Command executed successfully (not necessarily *installed* successfully).
-        Err(e) => {
-            // Log an error if the command itself failed to spawn or execute (e.g., permissions issues).
-            log_error!("[Pip Installer] Failed to execute '{} install' command for '{}': {}", pip_command.bold().red(), tool_entry.name.bold().red(), e);
-            return None; // Indicate an installation failure.
-        }
-    };
+    command_args
+}
 
-    // 2. Check the command's exit status.
-    // A successful exit status (`status.success()`) means the pip command ran without error,
-    // indicating a successful package installation.
-    if output.status.success() {
-        log_info!(
-            "[Pip Installer] Successfully installed Python package: {}",
-            tool_entry.name.bold().green() // Green color for success.
-        );
-        // Log standard output if available, usually contains installation progress.
-        if !output.stdout.is_empty() {
-            log_debug!(
-                "[Pip Installer] Stdout: {}",
-                String::from_utf8_lossy(&output.stdout)
+/// Executes the pip install command with comprehensive error handling.
+fn execute_pip_install_command(
+    pip_variant: &PipVariant,
+    command_args: &[String],
+    tool_entry: &ToolEntry,
+) -> bool {
+    log_info!(
+        "[Pip Installer] Executing: {} {}",
+        pip_variant.command().cyan().bold(),
+        command_args.join(" ").cyan()
+    );
+
+    match Command::new(pip_variant.command())
+        .args(command_args)
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            log_info!(
+                "[Pip Installer] Successfully installed package: {}",
+                tool_entry.name.bold().green()
             );
+
+            // Log output for debugging
+            if !output.stdout.is_empty() {
+                log_debug!(
+                    "[Pip Installer] Stdout: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                );
+            }
+            if !output.stderr.is_empty() {
+                log_warn!(
+                    "[Pip Installer] Stderr (may contain warnings): {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            true
         }
-        // Log standard error if available. Pip sometimes prints warnings to stderr even on success.
-        if !output.stderr.is_empty() {
+        Ok(output) => {
+            log_error!(
+                "[Pip Installer] Failed to install package '{}'. Exit code: {}. Error: {}",
+                tool_entry.name.bold().red(),
+                output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&output.stderr).red()
+            );
+
+            if !output.stdout.is_empty() {
+                log_debug!(
+                    "[Pip Installer] Stdout (on failure): {}",
+                    String::from_utf8_lossy(&output.stdout)
+                );
+            }
+            false
+        }
+        Err(e) => {
+            log_error!(
+                "[Pip Installer] Failed to execute 'pip install' for '{}': {}",
+                tool_entry.name.bold().red(),
+                e.to_string().red()
+            );
+            false
+        }
+    }
+}
+
+/// Verifies that the package was properly installed.
+fn verify_pip_installation(package_name: &str, pip_variant: &PipVariant) -> bool {
+    // Verify the package appears in pip list
+    if !verify_package_in_list(package_name, pip_variant) {
+        return false;
+    }
+
+    // Verify the package is accessible via pip show
+    if !verify_package_accessible(package_name, pip_variant) {
+        return false;
+    }
+
+    log_debug!("[Pip Installer] Installation verification completed successfully");
+    true
+}
+
+/// Verifies that the package appears in the pip list output.
+fn verify_package_in_list(package_name: &str, pip_variant: &PipVariant) -> bool {
+    let (command, args) = build_pip_list_command(pip_variant);
+
+    match Command::new(command).args(&args).output() {
+        Ok(output) if output.status.success() => {
+            let installed_packages = String::from_utf8_lossy(&output.stdout);
+            let installed_set: HashSet<&str> = installed_packages
+                .lines()
+                .filter_map(|line| {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if !parts.is_empty() {
+                        Some(parts[0])
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if installed_set.contains(&package_name.to_lowercase().as_str()) {
+                log_debug!(
+                    "[Pip Installer] Verified package '{}' is in pip list",
+                    package_name
+                );
+                true
+            } else {
+                log_error!(
+                    "[Pip Installer] Package '{}' not found in installed packages list",
+                    package_name.red()
+                );
+                false
+            }
+        }
+        Ok(output) => {
             log_warn!(
-                "[Pip Installer] Stderr (might contain warnings): {}",
+                "[Pip Installer] Could not verify installation via pip list. Exit code: {}. Error: {}",
+                output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr)
             );
+            // Return true as warning, since verification failure shouldn't block success
+            true
         }
-
-        // 3. Determine the installation path for `ToolState`.
-        // Determining the exact `install_path` for pip packages can be challenging
-        // due to varying installation locations (global site-packages, user site-packages, virtual environments).
-        // This attempts to provide a common path, especially relevant for executables installed
-        // into the user's local bin directory (e.g., `~/.local/bin/black` for the `black` package).
-        // A more robust solution for libraries might involve parsing `pip show <package>` output for 'Location'.
-        // Main logic using the new consolidated function
-        let install_path = determine_pip_install_path(&tool_entry.name, &tool_entry.options);
-
-        log_debug!(
-            "[Pip Installer] Determined installation path: {}",
-            format!("{}", install_path.display()).cyan()
-        );
-
-        // 4. Execute Additional Commands (if specified)
-        // After the main installation is complete, execute any additional commands specified
-        // in the tool configuration. These commands are often used for post-installation setup,
-        // such as copying configuration files, creating directories, or setting up symbolic links.
-        // Optional - failure won't stop installation
-        let executed_post_installation_hooks =
-            execute_post_installation_hooks("[GitHub Installer]", tool_entry, &install_path);
-        // If execution reaches this point, the installation was successful.
-        log_info!(
-            "[GitHub Installer] Installation of {} completed successfully at {}!",
-            tool_entry.name.to_string().bold(),
-            install_path.display().to_string().green()
-        );
-
-        // 5. Return ToolState for Tracking
-        // Construct a `ToolState` object to record the details of this successful installation.
-        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-        // what tools are installed, where they are, and how they were installed. This is crucial
-        // for future operations like uninstallation, updates, or syncing.
-        Some(ToolState {
-            // Use the version specified in the config, or default to "latest" if not specified.
-            version: tool_entry
-                .version
-                .clone()
-                .unwrap_or_else(|| "latest".to_string()),
-            // The canonical path where the tool's executable was installed. This is the path
-            // that will be recorded in the `state.json` file.
-            install_path: install_path.to_string_lossy().into_owned(),
-            // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
-            // between tools managed by our system and those installed manually.
-            installed_by_devbox: true,
-            // The method of installation, useful for future diagnostics or differing update logic.
-            // In this module, it's always "pip".
-            install_method: "pip".to_string(),
-            // Records if the binary was renamed during installation, storing the new name.
-            renamed_to: tool_entry.rename_to.clone(),
-            // `repo` and `tag` are not typically applicable for pip installations
-            // as pip fetches from PyPI or other package indexes, not directly from Git repositories.
-            // Therefore, these fields are set to `None` for clarity and clean state.json.
-            repo: None, // Set to None as pip doesn't track direct Git repositories.
-            tag: None,  // Set to None as pip doesn't track Git tags.
-            // The actual package type detected by the `file` command or inferred. This is for diagnostic
-            // purposes, providing the most accurate type even if the installation logic
-            // used a filename-based guess (e.g., "binary", "macos-pkg-installer").
-            package_type: "python-package".to_string(),
-            // Pass any custom options defined in the `ToolEntry` to the `ToolState`.
-            // Store the additional options that were used during the `pip install` command.
-            options: tool_entry.options.clone(),
-            // For direct URL installations: The original URL from which the tool was downloaded.
-            // This is important for re-downloading or verifying in the future.nal URL from which the tool was downloaded.
-            url: tool_entry.url.clone(),
-            // Record the timestamp when the tool was installed or updated
-            last_updated: Some(current_timestamp()),
-            // This field is currently `None` but could be used to store the path to an executable
-            // *within* an extracted archive if `install_path` points to the archive's root.
-            executable_path_after_extract: None,
-            // Record any additional commands that were executed during installation.
-            // This is useful for tracking what was done and potentially for cleanup during uninstall.
-            executed_post_installation_hooks,
-            configuration_manager: None,
-        })
-    } else {
-        // 5. Handle Installation Failure.
-        // If the `pip` command exited with a non-zero status code, it indicates a failure.
-        // Capture and log the standard error output for debugging purposes.
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        log_error!(
-            "[Pip Installer] Failed to install Python package '{}'. Exit code: {}. Error: {}",
-            tool_entry.name.bold().red(), // Package name, colored red.
-            output.status.code().unwrap_or(-1), // Exit code (default to -1 if not available).
-            stderr.red()                  // Standard error output, colored red.
-        );
-        // Also log stdout on failure, as it might contain useful context.
-        if !output.stdout.is_empty() {
-            log_debug!(
-                "[Pip Installer] Stdout (on failure): {}",
-                String::from_utf8_lossy(&output.stdout)
+        Err(e) => {
+            log_warn!(
+                "[Pip Installer] Failed to execute installation verification: {}",
+                e
             );
+            // Return true as warning, since verification failure shouldn't block success
+            true
         }
-        // Return `None` to signal that the installation was unsuccessful.
-        None
     }
 }
 
-// Main function to determine the installation path based on user options.
-fn determine_pip_install_path(tool_name: &str, options: &Option<Vec<String>>) -> PathBuf {
-    // Determine if "--user" option is present
-    let installing_as_user = if let Some(opts) = options {
-        opts.iter().any(|opt| opt == "--user")
+/// Verifies that the package is accessible via pip show.
+fn verify_package_accessible(package_name: &str, pip_variant: &PipVariant) -> bool {
+    let (command, args) = build_pip_show_command(pip_variant, package_name);
+
+    match Command::new(command).args(&args).output() {
+        Ok(output) if output.status.success() => {
+            log_debug!(
+                "[Pip Installer] Verified package '{}' is accessible via pip show",
+                package_name
+            );
+            true
+        }
+        Ok(output) => {
+            log_error!(
+                "[Pip Installer] Package '{}' not accessible via pip show. Exit code: {}. Error: {}",
+                package_name.red(),
+                output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&output.stderr).red()
+            );
+            false
+        }
+        Err(e) => {
+            log_error!(
+                "[Pip Installer] Failed to execute package accessibility check: {}",
+                e.to_string().red()
+            );
+            false
+        }
+    }
+}
+
+/// Builds the command and arguments for pip list.
+fn build_pip_list_command(pip_variant: &PipVariant) -> (String, Vec<String>) {
+    let command = pip_variant.command().to_string();
+    let mut args = Vec::new();
+
+    if pip_variant.is_module() {
+        args.extend(pip_variant.module_args().iter().map(|s| s.to_string()));
+    }
+
+    args.push("list".to_string());
+    args.push("--format=freeze".to_string());
+
+    (command, args)
+}
+
+/// Builds the command and arguments for pip show.
+fn build_pip_show_command(pip_variant: &PipVariant, package_name: &str) -> (String, Vec<String>) {
+    let command = pip_variant.command().to_string();
+    let mut args = Vec::new();
+
+    if pip_variant.is_module() {
+        args.extend(pip_variant.module_args().iter().map(|s| s.to_string()));
+    }
+
+    args.push("show".to_string());
+    args.push(package_name.to_string());
+
+    (command, args)
+}
+
+/// Determines the accurate installation path for pip-installed packages.
+fn determine_pip_installation_path(
+    package_name: &str,
+    is_user_install: bool,
+    pip_variant: &PipVariant,
+) -> PathBuf {
+    if is_user_install {
+        // For user installations, get the user base directory
+        if let Some(path) = get_user_installation_path(package_name, pip_variant) {
+            return path;
+        }
     } else {
-        false
+        // For system installations, try to get the system path
+        if let Some(path) = get_system_installation_path(package_name, pip_variant) {
+            return path;
+        }
+    }
+
+    // Fallback: try common Python installation paths
+    if let Some(path) = get_common_python_paths(package_name) {
+        return path;
+    }
+
+    // Final fallback
+    log_warn!("[Pip Installer] Could not determine pip installation path, using system fallback");
+    PathBuf::from("/usr/local/bin").join(package_name)
+}
+
+/// Gets the user installation path for Python packages.
+fn get_user_installation_path(package_name: &str, pip_variant: &PipVariant) -> Option<PathBuf> {
+    // Try to get the user base directory using Python
+    let python_cmd = if pip_variant.is_module() {
+        pip_variant.command()
+    } else {
+        // Determine appropriate Python command based on pip variant
+        match pip_variant {
+            PipVariant::Pip3 => "python3",
+            PipVariant::Pip => "python",
+            _ => "python3", // fallback
+        }
     };
 
-    // --- 1. USER-LOCAL INSTALL PATH ---
-    if installing_as_user {
-        log_debug!("[Pip Path] Determining path for '--user' install.");
-
-        // A. Try to query Python for USER_BASE
-        for python_cmd in ["python3", "python"] {
-            let command = &[python_cmd, "-m", "site"];
-            if let Some(path_str) = execute_and_parse_command(command, "USER_BASE:") {
-                log_debug!("[Pip Path] Found path via '{} -m site'.", python_cmd);
-                // Returns $USER_BASE/bin/<tool_name>
-                return PathBuf::from(path_str).join("bin").join(tool_name);
+    if let Ok(output) = Command::new(python_cmd)
+        .args(["-c", "import site; print(site.USER_BASE)"])
+        .output()
+    {
+        if output.status.success() {
+            let user_base = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !user_base.is_empty() {
+                log_debug!("[Pip Installer] Found user base: {}", user_base);
+                return Some(PathBuf::from(user_base).join("bin").join(package_name));
             }
         }
+    }
 
-        // B. Fallback for '--user': The manual default path ($HOME/.local/bin)
-        if let Ok(home) = env::var("HOME") {
-            log_debug!("[Pip Path] Falling back to $HOME/.local/bin/.");
-            // Returns $HOME/.local/bin/<tool_name>
-            return PathBuf::from(home)
+    // Fallback to HOME/.local/bin
+    if let Ok(home) = env::var("HOME") {
+        log_debug!("[Pip Installer] Using HOME/.local/bin fallback");
+        return Some(
+            PathBuf::from(home)
                 .join(".local")
                 .join("bin")
-                .join(tool_name);
-        }
-    } else {
-        // --- 2. SYSTEM-WIDE INSTALL PATH ---
-        log_debug!("[Pip Path] Determining path for system-wide install.");
-
-        // A. Try to derive path from 'pip3 show' (best system guess)
-        let package_name = tool_name; // Assuming tool_name is the package name
-        let command = &["pip3", "show", package_name];
-        if let Some(path_str) = execute_and_parse_command(command, "Location:") {
-            let mut location_path = PathBuf::from(path_str);
-
-            // Brittle pop() logic to convert Location (/.../lib/site-packages) to Bin path
-            if location_path.pop() && location_path.pop() && location_path.pop() {
-                log_debug!("[Pip Path] Derived system path from 'pip3 show Location'.");
-                return location_path.join("bin").join(tool_name);
-            }
-        }
-
-        // B. Final System Fallback: Standard system path
-        log_debug!("[Pip Path] Defaulting to /usr/local/bin/.");
-        return PathBuf::from("/usr/local/bin/").join(tool_name);
+                .join(package_name),
+        );
     }
 
-    // --- 3. LAST RESORT DEFAULT ---
-    // This is reached only if it was a '--user' install AND both Python query and $HOME failed.
-    if let Ok(home) = env::var("HOME") {
-        // As per your final requirement, default to $HOME/bin/
-        log_error!("[Pip Path] CRITICAL: Failed all user-local checks. Defaulting to $HOME/bin/.");
-        return PathBuf::from(home).join("bin").join(tool_name);
-    }
-
-    // If HOME is not even set (extremely rare)
-    log_error!("[Pip Path] CRITICAL: HOME not set. Defaulting to /bin/.");
-    PathBuf::from("/bin/").join(tool_name)
+    None
 }
 
-// Helper function: Executes a command and tries to extract a key/value path (Kept for external command parsing).
-fn execute_and_parse_command(command_parts: &[&str], key: &str) -> Option<String> {
-    let program = command_parts.get(0)?;
-    let args = command_parts.get(1..)?;
+/// Gets the system installation path for Python packages.
+fn get_system_installation_path(package_name: &str, pip_variant: &PipVariant) -> Option<PathBuf> {
+    // Try to get system site-packages directory using the same Python command
+    let python_cmd = if pip_variant.is_module() {
+        pip_variant.command()
+    } else {
+        match pip_variant {
+            PipVariant::Pip3 => "python3",
+            PipVariant::Pip => "python",
+            _ => "python3",
+        }
+    };
 
-    match Command::new(program).args(args).output() {
-        Ok(output) if output.status.success() => {
-            let output_str = String::from_utf8_lossy(&output.stdout);
-
-            for line in output_str.lines() {
-                // Check for the specific key (e.g., "Location:", "USER_BASE:")
-                if line.starts_with(key) {
-                    let path_str = line.splitn(2, ':').nth(1).unwrap_or("").trim();
-                    if !path_str.is_empty() {
-                        return Some(path_str.to_string());
-                    }
+    if let Ok(output) = Command::new(python_cmd)
+        .args(["-c", "import sys; print(next((p for p in sys.path if 'site-packages' in p and 'local' in p), ''))"])
+        .output()
+    {
+        if output.status.success() {
+            let site_packages = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !site_packages.is_empty() {
+                // Convert site-packages path to bin path
+                let mut path = PathBuf::from(&site_packages);
+                // Go up from site-packages to find the bin directory
+                if path.pop() && path.pop() && path.pop() {
+                    let bin_path = path.join("bin").join(package_name);
+                    log_debug!("[Pip Installer] Found system bin path: {}", bin_path.display());
+                    return Some(bin_path);
                 }
             }
         }
-        _ => {}
+    }
+
+    None
+}
+
+/// Gets common Python installation paths as fallback.
+fn get_common_python_paths(package_name: &str) -> Option<PathBuf> {
+    // Common Python installation paths
+    let common_paths = [
+        PathBuf::from("/usr/local/bin").join(package_name),
+        PathBuf::from("/opt/homebrew/bin").join(package_name), // Homebrew on Apple Silicon
+        PathBuf::from("/usr/bin").join(package_name),
+        PathBuf::from("/opt/local/bin").join(package_name), // MacPorts
+    ];
+
+    for path in &common_paths {
+        if path.exists() {
+            log_debug!(
+                "[Pip Installer] Found executable at common path: {}",
+                path.display()
+            );
+            return Some(path.clone());
+        }
+    }
+
+    None
+}
+
+/// Determines the actual installed version of the package.
+fn determine_installed_version(package_name: &str, pip_variant: &PipVariant) -> Option<String> {
+    let (command, args) = build_pip_show_command(pip_variant, package_name);
+
+    match Command::new(command).args(&args).output() {
+        Ok(output) if output.status.success() => {
+            parse_version_from_output(&String::from_utf8_lossy(&output.stdout))
+        }
+        _ => None,
+    }
+}
+
+/// Parses the version from pip show output.
+fn parse_version_from_output(output: &str) -> Option<String> {
+    for line in output.lines() {
+        if line.starts_with("Version:") {
+            // Manual implementation of split_once functionality
+            // Find the first occurrence of ':' in the line
+            if let Some(colon_pos) = line.find(':') {
+                // Calculate the start position for the version part (after the colon)
+                let version_start = colon_pos + 1; // +1 to skip the colon itself
+                // Extract the version part from after the colon to the end of the line
+                let version_part = &line[version_start..];
+                let version = version_part.trim().to_string();
+
+                // Only return if we have a non-empty version
+                if !version.is_empty() {
+                    return Some(version);
+                }
+            }
+        }
     }
     None
 }

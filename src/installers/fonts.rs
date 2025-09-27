@@ -324,14 +324,13 @@ fn copy_non_hidden_font_files(
             destination_path.display()
         );
 
-        fs::copy(&path, &destination_path).map_err(|e| {
+        fs::copy(&path, &destination_path).inspect_err(|e| {
             log_error!(
                 "[Font Copy] Failed to copy font file '{}' to '{}': {}",
                 path.display().to_string().red(),
                 destination_path.display().to_string().red(),
                 e.to_string().red()
             );
-            e // Propagate the io::Error
         })?;
 
         installed_font_files.push(filename.to_string());

@@ -326,31 +326,6 @@ pub struct ToolState {
     pub configuration_manager: Option<ConfigurationManagerState>,
 }
 
-impl ToolState {
-    /// Helper method to update configuration manager state.
-    ///
-    /// Used when configuration files are synchronized or updated to store
-    /// the new state information including file hashes and timestamps.
-    ///
-    /// ## Parameters
-    /// - `config_state`: The new configuration management state to store
-    pub fn set_configuration_manager(&mut self, config_state: ConfigurationManagerState) {
-        self.configuration_manager = Some(config_state);
-    }
-
-    /// Helper method to get configuration manager state.
-    ///
-    /// Returns a reference to the current configuration management state
-    /// if it exists, or `None` if no configuration management is active.
-    ///
-    /// ## Returns
-    /// - `Some(&ConfigurationManagerState)`: Configuration state exists
-    /// - `None`: No configuration management for this tool
-    pub fn get_configuration_manager(&self) -> Option<&ConfigurationManagerState> {
-        self.configuration_manager.as_ref()
-    }
-}
-
 // ============================================================================
 // SYSTEM SETTINGS STATE
 // ============================================================================

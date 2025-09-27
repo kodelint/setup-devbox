@@ -70,8 +70,8 @@ pub fn apply_system_settings(
             // Check if the setting needs to be applied:
             // 1. If the setting is not in the `state` yet (first time application).
             // 2. If the setting is in the `state` but its recorded value or type differs from the desired one.
-            if state.settings.get(&full_key).map_or(true, |s_state| {
-                s_state.value != desired_value || s_state.value_type != setting_type
+            if !state.settings.get(&full_key).is_some_and(|s_state| {
+                s_state.value == desired_value && s_state.value_type == setting_type
             }) {
                 log_info!(
                     "[OS Settings] Attempting to apply setting: {} = {} (type: {})",
@@ -142,51 +142,52 @@ pub fn apply_system_settings(
                     }
                 }
 
-                // Execute the `defaults` command and capture its output.
-                match command.output() {
-                    Ok(output) => {
-                        if output.status.success() {
-                            log_info!(
-                                "[OS Settings] Successfully applied '{}' to domain '{}'.",
-                                entry.key,
-                                entry.domain
-                            );
-                            // Store the new `SettingState` in `DevBoxState`, including the value and its type.
-                            state.settings.insert(
-                                full_key.clone(),
-                                SettingState {
-                                    domain: entry.domain.clone(),
-                                    key: entry.key.clone(),
-                                    value: desired_value.clone(),
-                                    value_type: setting_type.clone(), // Store the type here!
-                                },
-                            );
-                            settings_updated_in_session = true; // Mark that a setting was updated.
-                        } else {
-                            // Log a detailed error if the command failed.
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            log_error!(
-                                "[OS Settings] Failed to apply setting '{}' (Domain: '{}', Key: '{}'). Exit code: {}. Error: {}",
-                                full_key.bold().red(),
-                                entry.domain.red(),
-                                entry.key.red(),
-                                output.status.code().unwrap_or(-1), // Get exit code, default to -1 if not available.
-                                stderr.red()
-                            );
-                            if !output.stdout.is_empty() {
-                                log_debug!(
-                                    "[OS Settings] Stdout (on failure): {}",
-                                    String::from_utf8_lossy(&output.stdout)
-                                );
-                            }
-                        }
-                    }
+                // Execute the `defaults` command and capture its output, simplifying the error handling.
+                let output = match command.output() {
+                    Ok(out) => out,
                     Err(e) => {
-                        // Log an error if the `defaults` command itself could not be executed (e.g., command not found).
+                        // Log an error if the command itself could not be executed (e.g., command not found).
                         log_error!(
                             "[OS Settings] Could not execute 'defaults' command for setting '{}'. Error: {}",
                             full_key.bold().red(),
                             e.to_string().red()
+                        );
+                        return; // Exit/skip applying this setting on immediate execution failure
+                    }
+                };
+
+                if output.status.success() {
+                    log_info!(
+                        "[OS Settings] Successfully applied '{}' to domain '{}'.",
+                        entry.key,
+                        entry.domain
+                    );
+                    // Store the new `SettingState` in `DevBoxState`, including the value and its type.
+                    state.settings.insert(
+                        full_key.clone(),
+                        SettingState {
+                            domain: entry.domain.clone(),
+                            key: entry.key.clone(),
+                            value: desired_value.clone(),
+                            value_type: setting_type.clone(),
+                        },
+                    );
+                    settings_updated_in_session = true; // Mark that a setting was updated.
+                } else {
+                    // Log a detailed error if the command failed.
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    log_error!(
+                        "[OS Settings] Failed to apply setting '{}' (Domain: '{}', Key: '{}'). Exit code: {}. Error: {}",
+                        full_key.bold().red(),
+                        entry.domain.red(),
+                        entry.key.red(),
+                        output.status.code().unwrap_or(-1), // Get exit code, default to -1 if not available.
+                        stderr.red()
+                    );
+                    if !output.stdout.is_empty() {
+                        log_debug!(
+                            "[OS Settings] Stdout (on failure): {}",
+                            String::from_utf8_lossy(&output.stdout)
                         );
                     }
                 }

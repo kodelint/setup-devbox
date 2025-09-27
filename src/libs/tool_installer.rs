@@ -108,6 +108,15 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         }
     }
 
+    /// Helper function to normalize a version string by removing a leading 'v'.
+    ///
+    /// "v1.2.3" -> "1.2.3"
+    /// "1.2.3" -> "1.2.3"
+    /// "latest" -> "latest"
+    fn normalize_version(version: &str) -> &str {
+        version.strip_prefix('v').unwrap_or(version)
+    }
+
     /// Determines the high-level action to be taken for a specific tool.
     /// This now performs a single comprehensive evaluation to avoid duplicate SHA calculations.
     ///
@@ -194,8 +203,13 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         current_state: &ToolState,
     ) -> VersionAction {
         let requested_version = tool.version.as_deref().unwrap_or("latest");
-        let is_latest_version_scenario =
-            requested_version == "latest" || current_state.version == "latest";
+        let is_latest_version_scenario = requested_version == "latest"
+            || current_state.version == "latest"
+            // For Rustup Toolchain:
+            //  1. Treat `stable` and `nightly` as `latest`
+            //  2. Follow the `update_latest_only_after` configuration
+            || current_state.version.contains("stable")
+            || current_state.version.contains("nightly");
 
         // Handle the "latest" version logic with an update threshold.
         if is_latest_version_scenario && !self.configuration.force_update_enabled {
@@ -221,7 +235,10 @@ impl<'a> ToolInstallationOrchestrator<'a> {
 
         // Handle specific version logic.
         if let Some(required_version) = &tool.version {
-            if required_version != "latest" && current_state.version == *required_version {
+            let normalized_required = Self::normalize_version(required_version);
+            let normalized_current = Self::normalize_version(&current_state.version);
+
+            if required_version != "latest" && normalized_current == normalized_required {
                 // Skip because the specified version is already installed.
                 return VersionAction::Skip("specified version already installed".to_string());
             }
@@ -314,6 +331,10 @@ impl<'a> ToolInstallationOrchestrator<'a> {
 
         // Step 3: Determine and execute the required action.
         let current_state = self.state.tools.get(&tool.name);
+        log_debug!(
+            "[Tools] Determining if the tool: {} is already installed",
+            &tool.name.cyan()
+        );
         let (required_action, cached_config_evaluation) =
             self.determine_required_action(tool, current_state);
 

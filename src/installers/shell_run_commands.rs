@@ -364,16 +364,14 @@ fn process_run_commands(
             // This should not happen in normal append mode since we check for updates earlier
             log_warn!("[Shell Config] Update detected in append mode - this shouldn't happen");
             continue;
-        } else {
-            if insert_into_section(lines, command, section) {
-                *section_stats.entry(section.clone()).or_insert(0) += 1;
-                changes_made = true;
-                log_info!(
-                    "[Shell Config] Added command to {} section: {}",
-                    section_header_name(section).cyan(),
-                    command.green()
-                );
-            }
+        } else if insert_into_section(lines, command, section) {
+            *section_stats.entry(section.clone()).or_insert(0) += 1;
+            changes_made = true;
+            log_info!(
+                "[Shell Config] Added command to {} section: {}",
+                section_header_name(section).cyan(),
+                command.green()
+            );
         }
     }
     // Log statistics about commands added to each section
@@ -467,12 +465,11 @@ fn process_aliases(
 /// - Logs appropriate success/error messages
 /// - Returns the IO error for proper error propagation
 fn final_write(rc_path: &Path, lines: &[String]) -> Result<(), std::io::Error> {
-    write_rc_file(rc_path, lines).map_err(|e| {
+    write_rc_file(rc_path, lines).inspect_err(|e| {
         log_warn!(
             "[Shell Config] Failed to write RC file: {}",
             e.to_string().red()
         );
-        e
     })?;
 
     log_info!("[Shell Config] Successfully updated shell configuration");

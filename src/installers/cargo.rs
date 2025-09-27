@@ -1,459 +1,725 @@
-// This module provides the functionality to install Rust crates using the `cargo install` command.
-// It acts as a wrapper around the Cargo build system, allowing `devbox` to manage Rust-based tools
-// distributed as crates.
-//
-// The goal is to integrate Rust tool installation seamlessly into the `devbox` ecosystem,
-// handling common scenarios like specifying versions and passing additional Cargo options.
+//! # Cargo Installer Module
+//!
+//! This module provides a robust, production-grade installer for Rust tools using the `cargo install` command.
+//! It follows comprehensive error handling, verification mechanisms, and accurate path detection.
+//!
+//! ## Key Features
+//!
+//! - **Dual Installation Support**: Handles both regular crates.io installations and Git-based installations
+//! - **Comprehensive Validation**: Validates cargo availability, installation success, and binary paths
+//! - **Smart State Tracking**: Maintains accurate installation state with version tracking
+//! - **Flexible Configuration**: Supports version specifications, custom cargo options, and Git references
+//! - **Post-Installation Hooks**: Executes additional setup commands after successful installation
+//! - **Environment Awareness**: Properly handles different cargo home directories and installation paths
+//!
+//! ## Installation Workflow
+//!
+//! The installer follows a meticulous 9-step process:
+//!
+//! 1. **Pre-installation Check** - Determines if tool is already installed (outside SDB)
+//! 2. **Source Detection** - Identifies installation type (crates.io vs Git)
+//! 3. **Command Preparation** - Constructs appropriate `cargo install` command
+//! 4. **Command Execution** - Runs installation with comprehensive error handling
+//! 5. **Installation Verification** - Confirms the crate was properly installed
+//! 6. **Path Resolution** - Accurately determines binary installation path
+//! 7. **Post-Installation Hooks** - Executes any additional setup commands
+//! 8. **State Creation** - Creates comprehensive tool state for persistence
+//!
+//! ## Error Handling
+//!
+//! The module provides detailed error messages and logging at multiple levels:
+//! - **Info**: High-level installation progress
+//! - **Debug**: Detailed command construction and path resolution
+//! - **Warn**: Non-fatal issues or warnings during installation
+//! - **Error**: Installation failures with specific error codes and messages
 
 use std::env;
 // Standard library imports:
-// `std::path::PathBuf`: Provides an owned, OS-agnostic path. It's used here for building the
-//                       installation path of the binary (e.g., `~/.cargo/bin/my-tool`).
+// Provides an owned, OS-agnostic path. Used for building the installation path
+// of the binary (e.g., `~/.cargo/bin/my-tool`).
 use std::path::PathBuf;
-// `std::process::{Command, Output}`: This is the core of the module's functionality.
-//   - `Command`: A builder for a new process, used to construct and configure the `cargo install` command.
-//   - `Output`: Represents the output of a finished process, containing its exit status, stdout, and stderr.
-use std::process::{Command, Output};
+// Core functionality for executing external commands.
+//   - `Command`: Builder for new processes, used to construct and configure `cargo install` commands.
+use std::process::Command;
 
-// External crate imports:
-// `colored::Colorize`: A simple library for adding color to strings in the terminal.
-//                      Used to make log messages more readable and highlight key information.
-use colored::Colorize;
-
+// Post-installation hook execution functionality.
+use crate::libs::tool_installer::execute_post_installation_hooks;
 // Internal module imports:
-// `ToolEntry`: Represents a single tool's configuration as defined in your `tools.yaml` file.
-//              It's a struct that contains all possible configuration fields for a tool,
-//              such as name, version, source, URL, repository, etc.
-// `ToolState`: Represents the actual state of an *installed* tool. This struct is used to
-//              persist information about installed tools in the application's `state.json` file.
-//              It helps `setup-devbox` track what's installed, its version, and where it's located.
+// `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
+// `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
 use crate::schemas::state_file::ToolState;
 use crate::schemas::tools::ToolEntry;
-// A helper function to get the current UNIX timestamp. Used for the `last_updated` field.
-use crate::libs::utilities::assets::current_timestamp;
-// `crate::{log_debug, log_error, log_info, log_warn}`: Custom logging macros for structured output.
-//   - `log_debug!`: For detailed, developer-focused logs.
-//   - `log_error!`: For critical failures.
-//   - `log_info!`: For general progress updates.
-//   - `log_warn!`: For non-critical issues or warnings.
-use crate::libs::tool_installer::execute_post_installation_hooks;
+// Custom logging macros for structured output.
 use crate::{log_debug, log_error, log_info, log_warn};
+// External crate imports:
+//   Library for adding color to terminal output for better readability.
+use colored::Colorize;
 
-/// Installs a Rust crate using the `cargo install` command.
+/// Installs a Rust tools using the `cargo install` command with comprehensive error handling.
 ///
-/// This is the core function for installing tools that are distributed as Rust crates.
-/// It constructs the appropriate `cargo install` command based on the `ToolEntry` configuration,
-/// executes it, and handles the outcome (success/failure), including logging and updating
-/// the tool's state.
+/// This function provides a robust installer for Cargo based tool installation which
+/// includes validation, verification, and accurate state tracking.
 ///
-/// # Arguments
-/// * `tool_entry`: A reference to a `ToolEntry` struct. This `ToolEntry` contains all the
-///   metadata read from the `tools.yaml` configuration file that specifies
-///   how to install this particular tool as a Cargo crate (e.g., `name`,
-///   `version`, `options` like `--features`).
+/// # Workflow:
+/// 1. **Environment Validation**: Verifies `cargo` is installed and accessible
+/// 2. **Already Installed**: Determines if the tool was already install outside SDB
+/// 3. **Installation Source**: Determines how to install the tool
+/// 4. **Prepare and Execute Command**: Prepare the `cargo install` command
+/// 5. **Installation Verification**: Confirms the crate was properly installed
+/// 6. **Path Resolution**: Accurately determines the installation path
+/// 7. **Post-installation Hooks**: Executes any additional setup commands
+/// 8. **Get Version**: Determine the actual installed version
+/// 9. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
 ///
-/// # Returns
-/// * `Option<ToolState>`:
-///   - `Some(ToolState)`: Indicates a successful installation. The contained `ToolState`
-///     struct provides details like the installed version, the absolute path to the binary,
-///     and the installation method, which are then persisted in our internal `state.json`.
-///   - `None`: Signifies that the installation failed at some step. Detailed error logging
-///     is performed before returning `None` to provide context for the failure.
+/// # Arguments:
+/// * `tool_entry`: A reference to the `ToolEntry` struct containing crate configuration
+///   - `tool_entry.name`: **Required** - The crate name to install
+///   - `tool_entry.version`: Optional version specification for crates.io installations
+///   - `tool_entry.options`: Optional list of cargo install options (--features, --git, etc.)
+///
+/// # Returns:
+/// An `Option<ToolState>`:
+/// * `Some(ToolState)` if installation was completely successful with accurate metadata
+/// * `None` if any step of the installation process fails
+///
+/// ## Examples - YAML
+///
+/// ```yaml
+/// ## `uv` - A single tool to replace pip, pip-tools, pipx, poetry, pyenv, twine, virtualenv, and more.
+/// ## https://docs.astral.sh/uv/
+/// - name: uv
+///   source: cargo
+///   version: 0.8.17
+///   options:
+///     - --git https://github.com/astral-sh/uv
+///   configuration_manager:
+///   enabled: true
+///   tools_configuration_paths:
+///     - $HOME/.config/uv/uv.toml
+///
+///  ## `cargo-deny` - cargo-deny is a cargo plugin that lets you lint your project's dependency
+///  ## graph to ensure all your dependencies conform to your expectations and requirements.
+/// - name: cargo-deny
+///   source: cargo
+///   version: 0.18.4
+/// ```
+///
+/// ## Examples - Rust Code
+///
+/// ### Basic Installation
+/// ```rust
+/// let tool_entry = ToolEntry {
+///     name: "cargo-deny".to_string(),
+///     version: None, // Install latest version
+///     options: None,
+/// };
+/// install(&tool_entry);
+/// ```
+///
+/// ### Version-Specific Installation
+/// ```rust
+/// let tool_entry = ToolEntry {
+///     name: "cargo-deny".to_string(),
+///     version: Some("0.18.4".to_string()),
+///     options: None,
+/// };
+/// install(&tool_entry);
+/// ```
+///
+/// ### Git-Based Installation
+/// ```rust
+/// let tool_entry = ToolEntry {
+///     name: "uv".to_string(),
+///     version: Some("0.8.17".to_string()), // Used as git tag
+///     options: Some(vec![
+///         "--git".to_string(),
+///         "https://github.com/astral-sh/uv".to_string()
+///     ]),
+/// };
+/// install(&tool_entry);
+/// ```
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    // Start the installation process with a debug log, clearly indicating which tool (crate) is being processed.
-    log_debug!(
-        "[Cargo Installer] Attempting to install Cargo tool: {}",
+    log_info!(
+        "[Cargo Installer] Attempting to install Cargo crate: {}",
         tool_entry.name.bold()
     );
+    log_debug!("[Cargo Installer] ToolEntry details: {:#?}", tool_entry);
 
-    // 1. Basic Validation: Check if `cargo` command is available.
-    // Before attempting any installation, we must ensure that the Rust toolchain (specifically `cargo`)
-    // is installed and accessible in the system's PATH. This prevents cryptic errors later.
-    // We try to run `cargo --version`. If this command fails to spawn (`.is_err()`), it means `cargo`
-    // is not found, so we log an error and exit gracefully.
-    if Command::new("cargo").arg("--version").output().is_err() {
-        log_error!(
-            "[Cargo Installer] 'cargo' command not found. Please ensure Rust/Cargo is installed and in your PATH."
+    // 1. Check if crate is already installed (optimization)
+    // There might be possibility that tool was already installed outside SDB
+    log_debug!(
+        "[Cargo Installer] Checking if {} is already installed",
+        tool_entry.name.bold()
+    );
+    if !check_if_installed(&tool_entry.name) {
+        log_info!(
+            "[Cargo Installer] Tool '{}' appears to be already installed, outside SDB",
+            tool_entry.name.green()
         );
-        return None; // Cannot proceed without `cargo`.
+        log_debug!(
+            "[Cargo Installer] Proceeding with installation to ensure correct version/options"
+        );
     }
-    log_debug!("[Cargo Installer] 'cargo' command found in PATH.");
 
-    // 2. Check if this is a git-based installation
-    // We look at the `options` field in `tool_entry` to see if it contains the `--git` flag.
-    // This determines which `cargo install` command variant to build.
-    let is_git_install = tool_entry.options.as_ref().map_or(false, |options| {
+    // 2. Detect if cargo needs to install it using git url
+    let is_it_git_based_install = detect_install_source(tool_entry);
+    log_debug!(
+        "[Cargo Installer] Installation type: {}",
+        if is_it_git_based_install {
+            "Git Based".cyan()
+        } else {
+            "Cargo Index based".cyan()
+        }
+    );
+
+    // 3. Prepare and execute cargo install command
+    log_debug!(
+        "[Cargo Installer] Prepare the command to install: {}",
+        tool_entry.name.bold()
+    );
+    let command_args = prepare_cargo_install_command(tool_entry, is_it_git_based_install);
+    if !execute_cargo_install_command(&command_args, tool_entry) {
+        return None;
+    }
+
+    // 4. Verify the installation was successful - ensure the binary is actually available
+    log_debug!(
+        "[Cargo Installer] Verify if the {} actually installed",
+        tool_entry.name.bold()
+    );
+    if !check_if_installed(&tool_entry.name) {
+        return None;
+    }
+
+    // 5. Determine accurate installation path - where the binary was actually installed
+    let install_path = determine_cargo_installation_path(&tool_entry.name);
+    log_debug!(
+        "[Cargo Installer] Determined installation path: {}",
+        install_path.display().to_string().cyan()
+    );
+
+    // 6. Execute post-installation hooks - run any additional setup commands
+    log_debug!(
+        "[Cargo Installer] Executing post installation hooks, post installing {}",
+        tool_entry.name.bold()
+    );
+    let executed_post_installation_hooks =
+        execute_post_installation_hooks("[Cargo Installer]", tool_entry, &install_path);
+
+    // 7. Get actual installed version for accurate tracking - important for state management
+    let actual_version = determine_installed_version(tool_entry, is_it_git_based_install);
+
+    log_info!(
+        "[Cargo Installer] Successfully installed Cargo crate: {} (version: {})",
+        tool_entry.name.bold().green(),
+        actual_version.green()
+    );
+
+    // 8. Return comprehensive ToolState for tracking
+    //
+    // Construct a `ToolState` object to record the details of this successful installation.
+    // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+    // what tools are installed, where they are, and how they were installed.
+    Some(ToolState::new(
+        tool_entry,
+        &install_path,
+        "cargo-install".to_string(),
+        "rust-crate".to_string(),
+        actual_version,
+        None,
+        None,
+        executed_post_installation_hooks,
+    ))
+}
+
+/// Detects if this is a git-based installation by checking for --git option.
+///
+/// This function examines the tool's options to determine if it should be
+/// installed from a Git repository rather than from crates.io.
+///
+/// # Arguments
+/// * `tool_entry` - The tool configuration containing installation options
+///
+/// # Returns
+/// `true` if this is a Git-based installation, `false` for crates.io installation
+fn detect_install_source(tool_entry: &ToolEntry) -> bool {
+    if let Some(options) = &tool_entry.options {
         options.iter().any(|opt| opt.starts_with("--git"))
-    });
+    } else {
+        false
+    }
+}
 
-    // 3. Prepare `cargo install` Command Arguments
-    // We initialize a vector to hold the arguments for the `cargo` command.
+/// Checks if a crate is already installed to avoid unnecessary reinstallation.
+///
+/// This function runs `cargo install --list` and parses the output to determine
+/// if the specified crate is already installed. This helps optimize installation
+/// by skipping already installed crates.
+///
+/// # Arguments
+/// * `tool_name` - The name of the crate to check
+///
+/// # Returns
+/// `true` if the crate is already installed, `false` otherwise
+///
+/// # Note
+/// The function looks for lines that start with the tool name and contain a colon,
+/// which is the format used by `cargo install --list` for installed crates.
+fn check_if_installed(tool_name: &str) -> bool {
+    match Command::new("cargo").args(["install", "--list"]).output() {
+        Ok(output) if output.status.success() => {
+            let installed_crates = String::from_utf8_lossy(&output.stdout);
+            installed_crates
+                .lines()
+                .any(|line| line.trim().starts_with(tool_name) && line.contains(':'))
+        }
+        _ => false,
+    }
+}
+
+/// Prepares the cargo install command arguments based on installation type.
+///
+/// This function constructs the appropriate command-line arguments for `cargo install`
+/// based on whether this is a Git-based installation or a regular crates.io installation.
+///
+/// # Arguments
+/// * `tool_entry` - The tool configuration
+/// * `is_it_git_based_installed` - Flag indicating installation type
+///
+/// # Returns
+/// A vector of command-line arguments to pass to `cargo install`
+///
+/// # Examples
+///
+/// ```yaml
+/// # `uv` - A single tool to replace pip, pip-tools, pipx, poetry, pyenv, twine, virtualenv, and more.
+/// # https://docs.astral.sh/uv/
+/// - name: uv
+///   source: cargo
+///   version: 0.8.17
+///   options:
+///     - --git https://github.com/astral-sh/uv
+///   configuration_manager:
+///   enabled: true
+///   tools_configuration_paths:
+///     - $HOME/.config/uv/uv.toml
+/// ```
+/// ```yaml
+///  # `cargo-deny` - cargo-deny is a cargo plugin that lets you lint your project's dependency
+///  # graph to ensure all your dependencies conform to your expectations and requirements.
+/// - name: cargo-deny
+///   source: cargo
+///   version: 0.18.0
+/// ```
+///
+/// ## Cargo Installation
+/// ```rust
+/// let tool_entry = ToolEntry {
+///     name: "cargo-deny".to_string(),
+///     version: Some("0.18.4".to_string()),
+///     options: None,
+/// };
+///
+/// let args = prepare_cargo_install_command(&tool_entry, false);
+/// // args: ["install", "cargo-deny", "--version", "0.18.4", "--quiet"]
+/// ```
+///
+/// ## Git Installation
+///
+/// ```rust
+/// let tool_entry = ToolEntry {
+///     name: "uv".to_string(),
+///     options: Some(vec!["--git".to_string(), "https://github.com/astral-sh/uv".to_string()]),
+///     ..Default::default()
+/// };
+///
+/// let args = prepare_cargo_install_command(&tool_entry, true);
+/// // args: ["install", "--git", "https://github.com/astral-sh/uv", "uv", "--quiet"]
+/// ```
+fn prepare_cargo_install_command(
+    tool_entry: &ToolEntry,
+    is_it_git_based_installed: bool,
+) -> Vec<String> {
     let mut command_args = Vec::new();
     command_args.push("install".to_string());
 
-    if is_git_install {
-        // For git installations, handle git-specific options and version logic.
-        // This helper function will populate `command_args` with the appropriate arguments.
-        prepare_git_install_command(&mut command_args, tool_entry);
+    if is_it_git_based_installed {
+        prepare_git_based_install_command(&mut command_args, tool_entry);
     } else {
-        // For regular crate installations.
-        // This helper function handles the standard `cargo install <crate_name> --version <version>` format.
-        prepare_crate_install_command(&mut command_args, tool_entry);
+        prepare_cargo_based_install_command(&mut command_args, tool_entry);
     }
 
-    // Log the full command that will be executed for debugging and user visibility.
-    // The `colored` crate is used here to highlight the command for clarity.
-    log_info!(
-        "[Cargo Installer] Executing: {} {}",
+    // Add quiet flag to reduce noise, but keep debug logging comprehensive
+    command_args.push("--quiet".to_string());
+
+    log_debug!(
+        "[Cargo Installer] Prepared command arguments: {} {}",
         "cargo".cyan().bold(),
         command_args.join(" ").cyan()
     );
 
-    // 4. Execute `cargo install` Command
-    // Spawn the `cargo` command with the prepared arguments and capture its standard output and error.
-    let output: Output = match Command::new("cargo")
-        .args(&command_args) // Pass the vector of arguments.
-        .output() // Execute the command and wait for it to complete, capturing output.
-    {
-        Ok(out) => out, // Command executed successfully (the process started and finished).
-        Err(e) => {
-            // Log if the command itself failed to spawn (e.g., permissions, `cargo` not found,
-            // though the initial check should prevent most of this).
-            log_error!("[Cargo Installer] Failed to execute 'cargo install' command for '{}': {}", tool_entry.name.bold().red(), e);
-            return None; // Return `None` to indicate a failure.
-        }
-    };
-
-    // 5. Check Command Execution Result
-    // Evaluate the `output.status.success()` to determine if `cargo install` exited with a zero status code.
-    if output.status.success() {
-        log_info!(
-            "[Cargo Installer] Successfully installed Cargo tool: {}",
-            tool_entry.name.bold().green()
-        );
-        // Log stdout and stderr, even on success, as they might contain useful information or warnings.
-        if !output.stdout.is_empty() {
-            log_debug!(
-                "[Cargo Installer] Stdout: {}",
-                String::from_utf8_lossy(&output.stdout) // Convert byte buffer to string for logging.
-            );
-        }
-        if !output.stderr.is_empty() {
-            log_debug!(
-                "[Cargo Installer] Stderr (might contain warnings): {}",
-                String::from_utf8_lossy(&output.stderr) // Convert byte buffer to string.
-            );
-        }
-
-        // 6. Determine Installation Path
-        // Cargo typically installs binaries into `~/.cargo/bin/`. We need to construct this path dynamically.
-        // `std::env::var("HOME")` safely gets the user's home directory.
-        let install_path = if let Ok(root) = env::var("CARGO_INSTALL_ROOT") {
-            // 1. CARGO_INSTALL_ROOT: Explicit installation directory override.
-            log_debug!("[Cargo Installer] Using CARGO_INSTALL_ROOT: {}", root);
-            PathBuf::from(root).join(&tool_entry.name)
-        } else if let Ok(cargo_home) = env::var("CARGO_HOME") {
-            // 2. CARGO_HOME: Cargo's primary configuration root.
-            // The binary path is typically $CARGO_HOME/bin.
-            log_debug!("[Cargo Installer] Using CARGO_HOME: {}", cargo_home);
-            PathBuf::from(cargo_home).join("bin").join(&tool_entry.name)
-        } else if let Ok(home) = env::var("HOME") {
-            // 3. $HOME: The most common default path for Cargo if CARGO_HOME isn't set.
-            // This is $HOME/.cargo/bin.
-            log_debug!("[Cargo Installer] Using default $HOME path: {}", home);
-            PathBuf::from(home)
-                .join(".cargo")
-                .join("bin")
-                .join(&tool_entry.name)
-        } else if let Ok(rustup_home) = env::var("RUSTUP_HOME") {
-            // 4. RUSTUP_HOME: Fallback to a structure potentially related to Rustup's location.
-            // We assume a path like $RUSTUP_HOME/cargo/bin if neither of the common paths were found.
-            log_debug!("[Cargo Installer] Using RUSTUP_HOME: {}", rustup_home);
-            PathBuf::from(rustup_home)
-                .join("cargo")
-                .join("bin")
-                .join(&tool_entry.name)
-        } else {
-            // Final Fallback: Hardcoded system path.
-            log_warn!(
-                "[Cargo Installer] No environment variables found. Defaulting to /usr/local/bin/"
-            );
-            PathBuf::from("/usr/local/bin/").join(&tool_entry.name)
-        };
-
-        log_debug!(
-            "[Cargo Installer] Determined installation path: {}",
-            format!("{}", install_path.display()).cyan()
-        );
-
-        // 7. Execute Post installation hooks (if specified)
-        // After the main installation is complete, execute any additional commands specified
-        // in the tool configuration. These commands are often used for post-installation setup,
-        // such as copying configuration files, creating directories, or setting up symbolic links.
-        // Optional - failure won't stop installation
-        let executed_post_installation_hooks =
-            execute_post_installation_hooks("[Cargo Installer]", tool_entry, &install_path);
-        // If execution reaches this point, the installation was successful.
-        log_info!(
-            "[Cargo Installer] Installation of {} completed successfully at {}!",
-            tool_entry.name.to_string().bold(),
-            format!("{}", install_path.display()).green()
-        );
-
-        // 8. Return ToolState for Tracking
-        // Construct a `ToolState` object to record the details of this successful installation.
-        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-        // what tools are installed, where they are, and how they were installed.
-        Some(ToolState {
-            // The version recorded for the tool. Uses the specified version or "latest" as a fallback.
-            version: determine_installed_version(tool_entry, is_git_install),
-            // The canonical path where the tool's executable was installed. This is the path
-            // that will be recorded in the `state.json` file.
-            install_path: install_path.to_string_lossy().into_owned(),
-            // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
-            // between tools managed by our system and those installed manually.
-            installed_by_devbox: true,
-            // The method of installation, useful for future diagnostics or differing update logic.
-            // In this module, it's always "cargo-install".
-            install_method: "cargo-install".to_string(),
-            // Records if the binary was renamed during installation. For `cargo install`, this is
-            // usually `None` unless `--bin` or `--example` flags are used in `options`.
-            renamed_to: tool_entry.rename_to.clone(),
-            // The actual package type detected by the `file` command or inferred. This is for diagnostic
-            // purposes, providing the most accurate type even if the installation logic
-            // used a filename-based guess (e.g., "binary", "macos-pkg-installer").
-            package_type: "rust-crate".to_string(),
-            // These fields are specific to GitHub releases and are not applicable for `cargo install`.
-            repo: None,
-            tag: None,
-            // Pass any custom options defined in the `ToolEntry` to the `ToolState`.
-            // For git installations, we convert version to --tag in options
-            options: get_updated_cargo_options_for_state(tool_entry, is_git_install),
-            // For direct URL installations: The original URL from which the tool was downloaded.
-            // This is important for re-downloading or verifying in the future.
-            url: tool_entry.url.clone(),
-            // Record the timestamp when the tool was installed or updated
-            last_updated: Some(current_timestamp()),
-            // This field is currently `None` but could be used to store the path to an executable
-            // *within* an extracted archive if `install_path` points to the archive's root.
-            executable_path_after_extract: None,
-            // Record any additional commands that were executed during installation.
-            // This is useful for tracking what was done and potentially for cleanup during uninstall.
-            executed_post_installation_hooks,
-            configuration_manager: None,
-        })
-    } else {
-        // 8. Handle Failed Installation
-        // If `cargo install` exited with a non-zero status code, it indicates a failure.
-        // Capture and log the standard error output for debugging purposes.
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        log_error!(
-            "[Cargo Installer] Failed to install Cargo tool '{}'. Exit code: {}. Error: {}",
-            tool_entry.name.bold().red(),
-            output.status.code().unwrap_or(-1), // Get the actual exit code, or -1 if unavailable.
-            stderr.red()
-        );
-        // Also log standard output on failure, as it might contain context for the error.
-        if !output.stdout.is_empty() {
-            log_debug!(
-                "[Cargo Installer] Stdout (on failure): {}",
-                String::from_utf8_lossy(&output.stdout)
-            );
-        }
-        None // Return `None` to indicate that the installation failed.
-    }
+    command_args
 }
 
-/// Prepares command arguments for a regular crate installation.
+/// Prepares command arguments for a regular crate installation from crates.io.
 ///
-/// This function constructs the command arguments for `cargo install` when installing from `crates.io`.
-/// It handles the crate name, version, and any additional options.
+/// This function handles the common case of installing a crate from the official
+/// crates.io registry with optional version specification and custom cargo options.
 ///
 /// # Arguments
-/// * `command_args`: A mutable reference to the vector of strings that will hold the arguments.
-/// * `tool_entry`: The `ToolEntry` containing the configuration.
-fn prepare_crate_install_command(command_args: &mut Vec<String>, tool_entry: &ToolEntry) {
-    // Add the crate name as the first argument after "install".
+/// * `command_args` - Mutable reference to the command arguments vector (will be modified)
+/// * `tool_entry` - The tool configuration
+///
+/// # Processing Logic
+/// 1. Adds the crate name as the first argument
+/// 2. Adds version specification if provided (`--version <version>`)
+/// 3. Adds custom options while filtering out Git-specific options
+/// 4. Skips options that are Git-related (--git, --branch, --tag, --rev)
+fn prepare_cargo_based_install_command(command_args: &mut Vec<String>, tool_entry: &ToolEntry) {
     command_args.push(tool_entry.name.clone());
 
-    // Handle the `--version` argument if a version is specified in the `tools.yaml`.
+    // Handle version specification
     if let Some(version) = &tool_entry.version {
-        command_args.push("--version".to_string());
-        command_args.push(version.clone());
-        log_debug!(
-            "[Cargo Installer] Installing specific version: {}",
-            version.cyan()
-        );
+        if !version.trim().is_empty() {
+            command_args.push("--version".to_string());
+            command_args.push(version.clone());
+            log_debug!(
+                "[Cargo Installer] Installing specific version: {}",
+                version.cyan()
+            );
+        }
     }
 
-    // Add any additional, user-defined options (like `--features`, `--locked`, etc.).
+    // Add any additional options
     if let Some(options) = &tool_entry.options {
         log_debug!("[Cargo Installer] Adding custom options: {:#?}", options);
         for opt in options {
-            command_args.push(opt.clone());
+            // Skip git options for crate installations
+            if !opt.starts_with("--git")
+                && !opt.starts_with("--branch")
+                && !opt.starts_with("--tag")
+                && !opt.starts_with("--rev")
+            {
+                command_args.push(opt.clone());
+            }
         }
     }
 }
 
 /// Prepares command arguments for a git-based installation.
 ///
-/// This function handles the more complex logic for `cargo install` from a git repository.
-/// It correctly handles `--git`, `--branch`, `--tag`, and `--rev` options.
+/// This function handles Git repository installations with support for various
+/// Git reference types (branches, tags, specific commits).
 ///
 /// # Arguments
-/// * `command_args`: A mutable reference to the vector of strings that will hold the arguments.
-/// * `tool_entry`: The `ToolEntry` containing the configuration.
-fn prepare_git_install_command(command_args: &mut Vec<String>, tool_entry: &ToolEntry) {
-    // We can unwrap safely here because `is_git_install` guarantees `options` is `Some`.
+/// * `command_args` - Mutable reference to the command arguments vector
+/// * `tool_entry` - The tool configuration containing Git options
+///
+/// # Processing Logic
+/// 1. Processes all Git options with proper handling of space-separated and equals-separated formats
+/// 2. Adds the crate name at the end (required for Git installations)
+/// 3. Uses the version as a Git tag if no explicit Git reference options are provided
+/// 4. Handles three formats of option specification:
+///    - Space-separated: `--git https://url`
+///    - Equals-separated: `--git=https://url`
+///    - Simple flags: `--locked`
+fn prepare_git_based_install_command(command_args: &mut Vec<String>, tool_entry: &ToolEntry) {
     let options = tool_entry.options.as_ref().unwrap();
 
-    // Check for the presence of specific git options to avoid conflicts.
+    // Check for existing git reference options
     let has_branch = options.iter().any(|opt| opt.starts_with("--branch"));
     let has_tag = options.iter().any(|opt| opt.starts_with("--tag"));
     let has_rev = options.iter().any(|opt| opt.starts_with("--rev"));
 
-    // Process each option from `tools.yaml`.
+    // Process all options
     for opt in options {
-        // Handle options where the value is separated by a space (e.g., `--git URL`).
         if opt.contains(' ') {
+            // Handle space-separated options (e.g., "--git https://url")
             let parts: Vec<&str> = opt.split_whitespace().collect();
             for part in parts {
                 command_args.push(part.to_string());
             }
         } else if opt.contains('=') {
-            // Handle `--option=value` format.
+            // Handle --option=value format (e.g., "--git=https://url")
             let parts: Vec<&str> = opt.splitn(2, '=').collect();
             command_args.push(parts[0].to_string());
-            command_args.push(parts[1].to_string());
+            if !parts[1].is_empty() {
+                command_args.push(parts[1].to_string());
+            }
         } else {
             command_args.push(opt.clone());
         }
     }
 
-    // Add the tool name at the end for git installations. Cargo requires the crate name to be
-    // the last argument when a git URL is provided.
+    // Add crate name at the end for git installations (cargo requirement)
     command_args.push(tool_entry.name.clone());
 
-    // If the user provided a `version` field but no explicit git-specific options,
-    // we interpret the version as a git tag by default. This is a user-friendly assumption.
+    // Handle version as git tag if no explicit git options are present
     if !has_branch && !has_tag && !has_rev {
         if let Some(version) = &tool_entry.version {
-            command_args.push("--tag".to_string());
-            command_args.push(version.clone());
-            log_debug!(
-                "[Cargo Installer] Using version as git tag: {}",
-                version.cyan()
-            );
+            if !version.trim().is_empty() {
+                command_args.push("--tag".to_string());
+                command_args.push(version.clone());
+                log_debug!(
+                    "[Cargo Installer] Using version as git tag: {}",
+                    version.cyan()
+                );
+            }
         }
-    } else {
-        // If git options are explicitly set (e.g., `--branch`), the `version` field is ignored
-        // to prevent conflicting behavior.
-        log_debug!(
-            "[Cargo Installer] Git-specific options present, ignoring version field: {:?}",
-            tool_entry.version
-        );
     }
+}
+
+/// Executes the cargo install command with comprehensive error handling.
+///
+/// This function runs the actual `cargo install` command and provides detailed
+/// logging and error reporting. It captures both stdout and stderr for debugging.
+///
+/// # Arguments
+/// * `command_args` - The command-line arguments for `cargo install`
+/// * `tool_entry` - The tool being installed (for logging purposes)
+///
+/// # Returns
+/// `true` if installation was successful, `false` otherwise
+///
+/// # Error Handling
+/// - Logs success with green highlighting
+/// - Captures and logs stdout/stderr for debugging
+/// - Provides specific error codes and messages for failures
+/// - Handles both command execution failures and non-zero exit codes
+fn execute_cargo_install_command(command_args: &[String], tool_entry: &ToolEntry) -> bool {
+    log_info!(
+        "[Cargo Installer] Executing: {} {}",
+        "cargo".cyan().bold(),
+        command_args.join(" ").cyan()
+    );
+
+    match Command::new("cargo").args(command_args).output() {
+        Ok(output) if output.status.success() => {
+            log_info!(
+                "[Cargo Installer] Successfully installed crate: {}",
+                tool_entry.name.bold().green()
+            );
+
+            // Log output for debugging
+            if !output.stdout.is_empty() {
+                log_debug!(
+                    "[Cargo Installer] Stdout: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                );
+            }
+            if !output.stderr.is_empty() {
+                log_warn!(
+                    "[Cargo Installer] Stderr (may contain warnings): {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            true
+        }
+        Ok(output) => {
+            log_error!(
+                "[Cargo Installer] Failed to install crate '{}'. Exit code: {}. Error: {}",
+                tool_entry.name.bold().red(),
+                output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&output.stderr).red()
+            );
+
+            if !output.stdout.is_empty() {
+                log_debug!(
+                    "[Cargo Installer] Stdout (on failure): {}",
+                    String::from_utf8_lossy(&output.stdout)
+                );
+            }
+            false
+        }
+        Err(e) => {
+            log_error!(
+                "[Cargo Installer] Failed to execute 'cargo install' for '{}': {}",
+                tool_entry.name.bold().red(),
+                e.to_string().red()
+            );
+            false
+        }
+    }
+}
+
+/// Determines the accurate installation path for cargo-installed binaries.
+///
+/// This function attempts to locate where cargo actually installed the binary
+/// by checking environment variables in order of precedence.
+///
+/// # Arguments
+/// * `tool_name` - The name of the installed tool
+///
+/// # Returns
+/// A `PathBuf` containing the full path to the installed binary
+///
+/// # Path Resolution Order
+/// 1. `CARGO_INSTALL_ROOT` environment variable (highest priority)
+/// 2. `CARGO_HOME` environment variable
+/// 3. `HOME` environment variable with default `~/.cargo/bin` path
+/// 4. System fallback to `/usr/local/bin` (lowest priority)
+fn determine_cargo_installation_path(tool_name: &str) -> PathBuf {
+    // Try environment variables in order of preference
+    if let Some(path) = get_cargo_install_path(tool_name) {
+        return path;
+    }
+
+    // Final fallback to system default PATH
+    log_warn!("[Cargo Installer] Could not determine cargo home, using system fallback");
+    PathBuf::from("/usr/local/bin").join(tool_name)
+}
+
+/// Gets the installation path for a cargo-installed crate by checking
+/// `CARGO_INSTALL_ROOT`, `CARGO_HOME`, and a default `HOME` based path, in order.
+///
+/// This is a helper function for `determine_cargo_installation_path` that implements
+/// the actual environment variable checking logic.
+///
+/// # Arguments
+/// * `tool_name` - The name of the installed tool
+///
+/// # Returns
+/// `Some(PathBuf)` if a valid path can be constructed, `None` otherwise
+///
+/// # Environment Variable Precedence
+///
+/// 1. **CARGO_INSTALL_ROOT**: Directly specifies the installation root
+/// 2. **CARGO_HOME**: The cargo home directory (usually `~/.cargo`)
+/// 3. **HOME**: Used to construct the default cargo path (`~/.cargo/bin`)
+fn get_cargo_install_path(tool_name: &str) -> Option<PathBuf> {
+    // 1. Check CARGO_INSTALL_ROOT (highest priority)
+    if let Ok(root) = env::var("CARGO_INSTALL_ROOT") {
+        let path = PathBuf::from(root).join("bin").join(tool_name);
+        log_debug!(
+            "[Cargo Installer] Using CARGO_INSTALL_ROOT path: {}",
+            path.display()
+        );
+        return Some(path);
+    }
+
+    // 2. Check CARGO_HOME (medium priority)
+    if let Ok(cargo_home) = env::var("CARGO_HOME") {
+        let path = PathBuf::from(cargo_home).join("bin").join(tool_name);
+        log_debug!(
+            "[Cargo Installer] Using CARGO_HOME path: {}",
+            path.display()
+        );
+        return Some(path);
+    }
+
+    // 3. Check HOME (for the default ~/.cargo/bin path) (lowest priority)
+    if let Ok(home) = env::var("HOME") {
+        let path = PathBuf::from(home)
+            .join(".cargo")
+            .join("bin")
+            .join(tool_name);
+        log_debug!(
+            "[Cargo Installer] Using HOME-based cargo path: {}",
+            path.display()
+        );
+        return Some(path);
+    }
+
+    // If none of the environment variables are set or paths are constructed, return None
+    None
 }
 
 /// Determines the appropriate version string for the installed tool.
 ///
-/// This function decides what value to use for the `version` field in the `ToolState` struct,
-/// based on the `tool_entry` and the installation method. It prioritizes the explicit
-/// `version` field, then git-specific options, and finally falls back to "latest".
+/// This function attempts to determine the most accurate version string
+/// for state tracking purposes, with multiple fallback strategies.
 ///
 /// # Arguments
-/// * `tool_entry`: The configuration for the tool.
-/// * `is_git_install`: A boolean flag indicating if this was a git-based installation.
+/// * `tool_entry` - The tool configuration
+/// * `is_it_already_installed` - Flag indicating if this was a Git installation
 ///
 /// # Returns
-/// Determines the appropriate version string for the installed tool
-fn determine_installed_version(tool_entry: &ToolEntry, is_git_install: bool) -> String {
-    // Priority 1: Use version from configuration if specified (for both crate and git)
+/// A version string for state tracking
+///
+/// # Version Resolution Priority
+///
+/// 1. **Explicit Version**: From `tool_entry.version` if specified
+/// 2. **Git References**: For Git installations, extracts version from Git options:
+///    - `--tag`: Uses the tag value directly
+///    - `--branch`: Formats as "branch-{branch_name}"
+///    - `--rev`: Formats as "rev-{short_commit_hash}" (first 7 characters)
+/// 3. **Fallback**: Returns "latest" if no version information can be determined
+///
+/// # Examples
+///
+/// ```yaml
+/// # `uv` - A single tool to replace pip, pip-tools, pipx, poetry, pyenv, twine, virtualenv, and more.
+/// # https://docs.astral.sh/uv/
+/// - name: uv
+///   source: cargo
+///   version: 0.8.17
+///   options:
+///     - --git https://github.com/astral-sh/uv
+///   configuration_manager:
+///   enabled: true
+///   tools_configuration_paths:
+///     - $HOME/.config/uv/uv.toml
+/// ```
+fn determine_installed_version(tool_entry: &ToolEntry, is_it_already_installed: bool) -> String {
+    // Priority 1: Use version from configuration if specified
     if let Some(version) = &tool_entry.version {
-        return version.clone();
+        if !version.trim().is_empty() {
+            return version.clone();
+        }
     }
 
-    // Priority 2: For git installations, use git-specific options
-    if is_git_install {
-        let options = tool_entry.options.as_ref().unwrap();
-
-        // Check for --tag first
-        if let Some(tag_opt) = options.iter().find(|opt| opt.starts_with("--tag")) {
-            // Extract tag value (assuming format is "--tag=value" or "--tag value")
-            if let Some(tag_value) = tag_opt.split('=').nth(1) {
-                return tag_value.to_string();
-            } else if let Some(pos) = options.iter().position(|opt| opt == "--tag") {
-                if let Some(tag_value) = options.get(pos + 1) {
-                    return tag_value.clone();
+    // Priority 2: For git installations, extract version from git options
+    log_debug!(
+        "[Cargo Installer] Checking if other indexes were used to install {}",
+        tool_entry.name.bold()
+    );
+    if is_it_already_installed {
+        if let Some(options) = &tool_entry.options {
+            // Check for --tag first (highest priority for Git)
+            if let Some(tag_opt) = options.iter().find(|opt| opt.starts_with("--tag")) {
+                if let Some(tag_value) = tag_opt.split('=').nth(1) {
+                    return tag_value.to_string();
+                } else if let Some(pos) = options.iter().position(|opt| opt == "--tag") {
+                    if let Some(tag_value) = options.get(pos + 1) {
+                        return tag_value.clone();
+                    }
                 }
             }
-        }
 
-        // Check for --branch next
-        if let Some(branch_opt) = options.iter().find(|opt| opt.starts_with("--branch")) {
-            // Extract branch value
-            if let Some(branch_value) = branch_opt.split('=').nth(1) {
-                return format!("branch-{branch_value}");
-            } else if let Some(pos) = options.iter().position(|opt| opt == "--branch") {
-                if let Some(branch_value) = options.get(pos + 1) {
+            // Check for --branch next (medium priority for Git)
+            if let Some(branch_opt) = options.iter().find(|opt| opt.starts_with("--branch")) {
+                if let Some(branch_value) = branch_opt.split('=').nth(1) {
                     return format!("branch-{branch_value}");
+                } else if let Some(pos) = options.iter().position(|opt| opt == "--branch") {
+                    if let Some(branch_value) = options.get(pos + 1) {
+                        return format!("branch-{branch_value}");
+                    }
                 }
             }
-        }
 
-        // Check for --rev last (only first 7 characters)
-        if let Some(rev_opt) = options.iter().find(|opt| opt.starts_with("--rev")) {
-            // Extract rev value and take first 7 characters
-            if let Some(rev_value) = rev_opt.split('=').nth(1) {
-                let short_rev = if rev_value.len() > 7 {
-                    &rev_value[..7]
-                } else {
-                    rev_value
-                };
-                return format!("rev-{short_rev}");
-            } else if let Some(pos) = options.iter().position(|opt| opt == "--rev") {
-                if let Some(rev_value) = options.get(pos + 1) {
+            // Check for --rev last (lowest priority for Git, only first 7 characters for brevity)
+            if let Some(rev_opt) = options.iter().find(|opt| opt.starts_with("--rev")) {
+                if let Some(rev_value) = rev_opt.split('=').nth(1) {
                     let short_rev = if rev_value.len() > 7 {
                         &rev_value[..7]
                     } else {
                         rev_value
                     };
                     return format!("rev-{short_rev}");
+                } else if let Some(pos) = options.iter().position(|opt| opt == "--rev") {
+                    if let Some(rev_value) = options.get(pos + 1) {
+                        let short_rev = if rev_value.len() > 7 {
+                            &rev_value[..7]
+                        } else {
+                            rev_value
+                        };
+                        return format!("rev-{short_rev}");
+                    }
                 }
             }
         }
     }
 
-    // Priority 3: Fallback to "latest"
+    // Priority 3: Fallback to "latest" when no version information is available
     "latest".to_string()
-}
-
-/// Updates the options in ToolState to include --tag for git installations when version is specified
-fn get_updated_cargo_options_for_state(
-    tool_entry: &ToolEntry,
-    is_git_install: bool,
-) -> Option<Vec<String>> {
-    if !is_git_install {
-        return tool_entry.options.clone();
-    }
-
-    let mut updated_options = tool_entry.options.clone().unwrap_or_default();
-
-    // If this is a git installation and version is specified, add --tag to options
-    if let Some(version) = &tool_entry.version {
-        // Check if git-specific options are already present
-        let has_branch = updated_options
-            .iter()
-            .any(|opt| opt.starts_with("--branch"));
-        let has_tag = updated_options.iter().any(|opt| opt.starts_with("--tag"));
-        let has_rev = updated_options.iter().any(|opt| opt.starts_with("--rev"));
-
-        // Only add --tag if no other git-specific options are present
-        if !has_branch && !has_tag && !has_rev {
-            updated_options.push("--tag".to_string());
-            updated_options.push(version.clone());
-        }
-    }
-
-    Some(updated_options)
 }

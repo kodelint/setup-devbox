@@ -149,16 +149,16 @@ pub fn detect_file_type(path: &Path) -> String {
         "application/x-xz" => "xz".to_string(),
         // Specific handling for macOS installers based on MIME type, but confirm extension as a fallback
         "application/x-xar"
-            if path.extension().map_or(false, |ext| {
-                ext.to_string_lossy().eq_ignore_ascii_case("pkg")
-            }) =>
+            if path
+                .extension()
+                .is_some_and(|ext| ext.to_string_lossy().eq_ignore_ascii_case("pkg")) =>
         {
             "pkg".to_string()
         }
         "application/x-apple-diskimage"
-            if path.extension().map_or(false, |ext| {
-                ext.to_string_lossy().eq_ignore_ascii_case("dmg")
-            }) =>
+            if path
+                .extension()
+                .is_some_and(|ext| ext.to_string_lossy().eq_ignore_ascii_case("dmg")) =>
         {
             "dmg".to_string()
         }
@@ -364,9 +364,10 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
         ));
     }
 
+    // This is the cleanest and most explicit approach for a non-static string literal error
     let mounted_volume_path = mounted_path.ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::Other,
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
             "DMG was not mounted or mounted path could not be determined.",
         )
     })?;
@@ -410,7 +411,7 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
                     "[macOS Installer] Removing existing app at: {}",
                     target_app_path.display().to_string().yellow()
                 );
-                // --- FIX: Use sudo rm -rf for permission issues ---
+                // Use sudo rm -rf for permission issues
                 let rm_output = Command::new("sudo")
                     .arg("rm")
                     .arg("-rf") // Force recursively delete
@@ -442,7 +443,7 @@ pub fn install_dmg(dmg_path: &Path, app_name: &str) -> io::Result<PathBuf> {
                 .arg("cp")
                 .arg("-R")
                 .arg(&app_path)
-                .arg(&PathBuf::from("/Applications"))
+                .arg(Path::new("/Applications"))
                 .stdout(Stdio::null())
                 .stderr(Stdio::piped())
                 .output()?;

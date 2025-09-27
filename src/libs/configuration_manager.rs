@@ -438,9 +438,10 @@ impl ConfigurationManagerProcessor {
         destination_paths
             .iter()
             .map(|destination_path| {
+                // Refinement: Use rsplit().next() instead of split().last() for efficiency.
                 let source_config_filename = destination_path
-                    .split('/')
-                    .last()
+                    .rsplit('/') // Start splitting from the end
+                    .next() // Get the first item from the reverse iteration (the filename)
                     .expect("Destination path must contain a filename");
 
                 let filename = if source_config_filename.contains('.') {
