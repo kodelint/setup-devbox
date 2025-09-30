@@ -32,6 +32,8 @@ footer = """
 """
 
 [git]
+# Set the remote to enable link generation based on your repo's URL.
+remote = "origin"
 # parse the commits based on https://www.conventionalcommits.org
 conventional_commits = true
 # filter out the commits that are not conventional
@@ -42,9 +44,6 @@ split_commits = false
 commit_preprocessors = [
     # Replace issue numbers and create a link to GitHub (assuming GitHub/similar)
     { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](https://github.com/kodelint/setup-devbox/issues/${2}))"},
-    # Preprocessor for adding the commit link directly.
-    # The `git-cliff` templating engine will use `commit.links.commit` for this.
-    { pattern = '^(.*)$', replace = "${1}", replace_with = "https://github.com/kodelint/setup-devbox/commit/git_hash" },
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
