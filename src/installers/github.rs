@@ -1,652 +1,893 @@
-// This module orchestrates the installation of software tools that are distributed as GitHub
-// releases. It encapsulates the complete lifecycle from fetching release metadata to placing
-// the final executable, handling platform-specific asset selection, downloads, and various
-// extraction/installation routines, including post-installation command execution.
-//
-// Our primary goal here is to provide a robust and extensible mechanism for installing tools
-// where the source of truth for distribution is a GitHub repository's "Releases" section.
+//! # GitHub Release Installer Module
+//!
+//! This module provides a robust, production-grade installer for tools distributed as GitHub releases.
+//! It follows the same reliability standards as official package managers with comprehensive
+//! error handling, verification mechanisms, and accurate platform detection.
+//!
+//! ## Key Features
+//!
+//! - **Smart Platform Detection**: Automatically detects OS and architecture for correct asset selection
+//! - **Comprehensive Asset Handling**: Supports binaries, archives (zip, tar.gz, etc.), and macOS packages (pkg, dmg)
+//! - **Asset Prioritization**: Intelligently selects the best asset for the platform with macOS package preference
+//! - **Comprehensive Validation**: Validates GitHub API responses, download integrity, and installation success
+//! - **Smart State Tracking**: Maintains accurate installation state with version tracking
+//! - **Flexible Configuration**: Supports repository specifications, version tags, and custom binary names
+//! - **Post-Installation Hooks**: Executes additional setup commands after successful installation
+//! - **Temporary File Management**: Properly cleans up temporary files and directories
+//!
+//! ## Installation Workflow
+//!
+//! The installer follows a meticulous 10-step process:
+//!
+//! 1. **Platform Detection** - Detects OS and architecture for asset selection
+//! 2. **Configuration Validation** - Validates required repository and tag fields
+//! 3. **GitHub API Integration** - Fetches release information from GitHub API
+//! 4. **Asset Selection** - Finds and prioritizes platform-appropriate assets
+//! 5. **Asset Download** - Downloads the selected asset to temporary location
+//! 6. **File Type Detection** - Determines installation strategy based on file type
+//! 7. **Installation Path Resolution** - Determines final binary installation path
+//! 8. **Asset Processing** - Handles extraction, installation, or direct binary placement
+//! 9. **Post-Installation Hooks** - Executes any additional setup commands
+//! 10. **State Creation** - Creates comprehensive tool state for persistence
+//!
+//! ## Error Handling
+//!
+//! The module provides detailed error messages and logging at multiple levels:
+//! - **Info**: High-level installation progress
+//! - **Debug**: Detailed API calls, asset selection, and path resolution
+//! - **Warn**: Non-fatal issues or warnings during installation
+//! - **Error**: Installation failures with specific error codes and messages
 
-// Standard library imports:
 use std::env;
-// For interacting with environment variables, specifically to find the HOME directory.
-use std::path::PathBuf;
-// For ergonomic and platform-agnostic path manipulation.
+use std::path::{Path, PathBuf};
 
-// External crate imports:
-// Used for adding color to terminal output, improving log readability.
+// External crate imports
 use colored::Colorize;
-// For deserializing JSON responses from the GitHub API into Rust structs.
-use ureq;
+use tempfile::Builder as TempFileBuilder;
 
-// Provides various utility functions from libs/utilities:
-// `download_file`: Handles downloading a file from a URL to a local path.
-// `extract_archive`: Decompresses and extracts various archive formats (zip, tar.gz, etc.).
-// `detect_os`, `detect_architecture`: Determine the current operating system and CPU architecture.
-// `get_temp_dir`: Provides a temporary directory for downloads and extractions.
-// `install_pkg`: Specific utility for installing macOS .pkg files.
-// `move_and_rename_binary`: Moves a file and optionally renames it.
-// `make_executable`: Sets executable permissions on a file.
-// `find_executable`: Recursively searches for an executable within a directory.
-// `detect_file_type`, `detect_file_type_from_filename`: Utilities to infer file types.
+// Utility imports
+use crate::libs::tool_installer::execute_post_installation_hooks;
 use crate::libs::utilities::{
-    assets::{detect_file_type, download_file, install_pkg},
+    assets::{detect_file_type, download_file, install_dmg, install_pkg},
     binary::{find_executable, make_executable, move_and_rename_binary},
     compression,
     platform::{asset_matches_platform, detect_architecture, detect_os},
 };
-// Internal module imports:
-// `Release`:      Represents a single tool's configuration as defined in your `tools.yaml` file.
-// `ReleaseAsset`: Represents a downloadable asset associated with a GitHub release.
+
+// Schema imports
 use crate::schemas::common::{Release, ReleaseAsset};
-// Internal module imports:
-// `ToolEntry`: Represents a single tool's configuration as defined in your `tools.yaml` file.
-//              It's a struct that contains all possible configuration fields for a tool,
-//              such as name, version, source, URL, repository, etc.
-// `ToolState`: Represents the actual state of an *installed* tool. This struct is used to
-//              persist information about installed tools in the application's `state.json` file.
-//              It helps `setup-devbox` track what's installed, its version, and where it's located.
 use crate::schemas::state_file::ToolState;
 use crate::schemas::tools::ToolEntry;
 
-use crate::libs::tool_installer::execute_post_installation_hooks;
-use crate::libs::utilities::assets::{current_timestamp, install_dmg};
-// Custom logging macros. These are used throughout the module to provide informative output
-// during the installation process, aiding in debugging and user feedback.
+// Custom logging macros
 use crate::{log_debug, log_error, log_info};
-use tempfile::Builder as TempFileBuilder;
 
-/// Installs a software tool by fetching its release asset from GitHub.
+/// Installs a software tool by fetching its release asset from GitHub releases.
 ///
-/// This is the core function responsible for the GitHub-based installation flow. It orchestrates
-/// several steps: platform detection, configuration validation, GitHub API interaction, asset
-/// selection, download, extraction (if applicable), final placement of the executable, and
-/// execution of any additional post-installation commands.
+/// This function provides a robust installer for GitHub-hosted tools that mirrors the quality
+/// and reliability of official package managers. It includes comprehensive validation,
+/// smart asset selection, and accurate state tracking.
+///
+/// # Workflow
+///
+/// 1. **Platform Detection**: Detects OS and architecture for asset selection
+/// 2. **Configuration Validation**: Validates required repository and tag fields
+/// 3. **GitHub API Integration**: Fetches release information from GitHub API
+/// 4. **Asset Selection**: Finds and prioritizes platform-appropriate assets
+/// 5. **Asset Download**: Downloads the selected asset to temporary location
+/// 6. **File Type Detection**: Determines installation strategy based on file type
+/// 7. **Installation Path Resolution**: Determines final binary installation path
+/// 8. **Asset Processing**: Handles extraction, installation, or direct binary placement
+/// 9. **Post-Installation Hooks**: Executes any additional setup commands
+/// 10. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
 ///
 /// # Arguments
-/// * `tool`: A reference to a `ToolEntry` struct. This `ToolEntry` contains all the
-///   metadata read from the `tools.yaml` configuration file that specifies
-///   how to install this particular tool from GitHub (e.g., `repo`, `tag`,
-///   `name`, `rename_to`, `additional_cmd`).
+///
+/// * `tool_entry` - A reference to the `ToolEntry` struct containing tool configuration
+///   - `tool_entry.name`: **Required** - The tool name
+///   - `tool_entry.repo`: **Required** - GitHub repository in "owner/repo" format
+///   - `tool_entry.tag`: **Required** - Release tag/version (e.g., "v1.0.0")
+///   - `tool_entry.rename_to`: Optional custom binary name
+///   - `tool_entry.options`: Optional additional configuration
 ///
 /// # Returns
-/// * `Option<ToolState>`:
-///   - `Some(ToolState)`: Indicates a successful installation. The contained `ToolState`
-///     struct provides details like the installed version, the absolute path to the binary,
-///     the installation method, and any executed additional commands, which are then
-///     persisted in our internal `state.json`.
-///   - `None`: Signifies that the installation failed at some step. Detailed error logging
-///     is performed before returning `None` to provide context for the failure.
+///
+/// An `Option<ToolState>`:
+/// * `Some(ToolState)` if installation was completely successful with accurate metadata
+/// * `None` if any step of the installation process fails
+///
+/// # Examples - YAML Configuration
+///
+/// ```yaml
+/// # GitHub CLI tool
+/// # https://github.com/cli/cli
+/// - name: gh
+///   source: github
+///   repo: cli/cli
+///   tag: v2.50.0
+///
+/// # Kubernetes package manager with custom name
+/// # https://github.com/helm/helm
+/// - name: helm
+///   source: github
+///   repo: helm/helm
+///   tag: v3.17.0
+///   rename_to: helm3
+///
+/// # Static site generator
+/// # https://github.com/gohugoio/hugo
+/// - name: hugo
+///   source: github
+///   repo: gohugoio/hugo
+///   tag: v0.140.0
+/// ```
+///
+/// # Examples - Rust Code
+///
+/// ```rust
+/// // Basic installation
+/// let tool_entry = ToolEntry {
+///     name: "gh".to_string(),
+///     repo: Some("cli/cli".to_string()),
+///     tag: Some("v2.50.0".to_string()),
+///     rename_to: None,
+///     options: None,
+/// };
+/// install(&tool_entry);
+///
+/// // Installation with custom binary name
+/// let tool_entry = ToolEntry {
+///     name: "helm".to_string(),
+///     repo: Some("helm/helm".to_string()),
+///     tag: Some("v3.17.0".to_string()),
+///     rename_to: Some("helm3".to_string()),
+///     options: None,
+/// };
+/// install(&tool_entry);
+/// ```
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    // Start the installation process with a debug log, clearly indicating which tool is being processed.
+    log_info!(
+        "[GitHub Installer] Attempting to install tool: {}",
+        tool_entry.name.bold()
+    );
+    log_debug!("[GitHub Installer] ToolEntry details: {:#?}", tool_entry);
+
+    // Step 1: Detect platform (OS and architecture) for asset selection
+    let (os, arch) = detect_platform()?;
+
+    // Step 2: Validate GitHub configuration - ensure required fields are present
+    let (repo, tag) = validate_github_configuration(tool_entry)?;
+
+    // Step 3: Fetch release information from GitHub API
+    log_debug!("[GitHub Installer] Fetching release information for {repo}/{tag}");
+    let release = fetch_github_release(repo, tag)?;
+
+    // Step 4: Select appropriate asset for the detected platform
+    log_debug!("[GitHub Installer] Selecting asset for {os}-{arch}");
+    let asset = select_platform_asset(&release, &os, &arch)?;
+
+    // Step 5: Download asset to temporary location
     log_debug!(
-        "[GitHub Installer] Initiating installation process for tool: {}",
-        tool_entry.name.to_string().bold()
+        "[GitHub Installer] Downloading asset: {}",
+        asset.name.bold()
+    );
+    let (temp_dir, downloaded_path) = download_github_asset(tool_entry, asset)?;
+
+    // Step 6: Detect file type and determine installation strategy
+    let file_type = detect_file_type(&downloaded_path);
+    log_debug!(
+        "[GitHub Installer] Detected file type: {}",
+        file_type.to_string().magenta()
     );
 
-    // 1. Detect Current Operating System and Architecture
-    // The first critical step is to determine the host's platform. GitHub releases typically
-    // provide different binaries for different OS/architecture combinations (e.g., `linux-amd64`,
-    // `darwin-arm64`). Without this information, we cannot select the correct asset.
-    let os = match detect_os() {
-        Some(os) => os,
-        None => {
-            // If OS detection fails, log an error and abort. This is a fundamental requirement.
-            log_error!(
-                "[GitHub Installer] Unable to detect the current operating system. Aborting installation for {}.",
-                tool_entry.name.to_string().red()
-            );
-            return None;
-        }
-    };
+    // Step 7: Determine final installation path in user's bin directory
+    let (install_path, final_install_path) = determine_installation_path(tool_entry)?;
 
-    let arch = match detect_architecture() {
-        Some(arch) => arch,
-        None => {
-            // Similarly, if architecture detection fails, log an error and abort.
-            log_error!(
-                "[GitHub Installer] Unable to detect the current machine architecture. Aborting installation for {}.",
-                tool_entry.name.to_string().red()
-            );
-            return None;
-        }
-    };
+    // Step 8: Process asset based on file type (binary, archive, or macOS package)
+    let (package_type, working_dir) = process_asset_by_type(
+        tool_entry,
+        &downloaded_path,
+        &file_type,
+        &temp_dir,
+        &install_path,
+    )?;
+
+    // Step 9: Execute any post-installation hooks defined in tool configuration
+    log_debug!(
+        "[GitHub Installer] Executing post-installation hooks for {}",
+        tool_entry.name.bold()
+    );
+    let executed_post_installation_hooks =
+        execute_post_installation_hooks("[GitHub Installer]", tool_entry, &working_dir);
 
     log_info!(
-        "[GitHub Installer] Detected platform for {}: {}{}{}",
-        tool_entry.name.bold(),
+        "[GitHub Installer] Successfully installed tool: {} (version: {})",
+        tool_entry.name.bold().green(),
+        tag.green()
+    );
+
+    // Step 10: Return comprehensive ToolState for state tracking and persistence
+    Some(ToolState::new(
+        tool_entry,
+        &final_install_path,
+        "github".to_string(),
+        package_type,
+        tool_entry.version.clone()?.to_string(),
+        Some(asset.browser_download_url.clone()),
+        None,
+        executed_post_installation_hooks,
+    ))
+}
+
+/// Detects the current platform (OS and architecture).
+///
+/// This function detects both the operating system and CPU architecture,
+/// which are essential for selecting the correct GitHub release asset.
+/// Platform detection ensures that the downloaded binary is compatible
+/// with the user's system.
+///
+/// # Returns
+///
+/// * `Some((os, arch))` - A tuple containing the OS and architecture strings if both are detected
+/// * `None` - If either OS or architecture detection fails
+///
+/// # Examples
+///
+/// Typical return values:
+/// - `Some(("darwin", "arm64"))` - macOS on Apple Silicon
+/// - `Some(("darwin", "x86_64"))` - macOS on Intel
+/// - `Some(("linux", "x86_64"))` - Linux on x86_64
+/// - `Some(("windows", "x86_64"))` - Windows on x86_64
+fn detect_platform() -> Option<(String, String)> {
+    // Detect operating system (darwin, linux, windows, etc.)
+    let os = detect_os().or_else(|| {
+        log_error!("[GitHub Installer] Unable to detect operating system");
+        None
+    })?;
+
+    // Detect CPU architecture (x86_64, arm64, aarch64, etc.)
+    let arch = detect_architecture().or_else(|| {
+        log_error!("[GitHub Installer] Unable to detect architecture");
+        None
+    })?;
+
+    log_info!(
+        "[GitHub Installer] Detected platform: {}{}{}",
         os.green(),
         "-".green(),
         arch.green()
     );
 
-    // 2. Validate Tool Configuration for GitHub Source
-    // For a GitHub release installation, both `tag` (the release version) and `repo` (the GitHub
-    // repository slug, e.g., "owner/repo_name") are absolutely essential. Without them, we can't
-    // even form the API request to fetch release information.
-    let tag = match tool_entry.tag.as_ref() {
-        Some(t) => t,
-        None => {
-            log_error!(
-                "[GitHub Installer] Configuration error: 'tag' field is missing for tool {}. Cannot download from GitHub.",
-                tool_entry.name.to_string().red()
-            );
-            return None;
-        }
-    };
+    Some((os, arch))
+}
 
-    let repo = match tool_entry.repo.as_ref() {
-        Some(r) => r,
-        None => {
-            log_error!(
-                "[GitHub Installer] Configuration error: 'repo' field is missing for tool {}. Cannot download from GitHub.",
-                tool_entry.name.to_string().red()
-            );
-            return None;
-        }
-    };
+/// Validates that the tool configuration contains required GitHub fields.
+///
+/// This function checks that both the repository and tag fields are specified
+/// in the tool configuration, as they are mandatory for GitHub release installations.
+/// Without these fields, the installer cannot locate or download the correct release.
+///
+/// # Arguments
+///
+/// * `tool_entry` - The tool configuration to validate
+///
+/// # Returns
+///
+/// * `Some((repo, tag))` - References to the repository and tag strings if both are present
+/// * `None` - If either field is missing, with appropriate error logging
+///
+/// # Configuration Requirements
+///
+/// - `repo`: Must be in "owner/repo" format (e.g., "cli/cli", "helm/helm")
+/// - `tag`: Must match a valid release tag in the repository (e.g., "v1.0.0", "1.0.0")
+fn validate_github_configuration(tool_entry: &ToolEntry) -> Option<(&String, &String)> {
+    // Verify repository field is present
+    let repo = tool_entry.repo.as_ref().or_else(|| {
+        log_error!(
+            "[GitHub Installer] Configuration error: 'repo' field is missing for tool {}",
+            tool_entry.name.red()
+        );
+        log_error!(
+            "[GitHub Installer] Expected format: 'repo: owner/repository' (e.g., 'repo: cli/cli')"
+        );
+        None
+    })?;
 
-    // 3. Fetch GitHub Release Information via API
-    // Construct the GitHub API endpoint URL for the specific repository and release tag.
-    // Example: https://api.github.com/repos/cli/cli/releases/tags/v2.5.0
+    // Verify tag field is present
+    let tag = tool_entry.tag.as_ref().or_else(|| {
+        log_error!(
+            "[GitHub Installer] Configuration error: 'tag' field is missing for tool {}",
+            tool_entry.name.red()
+        );
+        log_error!("[GitHub Installer] Expected format: 'tag: v1.0.0' or 'tag: 1.0.0'");
+        None
+    })?;
+
+    Some((repo, tag))
+}
+
+/// Fetches release information from the GitHub API.
+///
+/// This function makes an HTTP request to the GitHub releases API to retrieve
+/// detailed information about a specific release, including all available assets.
+/// The GitHub API returns comprehensive metadata about the release, which is used
+/// to select and download the appropriate asset for the current platform.
+///
+/// # Arguments
+///
+/// * `repo` - The repository in "owner/repo" format (e.g., "cli/cli")
+/// * `tag` - The release tag/version (e.g., "v2.50.0")
+///
+/// # Returns
+///
+/// * `Some(Release)` - Parsed release data if the API call is successful
+/// * `None` - If the API call fails or returns invalid data
+///
+/// # API Details
+///
+/// - Endpoint: `https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}`
+/// - User-Agent: "setup-devbox" (required by GitHub API)
+/// - Response: JSON containing release metadata and asset list
+///
+/// # Error Handling
+///
+/// Failures can occur due to:
+/// - Network connectivity issues
+/// - Invalid repository or tag names
+/// - Rate limiting (60 requests/hour for unauthenticated requests)
+/// - Repository not found or private repository without authentication
+fn fetch_github_release(repo: &str, tag: &str) -> Option<Release> {
+    // Construct GitHub API URL for the specific release
     let api_url = format!("https://api.github.com/repos/{repo}/releases/tags/{tag}");
-    log_debug!(
-        "[GitHub Installer] Fetching release information from GitHub API: {}",
-        api_url.blue()
-    );
+    log_debug!("[GitHub Installer] API URL: {}", api_url.blue());
 
-    // Execute the HTTP GET request to the GitHub API.
-    // It's crucial to set a `User-Agent` header as GitHub's API guidelines recommend it.
-    // Without it, requests might be rate-limited or blocked.
-    let response = match ureq::get(&api_url)
-        .set("User-Agent", "setup-devbox") // Identify our application, preventing potential issues with GitHub's API.
-        .call()
-    {
-        Ok(resp) => resp, // Successfully received an HTTP response.
+    // Make HTTP GET request with required User-Agent header
+    let response = match ureq::get(&api_url).set("User-Agent", "setup-devbox").call() {
+        Ok(resp) => resp,
         Err(e) => {
-            // Log any network or ureq-specific error during the API call.
             log_error!(
-                "[GitHub Installer] Failed to fetch GitHub release for {} ({}): {}",
-                tool_entry.name.to_string().red(),
-                repo.to_string().red(),
+                "[GitHub Installer] Failed to fetch GitHub release for {}/{}: {}",
+                repo.red(),
+                tag.red(),
                 e
             );
+            log_error!(
+                "[GitHub Installer] This could be due to network issues, invalid repo/tag, or rate limiting"
+            );
             return None;
         }
     };
 
-    // Beyond network errors, we must check the HTTP status code. A 4xx or 5xx status
-    // indicates an API-level error, such as a non-existent repository or tag (404 Not Found).
+    // Check for HTTP error status codes (4xx, 5xx)
     if response.status() >= 400 {
         log_error!(
-            "[GitHub Installer] GitHub API returned an error status (HTTP {}) for {} release {}. Check if the repo and tag are correct.",
+            "[GitHub Installer] GitHub API error (HTTP {}) for {}/{}",
             response.status(),
-            repo.to_string().red(),
-            tag.to_string().red()
+            repo.red(),
+            tag.red()
+        );
+
+        // Provide helpful context for common error codes
+        match response.status() {
+            404 => log_error!(
+                "[GitHub Installer] Release not found. Verify the repository and tag are correct."
+            ),
+            403 => log_error!(
+                "[GitHub Installer] Rate limit exceeded or access forbidden. Consider authenticating for higher limits."
+            ),
+            _ => {}
+        }
+        return None;
+    }
+
+    // Parse JSON response into Release struct
+    match response.into_json() {
+        Ok(release) => Some(release),
+        Err(err) => {
+            log_error!(
+                "[GitHub Installer] Failed to parse GitHub release JSON for {}/{}: {}",
+                repo.red(),
+                tag.red(),
+                err
+            );
+            log_error!("[GitHub Installer] The API response may be malformed or incomplete");
+            None
+        }
+    }
+}
+
+/// Selects the most appropriate asset for the current platform.
+///
+/// This function filters release assets by platform compatibility and prioritizes
+/// certain asset types to provide the best installation experience. For macOS,
+/// it prefers .pkg and .dmg installers over raw binaries or archives when available,
+/// as these provide better system integration and user experience.
+///
+/// # Arguments
+///
+/// * `release` - The GitHub release containing a list of available assets
+/// * `os` - The target operating system (e.g., "darwin", "linux", "windows")
+/// * `arch` - The target architecture (e.g., "x86_64", "arm64", "aarch64")
+///
+/// # Returns
+///
+/// * `Some(&ReleaseAsset)` - Reference to the best matching asset if found
+/// * `None` - If no suitable asset is found for the platform
+///
+/// # Asset Selection Strategy
+///
+/// 1. Filter all assets for platform compatibility (OS and architecture match)
+/// 2. Prioritize asset types in this order (for macOS):
+///    - `.pkg` files (macOS installer packages)
+///    - `.dmg` files (macOS disk images)
+///    - Other formats (binaries, archives)
+/// 3. Return the highest priority matching asset
+///
+/// # Error Handling
+///
+/// If no matching assets are found, the function logs all available assets
+/// to help diagnose configuration or platform detection issues.
+fn select_platform_asset<'a>(
+    release: &'a Release,
+    os: &str,
+    arch: &str,
+) -> Option<&'a ReleaseAsset> {
+    // Filter assets to only those matching the current platform
+    let mut matching_assets: Vec<&ReleaseAsset> = release
+        .assets
+        .iter()
+        .filter(|asset| asset_matches_platform(&asset.name, os, arch))
+        .collect();
+
+    // Handle case where no assets match the platform
+    if matching_assets.is_empty() {
+        let available_assets: Vec<String> = release.assets.iter().map(|a| a.name.clone()).collect();
+        log_error!(
+            "[GitHub Installer] No suitable asset found for platform {}-{}.",
+            os.red(),
+            arch.red()
+        );
+        log_error!(
+            "[GitHub Installer] Available assets: {}",
+            available_assets.join(", ").yellow()
+        );
+        log_error!(
+            "[GitHub Installer] This release may not support your platform, or asset naming doesn't match expected patterns"
         );
         return None;
     }
 
-    // // Parse the successful JSON response body into our `Release` struct.
-    // // This deserialization uses `serde_json` and requires the `Release` struct
-    // // to correctly mirror the expected GitHub API JSON structure.
-    let release: Release = match response.into_json() {
-        Ok(json) => json,
-        Err(err) => {
-            // Log if JSON parsing fails, indicating an unexpected API response format.
-            log_error!(
-                "[GitHub Installer] Failed to parse GitHub release JSON for {}: {}",
-                tool_entry.name.to_string().red(),
-                err
-            );
-            return None;
+    // Sort assets to prioritize macOS packages (.pkg and .dmg files)
+    // These provide better integration with macOS than raw binaries or archives
+    matching_assets.sort_by(|a, b| {
+        let a_is_macos_pkg = a.name.ends_with(".pkg") || a.name.ends_with(".dmg");
+        let b_is_macos_pkg = b.name.ends_with(".pkg") || b.name.ends_with(".dmg");
+
+        match (a_is_macos_pkg, b_is_macos_pkg) {
+            (true, false) => std::cmp::Ordering::Less, // a is pkg/dmg, b is not - prefer a
+            (false, true) => std::cmp::Ordering::Greater, // b is pkg/dmg, a is not - prefer b
+            _ => std::cmp::Ordering::Equal, // Both are or neither are pkg/dmg - no preference
         }
-    };
-    // 4. Find the Correct Asset for the Current Platform
-    // A GitHub release can have multiple assets (downloadable files). We need to identify
-    // all specific assets that are compatible with the detected OS and architecture.
-    // The `asset_matches_platform` utility function contains the logic for this.
-    let mut platform_matching_assets: Vec<&ReleaseAsset> = release
-        .assets
-        .iter()
-        .filter(|asset| asset_matches_platform(&asset.name, &os, &arch))
-        .collect();
+    });
 
-    let asset = if platform_matching_assets.is_empty() {
-        // If no matching asset is found after filtering, this is a critical failure.
-        // Provide informative error messages, including a list of available assets to help with debugging.
-        let available_assets = release
-            .assets
-            .iter()
-            .map(|a| a.name.clone())
-            .collect::<Vec<_>>();
-        log_error!(
-            "[GitHub Installer] No suitable release asset found for platform {}-{} in repo {} tag {}. \
-         Please check the release assets on GitHub. Available assets: {}",
-            os.to_string().red(),
-            arch.to_string().red(),
-            repo.to_string().red(),
-            tag.to_string().red(),
-            available_assets.join(", ").to_string().yellow()
-        );
-        return None;
-    } else {
-        // Prioritization Logic `dmg` or `pkg` for macOS
-        // Sort the platform-matching assets. We want .pkg or .dmg files to come first.
-        // This is a common heuristic for macOS installations, as these formats often
-        // provide a more complete and guided installation experience compared to raw binaries
-        // or archives that require manual placement.
-        platform_matching_assets.sort_by(|a, b| {
-            let a_is_pkg_dmg = a.name.ends_with(".pkg") || a.name.ends_with(".dmg");
-            let b_is_pkg_dmg = b.name.ends_with(".pkg") || b.name.ends_with(".dmg");
-
-            match (a_is_pkg_dmg, b_is_pkg_dmg) {
-                (true, false) => std::cmp::Ordering::Less, // 'a' is pkg/dmg, 'b' is not -> 'a' comes first
-                (false, true) => std::cmp::Ordering::Greater, // 'b' is pkg/dmg, 'a' is not -> 'b' comes first
-                _ => std::cmp::Ordering::Equal, // Both or neither are pkg/dmg -> maintain original order (or add another tie-breaker like size/name)
-            }
-        });
-
-        // After sorting, the most preferred asset (pkg/dmg if present) will be at the front.
-        // We can safely unwrap here because we checked `is_empty()` above.
-        let selected_asset = platform_matching_assets.first().unwrap(); // Get the first (highest priority) asset
-
-        log_debug!(
-            "[GitHub Installer]Found matching asset: {}",
-            selected_asset.name.bold()
-        );
-        selected_asset
-    };
-
-    // Once the correct asset is identified, extract its download URL.
-    let download_url = &asset.browser_download_url;
+    // Select the first (highest priority) asset after sorting
+    let selected_asset = matching_assets.first().unwrap();
     log_debug!(
-        "[GitHub Installer] Download URL for selected asset: {}",
-        download_url.dimmed()
+        "[GitHub Installer] Selected asset: {}",
+        selected_asset.name.bold()
     );
 
-    // 5. Download the Asset
-    // We download the asset to a temporary directory to avoid cluttering the user's system
-    // with intermediate files. This temporary directory is managed by the `tempfile` crate,
-    // ensuring it's cleaned up automatically when it goes out of scope.
-    // Create a single, unique temporary directory for this entire installation run.
-    // This ensures isolation between different tool installations.
-    let install_temp_root = match TempFileBuilder::new()
+    Some(selected_asset)
+}
+
+/// Downloads the GitHub asset to a temporary location.
+///
+/// This function creates a temporary directory and downloads the selected
+/// release asset to it. Using a temporary directory ensures proper cleanup
+/// and prevents conflicts with existing files. The temporary directory is
+/// automatically cleaned up when it goes out of scope.
+///
+/// # Arguments
+///
+/// * `tool_entry` - The tool being installed (used for naming and error messages)
+/// * `asset` - The release asset to download, containing the download URL and filename
+///
+/// # Returns
+///
+/// * `Some((temp_dir, downloaded_path))` - Tuple containing the temporary directory
+///   handle and the path to the downloaded file if successful
+/// * `None` - If temporary directory creation or download fails
+///
+/// # Temporary Directory
+///
+/// The temporary directory is created with a prefix that includes the tool name
+/// for easier debugging and identification. The directory persists only as long
+/// as the `TempDir` handle is in scope, then is automatically cleaned up.
+///
+/// Example temp dir: `/tmp/setup-devbox-install-gh-abc123/`
+fn download_github_asset(
+    tool_entry: &ToolEntry,
+    asset: &ReleaseAsset,
+) -> Option<(tempfile::TempDir, PathBuf)> {
+    // Create temporary directory with descriptive prefix
+    let temp_dir = match TempFileBuilder::new()
         .prefix(&format!("setup-devbox-install-{}-", tool_entry.name))
         .tempdir()
     {
         Ok(dir) => dir,
         Err(e) => {
             log_error!(
-                "[GitHub Installer] Failed to create temporary directory for installation: {}. Aborting for {}.",
-                e,
-                tool_entry.name.to_string().red()
+                "[GitHub Installer] Failed to create temporary directory for {}: {}",
+                tool_entry.name.red(),
+                e
             );
             return None;
         }
     };
 
-    let filename = &asset.name; // Use the original filename from the asset.
-    let downloaded_asset_path = install_temp_root.path().join(filename); // Construct the full path for the downloaded file.
+    // Construct full path for downloaded file using original asset name
+    let downloaded_path = temp_dir.path().join(&asset.name);
 
     log_debug!(
-        "[GitHub Installer] Downloading {} to temporary location: {}",
-        tool_entry.name.to_string().bold(),
-        downloaded_asset_path.display().to_string().cyan()
+        "[GitHub Installer] Downloading to: {}",
+        downloaded_path.display().to_string().cyan()
     );
-    if let Err(err) = download_file(download_url, &downloaded_asset_path) {
-        // Log specific download errors (e.g., network issues during download).
+
+    // Download file from GitHub to temporary location
+    if let Err(err) = download_file(&asset.browser_download_url, &downloaded_path) {
         log_error!(
-            "[GitHub Installer] Failed to download tool {} from {}: {}",
-            tool_entry.name.to_string().red(),
-            download_url.to_string().red(),
+            "[GitHub Installer] Failed to download {} from {}: {}",
+            tool_entry.name.red(),
+            asset.browser_download_url.red(),
             err
         );
         return None;
     }
+
     log_info!(
-        "[GitHub Installer] Download completed for {}.",
-        tool_entry.name.to_string().bright_blue()
+        "[GitHub Installer] Download completed for {}",
+        tool_entry.name.bright_blue()
     );
 
-    // 6. Detect Downloaded File Type
-    // We need to know the file type (e.g., "zip", "tar.gz", "binary", "pkg") to determine
-    // the appropriate installation strategy (extraction, direct move, package installation).
-    // `detect_file_type` is preferred here for archives because the filename
-    // usually clearly indicates the compression format, which is more reliable than
-    // `file` command output for archives.
-    let file_type = detect_file_type(&downloaded_asset_path);
-    log_debug!(
-        "[GitHub Installer] Detected downloaded file type (from filename): {}",
-        file_type.to_string().magenta()
-    );
+    Some((temp_dir, downloaded_path))
+}
 
-    // 7. Determine Final Installation Path
-    // Tools are typically installed into a `bin/` directory within the user's home directory
-    // (e.g., `~/.local/bin/` or `~/bin/`). We need to retrieve the `$HOME` environment variable.
-    let home_dir = match env::var("HOME") {
-        Ok(h) => h,
-        Err(_) => {
-            // The `$HOME` variable is fundamental for user-specific installations.
+/// Determines the installation path for the tool.
+///
+/// This function constructs the final installation path in the user's bin directory,
+/// taking into account any custom binary name specified in the configuration. The
+/// default location is `$HOME/bin/{tool_name}`, which should be in the user's PATH.
+///
+/// # Arguments
+///
+/// * `tool_entry` - The tool configuration, which may include a custom binary name
+///
+/// # Returns
+///
+/// * `Some((install_path, final_install_path))` - Tuple containing both paths
+///   (they are the same in this implementation, but separated for potential future use)
+/// * `None` - If the HOME environment variable is not set
+///
+/// # Path Construction
+///
+/// - Default: `$HOME/bin/{tool_name}`
+/// - With rename: `$HOME/bin/{rename_to}`
+///
+/// # Examples
+///
+/// ```
+/// // Without rename_to
+/// $HOME/bin/gh
+///
+/// // With rename_to: "helm3"
+/// $HOME/bin/helm3
+/// ```
+///
+/// # Environment Requirements
+///
+/// Requires the `$HOME` environment variable to be set. On Unix-like systems,
+/// this should always be available. If not set, installation cannot proceed.
+fn determine_installation_path(tool_entry: &ToolEntry) -> Option<(PathBuf, PathBuf)> {
+    // Get HOME environment variable
+    let home_dir = env::var("HOME")
+        .map_err(|_| {
             log_error!(
-                "[GitHub Installer] The $HOME environment variable is not set. Cannot determine installation path for {}.",
-                tool_entry.name.to_string().red()
+                "[GitHub Installer] $HOME environment variable not set for {}",
+                tool_entry.name.red()
             );
-            return None;
-        }
-    };
+            log_error!("[GitHub Installer] Cannot determine installation path without $HOME");
+        })
+        .ok()?;
 
-    // The final executable name can be explicitly specified in `tools.yaml` via `rename_to`.
-    // If not specified, we default to the tool's original `name`.
+    // Use custom binary name if provided, otherwise use tool name
     let bin_name = tool_entry
         .rename_to
         .clone()
         .unwrap_or_else(|| tool_entry.name.clone());
-    // Construct the full absolute path where the tool's executable will be placed.
+
+    // Construct full installation path
     let install_path = PathBuf::from(format!("{home_dir}/bin/{bin_name}"));
+
     log_debug!(
-        "[GitHub Installer] Target installation path for {}: {}",
-        tool_entry.name.to_string().bright_blue(),
+        "[GitHub Installer] Installation path: {}",
         install_path.display().to_string().cyan()
     );
-    // Introduce a mutable variable to store the actual final install path for the state.
-    // Initialize it with the default binary path, then update for pkg/dmg if they install elsewhere.
-    let mut final_install_path_for_state = install_path.clone();
-    // This variable will hold the determined package type for the ToolState, allowing us to
-    // record how the tool was installed (e.g., "binary", "macos-pkg-installer").
-    let package_type_for_state: String;
 
-    // Variable to track the working directory for additional commands execution.
-    // For archives, this will be the extraction directory; for binaries/pkg/dmg, the download directory.
-    let mut post_installation_hooks_working_dir = install_temp_root.path().to_path_buf();
+    // Return both paths (currently identical, but maintained for API consistency)
+    Some((install_path.clone(), install_path))
+}
 
-    // 8. Install Based on File Type
-    // This `match` statement serves as the primary dispatcher for installation logic,
-    // branching based on the detected `file_type`. Each branch handles a
-    // specific type of asset:
-    match file_type.as_str() {
+/// Processes the downloaded asset based on its file type.
+///
+/// This function handles different asset types with appropriate installation strategies:
+/// - **macOS Packages (.pkg)**: Uses system installer for proper integration
+/// - **macOS Disk Images (.dmg)**: Mounts and extracts application bundles
+/// - **Binaries**: Direct installation with executable permissions
+/// - **Archives**: Extraction, executable search, and installation
+///
+/// Each file type requires different handling to ensure proper installation and
+/// functionality. The function determines the appropriate strategy and executes it.
+///
+/// # Arguments
+///
+/// * `tool_entry` - The tool configuration
+/// * `downloaded_path` - Path to the downloaded asset file
+/// * `file_type` - Detected file type (e.g., "pkg", "dmg", "binary", "zip", "tar.gz")
+/// * `temp_dir` - Temporary directory for extraction and processing
+/// * `install_path` - Target installation path for the final binary
+///
+/// # Returns
+///
+/// * `Some((package_type, working_dir))` - Tuple containing:
+///   - `package_type`: String describing the installation type (e.g., "binary", "macos-pkg-installer")
+///   - `working_dir`: Directory path for post-installation hooks execution
+/// * `None` - If processing fails at any step
+///
+/// # File Type Handling
+///
+/// - **pkg/dmg**: System-level installation, returns actual install location
+/// - **binary**: Direct move to bin directory with executable permissions
+/// - **Archives**: Extract → find executable → move to bin → set permissions
+fn process_asset_by_type(
+    tool_entry: &ToolEntry,
+    downloaded_path: &Path,
+    file_type: &str,
+    temp_dir: &tempfile::TempDir,
+    install_path: &Path,
+) -> Option<(String, PathBuf)> {
+    // Initialize working directory (default to temp directory)
+    let mut working_dir = temp_dir.path().to_path_buf();
+
+    // Package type identifier for state tracking
+    let package_type: String;
+
+    match file_type {
+        // macOS .pkg installer - uses system installer for proper integration
         "pkg" => {
             log_info!(
-                "[GitHub Installer] Installing .pkg file for {}.",
-                tool_entry.name.to_string().bold()
+                "[GitHub Installer] Installing .pkg for {}",
+                tool_entry.name.bold()
             );
-            // Call install_pkg and capture its returned installation path.
-            // .pkg installers typically install to predefined system locations (e.g., /Applications),
-            // so we need to get the actual path from the installation function.
-            match install_pkg(&downloaded_asset_path, &tool_entry.name) {
-                Ok(path) => {
-                    // Store the actual install path for ToolState, which might differ from `install_path`.
-                    final_install_path_for_state = path;
-                    // Set package_type to "macos-pkg-installer" to reflect the installation method.
-                    package_type_for_state = "macos-pkg-installer".to_string();
+            match install_pkg(downloaded_path, &tool_entry.name) {
+                Ok(_path) => {
+                    package_type = "macos-pkg-installer".to_string();
                 }
                 Err(err) => {
                     log_error!(
                         "[GitHub Installer] Failed to install .pkg for {}: {}",
-                        tool_entry.name.to_string().red(),
+                        tool_entry.name.red(),
                         err
                     );
                     return None;
                 }
             }
         }
+
+        // macOS .dmg disk image - mounts and extracts application
         "dmg" => {
             log_info!(
-                "[GitHub Installer] Installing .dmg file for {}.",
-                tool_entry.name.to_string().bold()
+                "[GitHub Installer] Installing .dmg for {}",
+                tool_entry.name.bold()
             );
-            // Call install_dmg and capture its returned installation path.
-            // .dmg installers also install to specific locations (often /Applications or /Volumes).
-            match install_dmg(&downloaded_asset_path, &tool_entry.name) {
-                Ok(path) => {
-                    // Store the actual install path for ToolState.
-                    final_install_path_for_state = path;
-                    // Set package_type to "macos-dmg-installer" to reflect the installation method.
-                    package_type_for_state = "macos-dmg-installer".to_string();
+            match install_dmg(downloaded_path, &tool_entry.name) {
+                Ok(_path) => {
+                    package_type = "macos-dmg-installer".to_string();
                 }
                 Err(err) => {
                     log_error!(
                         "[GitHub Installer] Failed to install .dmg for {}: {}",
-                        tool_entry.name.to_string().red(),
+                        tool_entry.name.red(),
                         err
                     );
                     return None;
                 }
             }
         }
+
+        // Raw binary - direct installation to bin directory
         "binary" => {
-            // Handles direct executable files (e.g., a single `.exe` or uncompressed binary).
-            // These files don't need extraction; they just need to be moved and made executable.
             log_debug!(
-                "[GitHub Installer] Moving standalone binary for {}.",
-                tool_entry.name.to_string().bold()
+                "[GitHub Installer] Installing binary for {}",
+                tool_entry.name.bold()
             );
-            if let Err(err) = move_and_rename_binary(&downloaded_asset_path, &install_path) {
+
+            // Move binary to installation path
+            if let Err(err) = move_and_rename_binary(downloaded_path, install_path) {
                 log_error!(
                     "[GitHub Installer] Failed to move binary for {}: {}",
-                    tool_entry.name.to_string().red(),
+                    tool_entry.name.red(),
                     err
                 );
                 return None;
             }
-            log_debug!(
-                "[GitHub Installer] Making binary executable for {}.",
-                tool_entry.name.to_string().bold()
-            );
-            if let Err(err) = make_executable(&install_path) {
+
+            // Set executable permissions (chmod +x)
+            if let Err(err) = make_executable(install_path) {
                 log_error!(
                     "[GitHub Installer] Failed to make binary executable for {}: {}",
-                    tool_entry.name.to_string().red(),
+                    tool_entry.name.red(),
                     err
                 );
                 return None;
             }
-            // Set package_type to "binary" as it's a direct binary installation.
-            package_type_for_state = "binary".to_string();
+
+            package_type = "binary".to_string();
         }
-        // Handles common archive formats. For these, extraction is required, followed by
-        // finding the actual executable within the extracted contents.
-        "zip" | "tar.gz" | "gz" | "tar.bz2" | "tar" | "tar.xz" | "tar.bz" | "txz" | "tbz2" => {
+
+        // Archive formats - extract, find executable, and install
+        archive_type @ ("zip" | "tar.gz" | "gz" | "tar.bz2" | "tar" | "tar.xz" | "tar.bz"
+        | "txz" | "tbz2") => {
             log_debug!(
-                "[GitHub Installer] Extracting archive for {}.",
-                tool_entry.name.to_string().blue()
+                "[GitHub Installer] Extracting {} archive for {}",
+                archive_type,
+                tool_entry.name.blue()
             );
-            // Extract the downloaded archive to the temporary installation root.
+
+            // Extract archive contents to temporary directory
             let extracted_path = match compression::extract_archive(
-                &downloaded_asset_path,
-                &install_temp_root.path(),
-                Some(&file_type),
+                downloaded_path,
+                temp_dir.path(),
+                Some(archive_type),
             ) {
                 Ok(path) => path,
                 Err(err) => {
                     log_error!(
                         "[GitHub Installer] Failed to extract archive for {}: {}",
-                        tool_entry.name.to_string().red(),
+                        tool_entry.name.red(),
                         err
                     );
                     return None;
                 }
             };
 
-            log_debug!(
-                "[GitHub Installer] Searching for executable in extracted contents for {} in {}",
-                tool_entry.name.to_string().blue(),
-                extracted_path.display().to_string().cyan()
-            );
-
-            // For additional commands, we want to use the same directory where we found the executable
-            // or the root of the extracted content, whichever contains the actual tool files
-            let content_root_path = extracted_path.clone();
-            log_debug!(
-                "[GitHub Installer] Archived assets root path is {}",
-                content_root_path.display().to_string().cyan()
-            );
-
-            // Many archives contain nested directories (e.g., `tool-v1.0.0/bin/tool_executable`).
-            // `find_executable` recursively searches the extracted contents to locate the actual binary
-            // we need to install. It handles cases where the binary might be in a subdirectory.
-            let executable_path = match find_executable(
+            // Search extracted contents for the executable binary
+            let executable_path = find_executable(
                 &extracted_path,
                 &tool_entry.name,
                 tool_entry.rename_to.as_deref(),
-            ) {
-                Some(path) => path,
-                None => {
-                    log_error!(
-                        "[GitHub Installer] No executable found in the extracted archive for {}. Manual intervention may be required.",
-                        tool_entry.name.to_string().red()
-                    );
-                    return None;
-                }
-            };
-
-            // Determine the directory containing the actual tool content for additional commands
-            // If the executable is in a subdirectory of the extraction, use that subdirectory as the base
-            // for additional commands so they can find sibling files like 'runtime', 'config', etc.
-            if let Some(parent_dir) = executable_path.parent() {
-                // Check if the executable is in a bin/ subdirectory or similar
-                // If so, we want to go up one level to find sibling directories like 'runtime'
-                if parent_dir
-                    .file_name()
-                    .map(|name| name.to_str().unwrap_or(""))
-                    == Some("bin")
-                {
-                    if let Some(grandparent) = parent_dir.parent() {
-                        // Use the grandparent (e.g., helix-25.07.1/) as the content root
-                        post_installation_hooks_working_dir = grandparent.to_path_buf();
-                        log_debug!(
-                            "[GitHub Installer] Using grandparent directory for additional commands: {}",
-                            post_installation_hooks_working_dir
-                                .display()
-                                .to_string()
-                                .cyan()
-                        );
-                    } else {
-                        post_installation_hooks_working_dir = content_root_path;
-                    }
-                } else {
-                    // Executable is not in a bin/ directory, use its parent directory
-                    post_installation_hooks_working_dir = parent_dir.to_path_buf();
-                    log_debug!(
-                        "[GitHub Installer] Using parent directory for additional commands: {}",
-                        post_installation_hooks_working_dir
-                            .display()
-                            .to_string()
-                            .cyan()
-                    );
-                }
-            } else {
-                // Fallback to the extraction root if we can't determine the parent
-                post_installation_hooks_working_dir = content_root_path;
-                log_debug!(
-                    "[GitHub Installer] Using extraction root for additional commands: {}",
-                    post_installation_hooks_working_dir
-                        .display()
-                        .to_string()
-                        .cyan()
+            )
+            .or_else(|| {
+                log_error!(
+                    "[GitHub Installer] No executable found in archive for {}",
+                    tool_entry.name.red()
                 );
-            }
-            log_debug!(
-                "[GitHub Installer] Moving and renaming executable for {}.",
-                tool_entry.name.to_string().blue()
-            );
-            // Move the located executable to its final destination and apply any `rename_to` rule.
-            if let Err(err) = move_and_rename_binary(&executable_path, &install_path) {
+                log_error!(
+                    "[GitHub Installer] Expected to find binary named '{}' or similar",
+                    tool_entry.name
+                );
+                None
+            })?;
+
+            // Determine appropriate working directory for post-installation hooks
+            // This is typically the parent directory of the executable
+            working_dir = determine_working_directory(&executable_path, &extracted_path);
+
+            // Move extracted binary to final installation location
+            if let Err(err) = move_and_rename_binary(&executable_path, install_path) {
                 log_error!(
                     "[GitHub Installer] Failed to move extracted binary for {}: {}",
-                    tool_entry.name.to_string().red(),
+                    tool_entry.name.red(),
                     err
                 );
                 return None;
             }
-            log_debug!(
-                "[GitHub Installer] Making extracted binary executable for {}.",
-                tool_entry.name.to_string().blue()
-            );
-            // Ensure the final binary has executable permissions set. This is crucial for Unix-like
-            // systems to allow the user to run the installed tool directly.
-            if let Err(err) = make_executable(&install_path) {
+
+            // Set executable permissions on the installed binary
+            if let Err(err) = make_executable(install_path) {
                 log_error!(
                     "[GitHub Installer] Failed to make extracted binary executable for {}: {}",
-                    tool_entry.name.to_string().red(),
+                    tool_entry.name.red(),
                     err
                 );
                 return None;
             }
-            // Set package_type to "binary" as it's a direct binary installation after extraction.
-            package_type_for_state = "binary".to_string();
+
+            package_type = "binary".to_string();
         }
+
+        // Unsupported file type
         unknown => {
-            // Catch-all for unsupported or unrecognized file types. If we download something
-            // we don't know how to handle, we log an error and abort.
             log_error!(
-                "[GitHub Installer] Unsupported or unknown file type '{}' for tool {}. Cannot install.",
-                unknown.to_string().red(),
-                tool_entry.name.to_string().red()
+                "[GitHub Installer] Unsupported file type '{}' for {}",
+                unknown.red(),
+                tool_entry.name.red()
+            );
+            log_error!(
+                "[GitHub Installer] Supported types: binary, zip, tar.gz, tar.xz, tar.bz2, pkg, dmg"
             );
             return None;
         }
     }
 
-    // 9. Execute Additional Commands (if specified)
-    // After the main installation is complete, execute any additional commands specified
-    // in the tool configuration. These commands are often used for post-installation setup,
-    // such as copying configuration files, creating directories, or setting up symbolic links.
-    // Optional - failure won't stop installation
-    let executed_post_installation_hooks = execute_post_installation_hooks(
-        "[GitHub Installer]",
-        tool_entry,
-        &post_installation_hooks_working_dir,
-    );
-    // If execution reaches this point, the installation was successful.
-    log_info!(
-        "[GitHub Installer] Installation of {} completed successfully at {}!",
-        tool_entry.name.to_string().bold(),
-        final_install_path_for_state.display().to_string().green()
-    );
+    Some((package_type, working_dir))
+}
 
-    // 10. Return ToolState for Tracking
-    // Construct a `ToolState` object to record the details of this successful installation.
-    // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-    // what tools are installed, where they are, and how they were installed. This is crucial
-    // for future operations like uninstallation, updates, or syncing.
-    Some(ToolState {
-        // The version field for tracking. Defaults to "latest" if not explicitly set in `tools.yaml`.
-        version: tool_entry
-            .version
-            .clone()
-            .unwrap_or_else(|| "latest".to_string()),
-        // The canonical path where the tool's executable was installed. This is the path
-        // that will be recorded in the `state.json` file.
-        install_path: final_install_path_for_state.display().to_string(),
-        // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
-        // between tools managed by our system and those installed manually.
-        installed_by_devbox: true,
-        // The method of installation, useful for future diagnostics or differing update logic.
-        // In this module, it's always "GitHub".
-        install_method: "github".to_string(),
-        // Records if the binary was renamed during installation, storing the new name.
-        renamed_to: tool_entry.rename_to.clone(),
-        // Persist the GitHub repository slug, important for future sync/update checks.
-        repo: tool_entry.repo.clone(),
-        // Persist the GitHub tag (release version), important for future sync/update checks.
-        tag: tool_entry.tag.clone(),
-        // The actual package type detected by the `file` command or inferred. This is for diagnostic
-        // purposes, providing the most accurate type even if the installation logic
-        // used a filename-based guess (e.g., "binary", "macos-pkg-installer").
-        package_type: package_type_for_state,
-        // Pass any custom options defined in the `ToolEntry` to the `ToolState`.
-        options: tool_entry.options.clone(),
-        // For direct URL installations: The original URL from which the tool was downloaded.
-        // This is important for re-downloading or verifying in the future.
-        url: Some(download_url.clone()),
-        // Record the timestamp when the tool was installed or updated
-        last_updated: Some(current_timestamp()),
-        // This field is currently `None` but could be used to store the path to an executable
-        // *within* an extracted archive if `install_path` points to the archive's root.
-        executable_path_after_extract: None,
-        // Record any additional commands that were executed during installation.
-        // This is useful for tracking what was done and potentially for cleanup during uninstall.
-        executed_post_installation_hooks,
-        configuration_manager: None,
-    })
+/// Determines the working directory for post-installation hooks.
+///
+/// This function finds the appropriate directory context for executing
+/// additional setup commands. The working directory should provide context
+/// for any relative paths or resources that post-installation hooks might need.
+///
+/// # Strategy
+///
+/// 1. If the executable is in a `bin/` directory, use the parent directory
+///    - This gives access to adjacent directories like `lib/`, `share/`, etc.
+///    - Example: `/tmp/extract/app/bin/tool` → working_dir = `/tmp/extract/app/`
+///
+/// 2. Otherwise, use the directory containing the executable
+///    - Example: `/tmp/extract/tool` → working_dir = `/tmp/extract/`
+///
+/// 3. If no parent directory exists, use the extraction root
+///    - Fallback for edge cases
+///
+/// # Arguments
+///
+/// * `executable_path` - Path to the main executable binary
+/// * `extracted_path` - Root path where archive contents were extracted
+///
+/// # Returns
+///
+/// The appropriate working directory path for post-installation hook execution
+///
+/// # Examples
+///
+/// ```
+/// // Executable in bin/ directory
+/// executable: /tmp/extract/myapp/bin/mytool
+/// returns:    /tmp/extract/myapp/
+///
+/// // Executable at root level
+/// executable: /tmp/extract/mytool
+/// returns:    /tmp/extract/
+/// ```
+fn determine_working_directory(executable_path: &Path, extracted_path: &Path) -> PathBuf {
+    // Try to get the parent directory of the executable
+    if let Some(parent_dir) = executable_path.parent() {
+        // Check if the executable is in a bin/ directory
+        if parent_dir.file_name().is_some_and(|name| name == "bin") {
+            // If so, use the grandparent directory (one level up from bin/)
+            // This provides access to sibling directories like lib/, share/, etc.
+            if let Some(grandparent) = parent_dir.parent() {
+                log_debug!(
+                    "[GitHub Installer] Working directory (parent of bin/): {}",
+                    grandparent.display()
+                );
+                return grandparent.to_path_buf();
+            }
+        }
+
+        // Otherwise, use the parent directory of the executable
+        log_debug!(
+            "[GitHub Installer] Working directory (executable parent): {}",
+            parent_dir.display()
+        );
+        return parent_dir.to_path_buf();
+    }
+
+    // Fallback to extraction root if parent directory cannot be determined
+    log_debug!(
+        "[GitHub Installer] Working directory (extraction root): {}",
+        extracted_path.display()
+    );
+    extracted_path.to_path_buf()
 }

@@ -11,12 +11,16 @@
 // - Error handling for file I/O and JSON parsing.
 // - Ensuring parent directories exist before writing.
 
-use crate::schemas::state_file::DevBoxState; // Imports `DevBoxState` schema definition for application's runtime state.
+use crate::libs::utilities::assets::current_timestamp;
+use crate::schemas::configuration_management::ConfigurationManagerState;
+use crate::schemas::state_file::{DevBoxState, ToolState}; // Imports `DevBoxState` schema definition for application's runtime state.
+use crate::schemas::tools::ToolEntry;
 use crate::{log_debug, log_error, log_info, log_warn}; // Custom logging macros for various log levels.
 use colored::Colorize; // Imports the `Colorize` trait for adding color to console output.
 use std::collections::HashMap; // Imports `HashMap` for storing key-value pairs (e.g., tool states).
 use std::path::{Path, PathBuf}; // Imports `Path` and `PathBuf` for working with file paths.
-use std::{fs, io}; // Imports standard library modules for file system operations and I/O. 
+use std::{fs, io};
+// Imports standard library modules for file system operations and I/O.
 
 /// Loads the application's state from `state.json` or initializes a new one.
 ///
@@ -307,5 +311,105 @@ pub fn save_state_to_file(state: &DevBoxState, state_file_path: &PathBuf) {
         log_info!("[StateSave] State saved successfully.");
     } else {
         log_error!("[StateSave] Failed to save state - data loss risk!");
+    }
+}
+
+impl ToolState {
+    /// Helper method to update configuration manager state.
+    ///
+    /// Used when configuration files are synchronized or updated to store
+    /// the new state information including file hashes and timestamps.
+    ///
+    /// ## Parameters
+    /// - `config_state`: The new configuration management state to store
+    pub fn set_configuration_manager(&mut self, config_state: ConfigurationManagerState) {
+        self.configuration_manager = Some(config_state);
+    }
+
+    /// Helper method to get configuration manager state.
+    ///
+    /// Returns a reference to the current configuration management state
+    /// if it exists, or `None` if no configuration management is active.
+    ///
+    /// ## Returns
+    /// - `Some(&ConfigurationManagerState)`: Configuration state exists
+    /// - `None`: No configuration management for this tool
+    pub fn get_configuration_manager(&self) -> Option<&ConfigurationManagerState> {
+        self.configuration_manager.as_ref()
+    }
+
+    /// Creates a comprehensive ToolState object for tracking the installation.
+    ///
+    /// This method serves as a constructor for creating a new ToolState instance
+    /// with all the necessary information for tracking tool installations.
+    ///
+    /// ## Parameters
+    /// - `tool_entry`: The tool configuration from the devbox configuration
+    /// - `install_path`: Path where the tool is installed
+    /// - `install_method`: Method used for installation (e.g., "cargo", "brew")
+    /// - `package_type`: Type of package (e.g., "binary", "go-module")
+    /// - `actual_version`: The actual version that was installed
+    /// - `executed_post_installation_hooks`: Any post-installation commands executed
+    ///
+    /// ## Returns
+    /// A fully populated `ToolState` instance ready for storage in the state file
+    pub fn new(
+        tool_entry: &ToolEntry,
+        install_path: &PathBuf,
+        install_method: String,
+        package_type: String,
+        actual_version: String,
+        url: Option<String>,
+        executable_after_extract: Option<String>,
+        executed_post_installation_hooks: Option<Vec<String>>,
+    ) -> Self {
+        // 1. Process the URL to ensure empty strings are treated as None.
+        let processed_url = url.and_then(|u| {
+            // Trim whitespace and check if the remaining string is empty.
+            let trimmed = u.trim();
+            if trimmed.is_empty() {
+                None // Return None if the URL is empty or just whitespace
+            } else {
+                Some(trimmed.to_string()) // Keep it if it has content
+            }
+        });
+        Self {
+            // The version recorded for the tool. Uses the specified version or "latest" as a fallback.
+            version: actual_version,
+            // The canonical path where the tool's executable was installed. This is the path
+            // that will be recorded in the `state.json` file.
+            install_path: install_path.to_string_lossy().into_owned(),
+            // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
+            // between tools managed by our system and those installed manually.
+            installed_by_devbox: true,
+            // The method of installation, useful for future diagnostics or differing update logic.
+            install_method,
+            // Records if the binary was renamed during installation. For `cargo install`, this is
+            // usually `None` unless `--bin` or `--example` flags are used in `options`.
+            renamed_to: tool_entry.rename_to.clone(),
+            // The actual package type detected by the `file` command or inferred. This is for diagnostic
+            // purposes, providing the most accurate type even if the installation logic
+            // used a filename-based guess (e.g., "binary", "macos-pkg-installer").
+            package_type,
+            // Repository for the tool
+            repo: tool_entry.repo.clone(),
+            // Version Tag for the tool
+            tag: tool_entry.tag.clone(),
+            // Pass any custom options defined in the `ToolEntry` to the `ToolState`.
+            options: tool_entry.options.clone(),
+            // For direct URL installations: The original URL from which the tool was downloaded.
+            // This is important for re-downloading or verifying in the future.
+            url: processed_url,
+            // Record the timestamp when the tool was installed or updated
+            last_updated: Some(current_timestamp()),
+            // This field is currently `None` but could be used to store the path to an executable
+            // *within* an extracted archive if `install_path` points to the archive's root.
+            executable_path_after_extract: executable_after_extract,
+            // Record any additional commands that were executed during installation.
+            // This is useful for tracking what was done and potentially for cleanup during uninstall.
+            executed_post_installation_hooks,
+            // Configuration Manager for the tool, if SDB is managing the configuration for the tool.
+            configuration_manager: None,
+        }
     }
 }

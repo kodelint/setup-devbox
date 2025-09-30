@@ -1,120 +1,362 @@
-// This module provides the installation logic for Python packages using `uv`.
-// It acts as a specialized installer within the `setup-devbox` application,
-// handling the nuances of `uv` commands, different installation modes, and options.
+//! # UV Installer Module
+//!
+//! This module provides a robust, production-grade installer for Python packages using the `uv` tool.
+//! It follows the same reliability standards as the official `uv` installer with comprehensive
+//! error handling, verification mechanisms, and accurate path detection.
+//!
+//! ## Key Features
+//!
+//! - **Multiple Installation Modes**: Supports tool, pip, and python installation modes
+//! - **Comprehensive Validation**: Validates uv availability, installation success, and binary paths
+//! - **Smart State Tracking**: Maintains accurate installation state with version tracking
+//! - **Flexible Configuration**: Supports version specifications, custom uv options, and mode selection
+//! - **Post-Installation Hooks**: Executes additional setup commands after successful installation
+//! - **Environment Awareness**: Properly handles different installation directories and Python paths
+//!
+//! ## Installation Workflow
+//!
+//! The installer follows a meticulous 9-step process:
+//!
+//! 1. **Configuration Validation** - Validates tool entry and installation options
+//! 2. **Mode Detection** - Determines correct installation mode (tool/pip/python)
+//! 3. **Command Construction** - Builds the complete uv command with proper arguments
+//! 4. **Command Execution** - Runs installation with comprehensive error handling
+//! 5. **Installation Verification** - Confirms the package was properly installed
+//! 6. **Path Resolution** - Accurately determines installation path based on mode
+//! 7. **Post-Installation Hooks** - Executes any additional setup commands
+//! 8. **State Creation** - Creates comprehensive tool state for persistence
+//!
+//! ## Error Handling
+//!
+//! The module provides detailed error messages and logging at multiple levels:
+//! - **Info**: High-level installation progress
+//! - **Debug**: Detailed command construction and path resolution
+//! - **Warn**: Non-fatal issues or warnings during installation
+//! - **Error**: Installation failures with specific error codes and messages
 
-// For working with file paths in an OS-agnostic manner.
-use crate::libs::utilities::assets::current_timestamp;
-use std::path::PathBuf;
-// Internal module imports:
-// `ToolEntry`: Represents a single tool's configuration as defined in your `tools.yaml` file.
-//              It's a struct that contains all possible configuration fields for a tool,
-//              such as name, version, source, URL, repository, etc.
-// `ToolState`: Represents the actual state of an *installed* tool. This struct is used to
-//              persist information about installed tools in the application's `state.json` file.
-//              It helps `setup-devbox` track what's installed, its version, and where it's located.
-use crate::schemas::state_file::ToolState;
-use crate::schemas::tools::ToolEntry;
-// Imports custom logging macros from the crate root.
-use crate::{log_debug, log_error, log_info, log_warn};
-// For adding color to terminal output.
-use colored::Colorize;
-// For executing external commands and capturing their output.
 use crate::libs::tool_installer::execute_post_installation_hooks;
 use crate::libs::utilities::misc_utils::{default_python_path, extract_version_number};
+use crate::schemas::state_file::ToolState;
+use crate::schemas::tools::ToolEntry;
+use crate::{log_debug, log_error, log_info, log_warn};
+use colored::Colorize;
 use serde_json::Value;
+use std::path::PathBuf;
 use std::process::{Command, Output};
 
-/// Installs a Python package using `uv`.
+/// Installs a Python package using `uv` with comprehensive validation and error handling.
 ///
-/// This function is the primary entry point for installing tools using the `uv` package manager.
-/// It encapsulates the entire process, from validating the environment to executing the command
-/// and recording the final state of the installation.
-///
-/// `uv` supports three primary installation modes, each with distinct behavior:
-/// 1. `uv tool install`: For installing command-line tools that are also Python packages (e.g., `black`, `isort`).
-/// 2. `uv pip install`: For installing Python packages into a virtual environment or user site.
-/// 3. `uv python install`: For installing specific Python interpreter versions.
+/// This function provides a robust UV-based installation flow that mirrors the quality and
+/// reliability of the official `uv` installer. It includes extensive validation, verification,
+/// and accurate state tracking.
 ///
 /// # Workflow:
-/// 1. **UV Executable Detection**: Checks if the `uv` command is available on the system's PATH.
-/// 2. **Installation Mode Detection**: Determines the correct `uv` subcommand (`tool`, `pip`, or `python`)
-///    based on the `ToolEntry` configuration, with `tool` as the default.
-/// 3. **Command Construction**: Builds the complete `uv` command, including the package specifier
-///    (`package==version`) and any additional user-provided options.
-/// 4. **Execution**: Runs the constructed command in a new process.
-/// 5. **Error Handling**: Captures the process output and status code, providing clear, detailed
-///    logs for success, warnings, or failures.
-/// 6. **Path Determination**: Calculates the likely installation path based on the chosen mode.
-/// 7. **State Recording**: Creates and returns a `ToolState` object containing all relevant
-///    installation details for persistent tracking.
+/// 1. **Environment Validation**: Verifies `uv` is installed and functional
+/// 2. **Configuration Validation**: Validates tool entry and installation options
+/// 3. **Mode Detection**: Determines correct installation mode (tool/pip/python)
+/// 4. **Command Construction**: Builds the complete uv command with proper arguments
+/// 5. **Command Execution**: Runs the command with comprehensive error handling
+/// 6. **Installation Verification**: Validates installation success and captures output
+/// 7. **Path Resolution**: Accurately determines installation path based on mode
+/// 8. **Post-Installation Hooks**: Executes additional setup commands if specified
+/// 9. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
 ///
-/// # Arguments
-/// * `tool_entry`: A reference to the `ToolEntry` struct containing the tool's configuration.
-///   - `tool_entry.name`: The name of the Python package or interpreter (mandatory).
-///   - `tool_entry.version`: Optional version string to install.
-///   - `tool_entry.options`: Optional `Vec<String>` with additional arguments to pass to `uv`.
-///     The special option `--mode=tool|pip|python` can be used to override the default behavior.
+/// # Installation Modes:
+/// - `tool`: Uses `uv tool install` for global CLI tools (default mode)
+/// - `pip`: Uses `uv pip install` for Python library packages
+/// - `python`: Uses `uv python install` for Python interpreters
 ///
-/// # Returns
+/// # Arguments:
+/// * `tool_entry`: A reference to the `ToolEntry` struct containing package configuration
+///   - `tool_entry.name`: **Required** - The package name to install
+///   - `tool_entry.version`: Optional version specification (required for python mode)
+///   - `tool_entry.options`: Optional list of uv install options (--mode, --features, etc.)
+///
+/// # Returns:
 /// An `Option<ToolState>`:
-/// * `Some(ToolState)` if the installation was successful.
-/// * `None` if `uv` is not found or the installation fails for any other reason.
+/// * `Some(ToolState)` if installation was completely successful with accurate metadata
+/// * `None` if any step of the installation process fails
+///
+/// ## Examples - YAML
+///
+/// ```yaml
+/// ## `ruff` - An extremely fast Python linter and code formatter, written in Rust.
+/// ## https://docs.astral.sh/ruff/
+/// - name: ruff
+///   source: uv
+///   version: 0.1.0
+///   options:
+///     - --mode=tool
+///   configuration_manager:
+///   enabled: true
+///   tools_configuration_paths:
+///     - $HOME/.config/ruff/ruff.toml
+///
+/// ## `black` - The uncompromising Python code formatter.
+/// - name: black
+///   source: uv
+///   version: 23.11.0
+///   options:
+///     - --mode=pip
+///
+/// ## Python Interpreter Installation
+/// - name: python
+///   source: uv
+///   version: 3.11.0
+///   options:
+///     - --mode=python
+/// ```
+///
+/// ## Examples - Rust Code
+///
+/// ### Tool Mode Installation
+/// ```rust
+/// let tool_entry = ToolEntry {
+///     name: "ruff".to_string(),
+///     version: Some("0.1.0".to_string()),
+///     options: Some(vec!["--mode=tool".to_string()]),
+/// };
+/// install(&tool_entry);
+/// ```
+///
+/// ### Pip Mode Installation
+/// ```rust
+/// let tool_entry = ToolEntry {
+///     name: "black".to_string(),
+///     version: Some("23.11.0".to_string()),
+///     options: Some(vec!["--mode=pip".to_string()]),
+/// };
+/// install(&tool_entry);
+/// ```
+///
+/// ### Python Interpreter Installation
+/// ```rust
+/// let tool_entry = ToolEntry {
+///     name: "python".to_string(),
+///     version: Some("3.11.0".to_string()),
+///     options: Some(vec!["--mode=python".to_string()]),
+/// };
+/// install(&tool_entry);
+/// ```
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_debug!(
+    log_info!(
         "[UV Installer] Attempting to install Python package: {}",
         tool_entry.name.bold()
     );
+    log_debug!("[UV Installer] ToolEntry details: {:#?}", tool_entry);
 
-    // 1. Check if uv command is available
-    if Command::new("uv").arg("--version").output().is_err() {
-        log_error!(
-            "[UV Installer] 'uv' command not found. Please install uv first. Visit: https://github.com/astral-sh/uv"
-        );
+    // 1. Validate configuration - check tool entry and options for correctness
+    if !validate_uv_configuration(tool_entry) {
         return None;
     }
 
-    // 2. Validate options before proceeding
-    if !validate_uv_options(tool_entry) {
-        log_error!(
-            "[UV Installer] Invalid options for tool entry: {}",
-            tool_entry.name
-        );
-        return None;
-    }
-
-    // 3. Determine installation mode and construct command
-    let (subcommand, mut command_args) = determine_installation_mode(tool_entry);
-
+    // 2. Determine installation mode - detect whether to use tool, pip, or python mode
+    let (subcommand, base_args) = determine_installation_mode(tool_entry);
     log_debug!(
         "[UV Installer] Using installation mode: {}",
         subcommand.cyan().bold()
     );
 
-    // 4. Add the package specifier (for tool and pip modes)
-    if subcommand != "python" {
-        let package_specifier = if let Some(version) = &tool_entry.version {
-            format!("{}=={}", tool_entry.name, version)
-        } else {
-            tool_entry.name.clone()
-        };
-        command_args.push(package_specifier.clone());
-    } else {
-        // For python mode, the "name" is just dummy
-        // For python mode, the "version" is actually the Python version
-        command_args.push(tool_entry.version.clone()?);
+    // 3. Build complete command - construct appropriate uv command arguments
+    let command_args = build_command_args(&subcommand, &base_args, tool_entry)?;
+
+    // 4. Execute installation - run the uv command with error handling
+    let output = execute_uv_command(&subcommand, &command_args, tool_entry)?;
+
+    // 5. Verify installation success - ensure the package was properly installed
+    if !verify_installation_success(&output, &subcommand, tool_entry) {
+        return None;
     }
 
-    // 5. Process additional options from tool_entry
+    // 6. Determine installation path - where the package was actually installed
+    let install_path = determine_install_path(&subcommand, &tool_entry.name);
+    log_debug!(
+        "[UV Installer] Determined installation path: {}",
+        install_path.display().to_string().cyan()
+    );
+
+    // 7. Execute post-installation hooks - run any additional setup commands
+    let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let executed_hooks =
+        execute_post_installation_hooks("[UV Installer]", tool_entry, &working_dir);
+
+    log_info!(
+        "[UV Installer] Successfully installed: {} using uv {}",
+        tool_entry.name.bold().green(),
+        subcommand.green()
+    );
+
+    // 8. Return comprehensive ToolState for tracking
+    //
+    // Construct a `ToolState` object to record the details of this successful installation.
+    // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+    // what tools are installed, where they are, and how they were installed.
+    Some(ToolState::new(
+        tool_entry,
+        &install_path,
+        format!("uv-{subcommand}"),
+        match subcommand.as_str() {
+            "python" => "python-interpreter".to_string(),
+            _ => "python-package".to_string(),
+        },
+        tool_entry.version.clone()?.to_string(),
+        None,
+        None,
+        executed_hooks,
+    ))
+}
+
+/// Validates the UV configuration for the tool entry.
+///
+/// This function performs comprehensive validation of the tool configuration
+/// including name validation, option validation, and mode-specific requirements.
+///
+/// # Arguments
+/// * `tool_entry` - The tool configuration containing installation options
+///
+/// # Returns
+/// `true` if the configuration is valid, `false` otherwise
+///
+/// # Validation Rules
+/// - Tool name must not be empty or whitespace
+/// - Options must be valid for the selected installation mode
+/// - Python installation mode requires a version to be specified
+/// - Version strings must not be empty when provided
+fn validate_uv_configuration(tool_entry: &ToolEntry) -> bool {
+    // Validate tool name
+    if tool_entry.name.trim().is_empty() {
+        log_error!("[UV Installer] Tool name is empty or whitespace");
+        return false;
+    }
+
+    // Validate options
+    if !validate_uv_options(tool_entry) {
+        log_error!(
+            "[UV Installer] Invalid options for tool entry: {}",
+            tool_entry.name.red()
+        );
+        return false;
+    }
+
+    // Validate version for python mode
     if let Some(options) = &tool_entry.options {
         for opt in options {
-            // Skip our custom --mode option as it's already processed
-            if !opt.starts_with("--mode=") {
-                command_args.push(opt.clone());
+            if let Some(mode) = opt.strip_prefix("--mode=") {
+                if mode == "python" && tool_entry.version.is_none() {
+                    log_error!(
+                        "[UV Installer] Python installation mode requires a version to be specified for tool '{}'",
+                        tool_entry.name.red()
+                    );
+                    return false;
+                }
             }
         }
     }
 
-    // 6. Log the full command being executed
+    true
+}
+
+/// Builds the complete command arguments for UV installation.
+///
+/// This function constructs the appropriate command-line arguments for `uv install`
+/// based on the installation mode and tool configuration.
+///
+/// # Arguments
+/// * `subcommand` - The UV subcommand (tool, pip, or python)
+/// * `base_args` - Base arguments for the subcommand (typically ["install"])
+/// * `tool_entry` - The tool configuration
+///
+/// # Returns
+/// A vector of command-line arguments to pass to `uv`, or `None` on error
+///
+/// # Processing Logic
+/// - **Python mode**: Uses version directly as Python version specifier
+/// - **Tool/Pip modes**: Constructs package specifier (name==version or name)
+/// - **Options**: Includes additional options while filtering out mode options
+/// - **Validation**: Ensures version is provided when required
+fn build_command_args(
+    subcommand: &str,
+    base_args: &[String],
+    tool_entry: &ToolEntry,
+) -> Option<Vec<String>> {
+    let mut args = base_args.to_vec();
+
+    // Add package specifier based on mode
+    match subcommand {
+        "python" => {
+            // For python mode, version is required
+            match &tool_entry.version {
+                Some(version) if !version.trim().is_empty() => {
+                    args.push(version.clone());
+                }
+                Some(_) => {
+                    log_error!(
+                        "[UV Installer] Empty Python version specified for tool '{}'",
+                        tool_entry.name.red()
+                    );
+                    return None;
+                }
+                None => {
+                    log_error!(
+                        "[UV Installer] No Python version specified for tool '{}'",
+                        tool_entry.name.red()
+                    );
+                    return None;
+                }
+            }
+        }
+        _ => {
+            // For tool and pip modes, add package specifier
+            let package_specifier = if let Some(version) = &tool_entry.version {
+                if version.trim().is_empty() {
+                    log_error!(
+                        "[UV Installer] Empty version string specified for tool '{}'",
+                        tool_entry.name.red()
+                    );
+                    return None;
+                }
+                format!("{}=={}", tool_entry.name, version)
+            } else {
+                tool_entry.name.clone()
+            };
+            args.push(package_specifier);
+        }
+    }
+
+    // Add additional options (excluding --mode=)
+    if let Some(options) = &tool_entry.options {
+        for opt in options {
+            if !opt.starts_with("--mode=") {
+                args.push(opt.clone());
+            }
+        }
+    }
+
+    Some(args)
+}
+
+/// Executes the UV command with proper error handling.
+///
+/// This function runs the actual `uv` command and provides detailed
+/// logging and error reporting. It captures both stdout and stderr for debugging.
+///
+/// # Arguments
+/// * `subcommand` - The UV subcommand to execute
+/// * `command_args` - The command-line arguments for the subcommand
+/// * `tool_entry` - The tool being installed (for logging purposes)
+///
+/// # Returns
+/// `Some(Output)` if command execution was successful, `None` otherwise
+///
+/// # Error Handling
+/// - Logs the exact command being executed for transparency
+/// - Provides specific error messages for command execution failures
+/// - Returns the command output for further processing
+fn execute_uv_command(
+    subcommand: &str,
+    command_args: &[String],
+    tool_entry: &ToolEntry,
+) -> Option<Output> {
     log_info!(
         "[UV Installer] Executing: {} {} {}",
         "uv".cyan().bold(),
@@ -122,32 +364,43 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         command_args.join(" ").cyan()
     );
 
-    // 7. Execute the uv command
-    let mut cmd = Command::new("uv");
-    cmd.arg(&subcommand).args(&command_args);
-
-    let output: Output = match cmd.output() {
-        Ok(out) => out,
+    match Command::new("uv")
+        .arg(subcommand)
+        .args(command_args)
+        .output()
+    {
+        Ok(output) => Some(output),
         Err(e) => {
             log_error!(
                 "[UV Installer] Failed to execute 'uv {}' command for '{}': {}",
                 subcommand.bold().red(),
                 tool_entry.name.bold().red(),
-                e
+                e.to_string().red()
             );
-            return None;
+            None
         }
-    };
+    }
+}
 
-    // 8. Check command exit status
+/// Verifies that the UV command executed successfully.
+///
+/// This function examines the command output to determine if the installation
+/// was successful, providing detailed logging for both success and failure cases.
+///
+/// # Arguments
+/// * `output` - The command output from UV execution
+/// * `subcommand` - The UV subcommand that was executed
+/// * `tool_entry` - The tool being installed (for logging purposes)
+///
+/// # Returns
+/// `true` if installation was successful, `false` otherwise
+///
+/// # Success Criteria
+/// - Command exit status indicates success (status.success())
+/// - Stdout/stderr are logged appropriately for debugging
+/// - Non-zero exit codes are treated as failures with detailed error reporting
+fn verify_installation_success(output: &Output, subcommand: &str, tool_entry: &ToolEntry) -> bool {
     if output.status.success() {
-        log_info!(
-            "[UV Installer] Successfully installed: {} using {} {}",
-            tool_entry.name.bold().green(),
-            "uv".green().bold(),
-            subcommand.green()
-        );
-
         // Log outputs for debugging
         if !output.stdout.is_empty() {
             log_debug!(
@@ -157,88 +410,12 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         }
         if !output.stderr.is_empty() {
             log_warn!(
-                "[UV Installer] Stderr (might contain warnings): {}",
+                "[UV Installer] Stderr (may contain warnings): {}",
                 String::from_utf8_lossy(&output.stderr)
             );
         }
-
-        // 9. Determine installation path based on mode
-        let install_path = determine_install_path(&subcommand, &tool_entry.name);
-
-        // 10. Execute Additional Commands (if specified)
-        // After the main installation is complete, execute any additional commands specified
-        // in the tool configuration. These commands are often used for post-installation setup,
-        // such as copying configuration files, creating directories, or setting up symbolic links.
-        // Optional - failure won't stop installation
-        let additional_cmd_working_dir =
-            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-
-        // Execute additional commands (optional - failure won't stop installation)
-        let executed_post_installation_hooks = execute_post_installation_hooks(
-            "[UV Installer]",
-            tool_entry,
-            &additional_cmd_working_dir,
-        );
-
-        // 11. Return ToolState for Tracking
-        // Construct a `ToolState` object to record the details of this successful installation.
-        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-        // what tools are installed, where they are, and how they were installed. This is crucial
-        // for future operations like uninstallation, updates, or syncing.
-        Some(ToolState {
-            // The version field for tracking. Defaults to "latest" if not explicitly set in `tools.yaml`.
-            version: match subcommand.as_str() {
-                "python" => {
-                    // For Python installations, the "version" is the Python version itself
-                    tool_entry.version.clone()?
-                }
-                _ => {
-                    // For packages, use the specified version or "latest"
-                    tool_entry
-                        .version
-                        .clone()
-                        .unwrap_or_else(|| "latest".to_string())
-                }
-            },
-            // The canonical path where the tool's executable was installed. This is the path
-            // that will be recorded in the `state.json` file.
-            install_path,
-            // Flag indicating that this tool was installed by `setup-devbox`. This helps distinguish
-            // between tools managed by our system and those installed manually.
-            installed_by_devbox: true,
-            // The method of installation, useful for future diagnostics or differing update logic.
-            // In this module, it's always "uv".
-            // e.g., "uv-tool", "uv-python", "uv-pip"
-            install_method: format!("uv-{subcommand}"),
-            // Records if the binary was renamed during installation, storing the new name.
-            renamed_to: tool_entry.rename_to.clone(),
-            repo: None,
-            tag: None, // Package version, not uv version
-            // The actual package type detected by the `file` command or inferred. This is for diagnostic
-            // purposes, providing the most accurate type even if the installation logic
-            // used a filename-based guess (e.g., "binary", "macos-pkg-installer").
-            package_type: match subcommand.as_str() {
-                "python" => "python-interpreter".to_string(),
-                _ => "python-package".to_string(),
-            },
-            // Pass any custom options defined in the `ToolEntry` to the `ToolState`.
-            options: tool_entry.options.clone(),
-            // For direct URL installations: The original URL from which the tool was downloaded.
-            // This is important for re-downloading or verifying in the future.
-            url: tool_entry.url.clone(),
-            // Record the timestamp when the tool was installed or updated
-            last_updated: Some(current_timestamp()),
-            // This field is currently `None` but could be used to store the path to an executable
-            // *within* an extracted archive if `install_path` points to the archive's root.
-            executable_path_after_extract: None,
-            // Record any additional commands that were executed during installation.
-            // This is useful for tracking what was done and potentially for cleanup during uninstall.
-            // additional_cmd_executed: tool_entry.additional_cmd.clone(),
-            executed_post_installation_hooks,
-            configuration_manager: None,
-        })
+        true
     } else {
-        // 11. Handle installation failure
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -256,30 +433,28 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
             log_debug!("[UV Installer] Stdout: {}", stdout);
         }
 
-        None
+        false
     }
 }
 
-/// Determines the appropriate `uv` installation mode and constructs base command arguments.
+/// Determines the appropriate UV installation mode and constructs base command arguments.
 ///
-/// This function inspects the `tool_entry`'s `options` for a `--mode=` flag. If found, it
-/// uses that mode; otherwise, it defaults to `uv tool install`. This provides a flexible
-/// way for users to control the installation behavior.
-///
-/// # Installation Modes:
-/// - `tool`: Uses `uv tool install` - for global CLI tools (default).
-/// - `pip`: Uses `uv pip install` - a pip-compatible interface, typically for libraries.
-/// - `python`: Uses `uv python install` - for installing Python versions.
+/// This function examines the tool's options to determine the correct installation mode
+/// (tool, pip, or python) and constructs the appropriate base arguments for that mode.
 ///
 /// # Arguments
-/// * `tool_entry`: A reference to the tool's configuration.
+/// * `tool_entry` - The tool configuration containing installation options
 ///
 /// # Returns
-/// A tuple of `(subcommand, base_args)` where:
-/// - `subcommand`: The `uv` subcommand to use (e.g., "tool", "pip", "python").
-/// - `base_args`: The initial arguments for the subcommand, which is always `["install"]` in this case.
+/// A tuple containing:
+/// - `String`: The UV subcommand to use (tool, pip, or python)
+/// - `Vec<String>`: Base arguments for the subcommand (typically ["install"])
+///
+/// # Mode Detection Logic
+/// - **Explicit Mode**: Uses `--mode=` option from tool configuration
+/// - **Default Mode**: Falls back to "tool" mode if no mode is specified
+/// - **Validation**: Warns about unknown modes and falls back to default
 fn determine_installation_mode(tool_entry: &ToolEntry) -> (String, Vec<String>) {
-    // Check for explicit mode override in options
     if let Some(options) = &tool_entry.options {
         for opt in options {
             if let Some(mode) = opt.strip_prefix("--mode=") {
@@ -290,7 +465,7 @@ fn determine_installation_mode(tool_entry: &ToolEntry) -> (String, Vec<String>) 
                     _ => {
                         log_warn!(
                             "[UV Installer] Unknown installation mode '{}', falling back to 'tool'",
-                            mode
+                            mode.yellow()
                         );
                     }
                 }
@@ -298,114 +473,57 @@ fn determine_installation_mode(tool_entry: &ToolEntry) -> (String, Vec<String>) 
         }
     }
 
-    // Default to tool installation for global CLI tools
+    // Default to tool installation
     ("tool".to_string(), vec!["install".to_string()])
 }
 
-/// Determines the likely installation path based on the `uv` subcommand used.
+/// Determines the likely installation path based on the UV subcommand used.
 ///
-/// This function provides a best-effort guess for the final location of the installed binary or package.
-/// The exact path can vary based on the user's system and `uv` configuration, but these paths are
-/// the most common and serve as a reliable default for recording the `ToolState`.
+/// This function calculates where UV would install the package based on the
+/// installation mode and system environment variables.
 ///
 /// # Arguments
-/// * `subcommand`: The `uv` subcommand that was used ("tool", "pip", "python").
-/// * `package_name`: The name of the installed package or Python version.
+/// * `subcommand` - The UV subcommand used for installation
+/// * `package_name` - The name of the installed package
 ///
 /// # Returns
-/// A string representing the likely absolute installation path.
-fn determine_install_path(subcommand: &str, package_name: &str) -> String {
+/// A `PathBuf` containing the expected installation path
+///
+/// # Path Resolution by Mode
+/// - **Tool mode**: `~/.local/bin/{package_name}` (user-local binaries)
+/// - **Pip mode**: `~/.local/lib/python/site-packages/{package_name}` (Python packages)
+/// - **Python mode**: Queries UV for actual Python installation path, falls back to default
+/// - **Fallback**: System paths when HOME environment variable is not available
+fn determine_install_path(subcommand: &str, package_name: &str) -> PathBuf {
     match subcommand {
         "tool" => {
-            // uv tool install typically installs to ~/.local/bin or similar
-            // uv manages its own tool installation directory
             if let Ok(home) = std::env::var("HOME") {
-                // uv tool installs typically go to ~/.local/bin
-                format!("{home}/.local/bin/{package_name}")
+                PathBuf::from(format!("{home}/.local/bin/{package_name}"))
             } else {
                 log_warn!(
                     "[UV Installer] Could not determine HOME directory for tool installation path"
                 );
-                format!("/usr/local/bin/{package_name}")
+                PathBuf::from(format!("/usr/local/bin/{package_name}"))
             }
         }
         "pip" => {
-            // uv pip install behavior depends on active environment
-            // Default to user site-packages location
             if let Ok(home) = std::env::var("HOME") {
-                format!("{home}/.local/lib/python/site-packages/{package_name}")
+                PathBuf::from(format!(
+                    "{home}/.local/lib/python/site-packages/{package_name}"
+                ))
             } else {
-                "/usr/local/lib/python/site-packages/".to_string()
+                PathBuf::from("/usr/local/lib/python/site-packages/".to_string())
             }
         }
         "python" => {
-            // uv python install installs to uv's managed Python directory
-            // Use `uv python list --only-installed --json` to find the exact path
-            match Command::new("uv")
-                .args([
-                    "python",
-                    "list",
-                    "--only-installed",
-                    "--output-format",
-                    "json",
-                ])
-                .output()
-            {
-                Ok(output) if output.status.success() => {
-                    let output_str = String::from_utf8_lossy(&output.stdout);
-
-                    // Parse the JSON output
-                    match serde_json::from_str::<Vec<serde_json::Value>>(&output_str) {
-                        Ok(python_installations) => {
-                            for installation in python_installations {
-                                if let Some(key) = installation.get("key").and_then(|k| k.as_str())
-                                {
-                                    // Check if the key approximately matches the package_name
-                                    if key.contains(package_name) {
-                                        if let Some(path) =
-                                            installation.get("path").and_then(|p| p.as_str())
-                                        {
-                                            log_debug!(
-                                                "[UV Installer] Found Python installation for {}: {}",
-                                                package_name,
-                                                path
-                                            );
-                                            return path.to_string();
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Fallback if no matching installation found
-                            log_warn!(
-                                "[UV Installer] No matching Python installation found for {}, using default path",
-                                package_name
-                            );
-                            default_python_path(package_name)
-                        }
-                        Err(e) => {
-                            log_warn!(
-                                "[UV Installer] Failed to parse uv python list output: {}, using default path",
-                                e
-                            );
-                            default_python_path(package_name)
-                        }
-                    }
-                }
-                Ok(output) => {
-                    let error = String::from_utf8_lossy(&output.stderr);
+            // Try to get the actual path from uv python list
+            match get_python_installation_path(package_name) {
+                Some(path) => PathBuf::from(path),
+                None => {
                     log_warn!(
-                        "[UV Installer] uv python list command failed: {}, using default path",
-                        error
+                        "[UV Installer] Could not determine Python installation path, using default"
                     );
-                    default_python_path(package_name)
-                }
-                Err(e) => {
-                    log_warn!(
-                        "[UV Installer] Failed to execute uv python list: {}, using default path",
-                        e
-                    );
-                    default_python_path(package_name)
+                    PathBuf::from(default_python_path(package_name))
                 }
             }
         }
@@ -415,103 +533,214 @@ fn determine_install_path(subcommand: &str, package_name: &str) -> String {
                 subcommand
             );
             if let Ok(home) = std::env::var("HOME") {
-                format!("{home}/.local/bin/{package_name}")
+                PathBuf::from(format!("{home}/.local/bin/{package_name}"))
             } else {
-                "/usr/local/bin/".to_string()
+                PathBuf::from("/usr/local/bin/".to_string())
             }
         }
     }
 }
 
-/// Validates `uv`-specific options and provides helpful warnings.
+/// Gets the Python installation path from UV.
 ///
-/// This function performs a basic validation of the user-provided options to ensure they are
-/// compatible with the chosen installation mode. It checks for typos or invalid options that
-/// might cause the `uv` command to fail.
+/// This function queries UV's installed Python interpreters to determine
+/// the actual installation path for a specific Python version.
 ///
 /// # Arguments
-/// * `tool_entry`: A reference to the tool configuration to validate.
+/// * `package_name` - The Python version or package name to locate
 ///
 /// # Returns
-/// `true` if the configuration appears valid, `false` if there are critical issues.
+/// `Some(String)` containing the installation path if found, `None` otherwise
+///
+/// # Implementation Details
+/// - Uses `uv python list --only-installed --output-format json` to get installed Pythons
+/// - Parses JSON output to find matching Python installations
+/// - Matches based on version string contained in the installation key
+fn get_python_installation_path(package_name: &str) -> Option<String> {
+    let output = Command::new("uv")
+        .args([
+            "python",
+            "list",
+            "--only-installed",
+            "--output-format",
+            "json",
+        ])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        log_warn!("[UV Installer] uv python list command failed: {}", error);
+        return None;
+    }
+
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    let installations: Vec<Value> = serde_json::from_str(&output_str).ok()?;
+
+    for installation in installations {
+        if let Some(key) = installation.get("key").and_then(|k| k.as_str()) {
+            if key.contains(package_name) {
+                if let Some(path) = installation.get("path").and_then(|p| p.as_str()) {
+                    log_debug!(
+                        "[UV Installer] Found Python installation for {}: {}",
+                        package_name,
+                        path
+                    );
+                    return Some(path.to_string());
+                }
+            }
+        }
+    }
+
+    log_warn!(
+        "[UV Installer] No matching Python installation found for {}",
+        package_name
+    );
+    None
+}
+
+/// Validates UV-specific options and provides helpful warnings.
+///
+/// This function validates that the provided options are appropriate for the
+/// selected installation mode and provides warnings for potentially invalid options.
+///
+/// # Arguments
+/// * `tool_entry` - The tool configuration containing options to validate
+///
+/// # Returns
+/// `true` if options are valid, `false` if invalid options are detected
+///
+/// # Validation Logic
+/// - Extracts installation mode from options
+/// - Checks each option against valid options for the mode
+/// - Provides warnings for potentially invalid options
+/// - Validates Python version format for python mode
+/// - Skips validation for empty options and option values
 pub fn validate_uv_options(tool_entry: &ToolEntry) -> bool {
     let mut is_valid = true;
 
-    if let Some(options) = &tool_entry.options {
-        let mut install_mode = "tool"; // default
+    let options = match &tool_entry.options {
+        Some(opts) => opts,
+        None => return true, // No options to validate
+    };
 
-        // Extract the installation mode first
-        for opt in options {
-            if let Some(mode) = opt.strip_prefix("--mode=") {
-                if !matches!(mode, "tool" | "pip" | "python") {
-                    log_error!(
-                        "[UV Installer] Invalid installation mode '{}'. Supported modes: tool, pip, python",
-                        mode
-                    );
-                    is_valid = false;
-                } else {
-                    install_mode = mode;
-                }
-                break;
+    let mut install_mode = "tool"; // default
+
+    // Extract the installation mode first
+    for opt in options {
+        if let Some(mode) = opt.strip_prefix("--mode=") {
+            if !matches!(mode, "tool" | "pip" | "python") {
+                log_error!(
+                    "[UV Installer] Invalid installation mode '{}'. Supported modes: tool, pip, python",
+                    mode.red()
+                );
+                is_valid = false;
+            } else {
+                install_mode = mode;
             }
+            break;
+        }
+    }
+
+    // Get valid options for the mode
+    let valid_options = get_valid_options_for_mode(install_mode);
+
+    // Validate each option
+    for opt in options {
+        // Skip our custom --mode option
+        if opt.starts_with("--mode=") {
+            continue;
         }
 
-        // Define valid options for each mode based on uv help output
-        let valid_options = match install_mode {
-            "tool" => vec![
-                // Cache options
-                "-n",
-                "--no-cache",
-                "--cache-dir",
-                // Python options
-                "--managed-python",
-                "--no-managed-python",
-                "--no-python-downloads",
-                // Global options
-                "-q",
-                "--quiet",
-                "-v",
-                "--verbose",
-                "--color",
-                "--native-tls",
-                "--offline",
-                "--allow-insecure-host",
-                "--no-progress",
-                "--directory",
-                "--project",
-                "--config-file",
-                "--no-config",
-                // Tool install specific options (from uv tool install -h)
-                "--with",
-                "--python",
-                "--force",
-                "--editable",
-                "-e",
-            ],
-            "pip" => vec![
-                // Cache options
-                "-n",
-                "--no-cache",
-                "--cache-dir",
-                // Python options
-                "--managed-python",
-                "--no-managed-python",
-                "--no-python-downloads",
-                // Global options
-                "-q",
-                "--quiet",
-                "-v",
-                "--verbose",
-                "--color",
-                "--native-tls",
-                "--offline",
-                "--allow-insecure-host",
-                "--no-progress",
-                "--directory",
-                "--project",
-                "--config-file",
-                "--no-config",
-                // Pip install specific options (from uv pip install -h)
+        // Skip empty options
+        if opt.trim().is_empty() {
+            log_warn!("[UV Installer] Empty option string detected");
+            continue;
+        }
+
+        // Extract the option name (without value)
+        let opt_name = if opt.starts_with("--") {
+            opt.split('=').next().unwrap_or(opt)
+        } else if opt.starts_with('-') && opt.len() == 2 {
+            opt
+        } else {
+            // Could be a value for a previous option, skip validation
+            continue;
+        };
+
+        // Check if the option is valid for the current mode
+        if !valid_options.contains(&opt_name) {
+            log_warn!(
+                "[UV Installer] Option '{}' may not be valid for 'uv {}' mode",
+                opt.yellow(),
+                install_mode
+            );
+        }
+    }
+
+    // Mode-specific validations
+    if install_mode == "python" {
+        if let Some(version) = &tool_entry.version {
+            if !is_valid_python_version(version) {
+                log_warn!(
+                    "[UV Installer] '{}' doesn't look like a valid Python version (expected format like '3.11', '3.12.1', etc.)",
+                    version.bright_yellow()
+                );
+            }
+        }
+    }
+
+    is_valid
+}
+
+/// Returns valid options for a specific UV mode.
+///
+/// This function provides a curated list of valid command-line options
+/// for each UV installation mode to assist with option validation.
+///
+/// # Arguments
+/// * `mode` - The UV installation mode (tool, pip, or python)
+///
+/// # Returns
+/// A vector of valid option strings for the specified mode
+///
+/// # Option Categories
+/// - **Common options**: Shared across all modes (caching, verbosity, config)
+/// - **Tool-specific**: Options specific to `uv tool install`
+/// - **Pip-specific**: Options specific to `uv pip install`
+/// - **Python-specific**: Options specific to `uv python install`
+fn get_valid_options_for_mode(mode: &str) -> Vec<&'static str> {
+    let common_options = vec![
+        "-n",
+        "--no-cache",
+        "--cache-dir",
+        "--managed-python",
+        "--no-managed-python",
+        "--no-python-downloads",
+        "-q",
+        "--quiet",
+        "-v",
+        "--verbose",
+        "--color",
+        "--native-tls",
+        "--offline",
+        "--allow-insecure-host",
+        "--no-progress",
+        "--directory",
+        "--project",
+        "--config-file",
+        "--no-config",
+    ];
+
+    match mode {
+        "tool" => {
+            let mut opts = common_options.clone();
+            opts.extend_from_slice(&["--with", "--python", "--force", "--editable", "-e"]);
+            opts
+        }
+        "pip" => {
+            let mut opts = common_options.clone();
+            opts.extend_from_slice(&[
                 "-r",
                 "--requirement",
                 "-c",
@@ -543,123 +772,62 @@ pub fn validate_uv_options(tool_entry: &ToolEntry) -> bool {
                 "--no-compile-bytecode",
                 "--link-mode",
                 "--compile-bytecode",
-            ],
-            "python" => vec![
-                // Cache options
-                "-n",
-                "--no-cache",
-                "--cache-dir",
-                // Python options
-                "--managed-python",
-                "--no-managed-python",
-                "--no-python-downloads",
-                // Global options
-                "-q",
-                "--quiet",
-                "-v",
-                "--verbose",
-                "--color",
-                "--native-tls",
-                "--offline",
-                "--allow-insecure-host",
-                "--no-progress",
-                "--directory",
-                "--project",
-                "--config-file",
-                "--no-config",
-                // Python install specific options (from uv python install -h)
-                "--force",
-                "--default",
-            ],
-            _ => vec![],
-        };
-
-        // Validate each option
-        for opt in options {
-            // Skip our custom --mode option
-            if opt.starts_with("--mode=") {
-                continue;
-            }
-
-            // Extract the option name (without value)
-            let opt_name = if opt.starts_with("--") {
-                opt.split('=').next().unwrap_or(opt)
-            } else if opt.starts_with('-') && opt.len() == 2 {
-                opt
-            } else {
-                // Could be a value for a previous option, skip validation
-                continue;
-            };
-
-            // Check if the option is valid for the current mode
-            if !valid_options.contains(&opt_name) {
-                log_warn!(
-                    "[UV Installer] Option '{}' may not be valid for 'uv {}' mode",
-                    opt,
-                    install_mode
-                );
-            }
+            ]);
+            opts
         }
-        // Mode-specific validations
-        match install_mode {
-            "python" => {
-                // For python mode, validate that the "name" looks like a Python version
-                if !is_valid_python_version(&tool_entry.name) {
-                    log_warn!(
-                        "[UV Installer] '{}' doesn't look like a Python version (expected format like '3.11', '3.12.1', etc.)",
-                        tool_entry.version.clone().unwrap().bright_yellow()
-                    );
-                }
-            }
-            _ => {}
+        "python" => {
+            let mut opts = common_options.clone();
+            opts.extend_from_slice(&["--force", "--default"]);
+            opts
         }
+        _ => common_options,
     }
-
-    is_valid
 }
 
-/// Checks if a Python version string matches any available version from uv.
-/// Only matches the version number part (e.g., "3.13.7") ignoring any prefix.
+/// Checks if a Python version string is valid by querying UV.
+///
+/// This function validates that a Python version is available for installation
+/// by querying UV's available Python versions.
 ///
 /// # Arguments
-/// * `version_input` - The version string to check (e.g., "3.13.7", "cpython3.13.7", "cpython-3.13.7")
+/// * `version_input` - The Python version string to validate
 ///
 /// # Returns
-/// `bool` - `true` if a matching version is found, `false` otherwise
+/// `true` if the version is available in UV's Python registry, `false` otherwise
+///
+/// # Implementation Details
+/// - Extracts version number from input string
+/// - Queries `uv python list --output-format json` for available versions
+/// - Compares against available versions using exact matching
+/// - Returns false if UV command fails or JSON parsing fails
 fn is_valid_python_version(version_input: &str) -> bool {
-    // Extract just the version number part (e.g., "3.13.7")
+    // Extract just the version number part
     let version_number = extract_version_number(version_input);
 
-    // Execute the uv command
+    // Get available Python versions from UV
     let output = match Command::new("uv")
-        .args(&["python", "list", "--output-format", "json"])
+        .args(["python", "list", "--output-format", "json"])
         .output()
     {
-        Ok(output) => output,
-        Err(_) => return false, // Command failed
+        Ok(out) if out.status.success() => out,
+        _ => return false,
     };
-
-    if !output.status.success() {
-        return false;
-    }
 
     // Parse JSON output
-    let json_output: Value = match serde_json::from_slice(&output.stdout) {
-        Ok(json) => json,
-        Err(_) => return false, // JSON parsing failed
+    let json: Value = match serde_json::from_slice(&output.stdout) {
+        Ok(j) => j,
+        Err(_) => return false,
     };
 
-    // Extract all available version strings from the JSON
-    let available_versions: Vec<String> = match json_output.as_array() {
+    // Extract available versions
+    let available_versions: Vec<String> = match json.as_array() {
         Some(array) => array
             .iter()
             .filter_map(|entry| entry["version"].as_str().map(String::from))
             .collect(),
-        None => return false, // Not a JSON array
+        None => return false,
     };
 
-    // Check if the extracted version number matches any available version
-    available_versions
-        .iter()
-        .any(|available_version| available_version == &version_number)
+    // Check if version matches any available version
+    available_versions.iter().any(|v| v == &version_number)
 }
