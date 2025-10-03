@@ -220,7 +220,7 @@ pub fn resolve_paths(
 
     // Log the final, resolved paths
     log_info!(
-        "Using configuration file: {}",
+        "[SDB] Using configuration file: {}",
         config_path_resolved.display().to_string().cyan()
     );
     log_debug!(

@@ -252,7 +252,7 @@ pub struct ToolConfig {
 ///     enabled: true
 ///     tools_configuration_path: "~/.config/helix/config.toml"
 /// ```
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct ToolEntry {
     /// Unique identifier for the tool.
     ///

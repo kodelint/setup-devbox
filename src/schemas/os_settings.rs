@@ -165,7 +165,7 @@ pub struct OsSpecificSettings {
 ///       value: "true"
 ///       type: bool
 /// ```
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct SettingEntry {
     /// The setting's domain (e.g., "com.apple.finder" for Finder preferences).
     ///

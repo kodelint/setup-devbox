@@ -307,7 +307,13 @@ fn copy_non_hidden_font_files(
 
         // Apply `install_only` filter if specified.
         if let Some(filters) = install_only {
-            if !filters.iter().any(|filter| filename.contains(filter)) {
+            let lower_filename = filename.to_lowercase(); // Convert filename to lowercase once
+
+            if !filters
+                .iter()
+                .any(|filter| lower_filename.contains(&filter.to_lowercase()))
+            {
+                // Compare against lowercase filter
                 log_debug!(
                     "[Font Copy] Skipping font file '{}' as it does not match 'install_only' filters ({:#?}).",
                     filename.blue(),

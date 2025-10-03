@@ -5,6 +5,7 @@
 //! The module is structured to dispatch the help command based on user-provided topics,
 //! and it includes functions for generating formatted, colored output for the terminal.
 
+use crate::help_details::add_help;
 use crate::help_details::edit_help::show_edit_help;
 use crate::help_details::generate_help::show_generate_help;
 use crate::help_details::installers_help::{add_supported_installers, show_installers_help};
@@ -27,6 +28,7 @@ use std::fmt::Write;
 ///   `installers` topic.
 pub fn run(topic: Option<String>, detailed: bool, filter: Option<String>) {
     match topic.as_deref() {
+        Some("add") => add_help::show_add_help(detailed),
         Some("edit") => show_edit_help(detailed),
         Some("generate") => show_generate_help(detailed),
         Some("installers") => show_installers_help(detailed, filter),
@@ -57,10 +59,11 @@ fn show_unknown_topic_error(topic: &str) {
     println!("\n{}", "Available help topics:".bold().yellow());
 
     // A constant array to store available topics and their short descriptions.
-    const TOPICS: [(&str, &str); 5] = [
+    const TOPICS: [(&str, &str); 6] = [
+        ("add", "Show help for the 'add' command"),
+        ("generate", "Show help for the 'generate' command"),
         ("installers", "Show all supported installers"),
         ("now", "Show help for the 'now' command"),
-        ("generate", "Show help for the 'generate' command"),
         ("sync-config", "Show help for the 'sync-config' command"),
         ("version", "Show help for the 'version' command"),
     ];
@@ -194,16 +197,17 @@ fn add_usage_info(output: &mut String) {
     writeln!(output, "{}", "Available Commands:".bold().yellow()).unwrap();
     // A constant array for commands and their descriptions.
     let commands = [
-        ("version", "Show the current Version of the tool"),
+        ("add", "Add tool, font, setting or alias"),
+        ("generate", "Generates default configuration files"),
         (
             "now",
             "Installs and Configures Tools, Fonts, OS Settings and Shell Configs",
         ),
-        ("generate", "Generates default configuration files"),
         (
             "sync-config",
             "Synchronizes or generates configurations from a state file",
         ),
+        ("version", "Show the current Version of the tool"),
         ("help", "Show detailed help for commands and installers"),
     ];
 
@@ -280,14 +284,21 @@ fn add_detailed_help_info(output: &mut String) {
     // List available help topics with descriptions.
     writeln!(output, "{}", "Available Help Topics:".bold().white()).unwrap();
     let topics = [
+        ("add", "Show help for command 'add'"),
         (
             "installers",
             "Show all supported installers and their details",
         ),
-        ("now", "Show detailed help for installation command"),
-        ("generate", "Show help for configuration generation"),
-        ("sync-config", "Show help for configuration synchronization"),
-        ("version", "Show version information"),
+        ("now", "Show detailed help for installation command 'now'"),
+        (
+            "generate",
+            "Show help for configuration generation command 'generate'",
+        ),
+        (
+            "sync-config",
+            "Show help for configuration synchronization command 'sync-config'",
+        ),
+        ("version", "Show version command 'version'"),
     ];
 
     // Find the longest topic name for padding
