@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2025-10-03
+
+### 🔧 Build System
+
+- Added a makefile for easier build ([e3101f3](https://github.com/kodelint/setup-devbox/commit/e3101f307187d5d0035b385c3102bbd23535559d))(by kodelint)
+
+### 🚀 Features
+
+- Added a new command `add` ([8515edc](https://github.com/kodelint/setup-devbox/commit/8515edcc9582d3114fcdd547490d0113114b95b1))(by kodelint)
+
 ## [0.3.2] - 2025-09-30
 
 ### Fix
@@ -15,6 +25,7 @@ All notable changes to this project will be documented in this file.
 ### 🏠 Miscellaneous Tasks
 
 - Fixed formatting ([6ea36f6](https://github.com/kodelint/setup-devbox/commit/6ea36f6cf066d866ae4fc2ffca5fa19e8fcdb4f2))(by kodelint)
+- **release**: 0.3.2 [skip ci] ([57827f5](https://github.com/kodelint/setup-devbox/commit/57827f54b6f3f91e14eae05994ca49d2ca58c199))(by kodelint)
 
 ### 🐛 Bug Fixes
 
