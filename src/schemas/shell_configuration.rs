@@ -332,7 +332,7 @@ pub enum ConfigSection {
 /// Defines a shell alias that maps a short, memorable name to a longer
 /// or more complex command, improving shell productivity and reducing
 /// typing effort for frequently used commands.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct AliasEntry {
     /// The alias name (what the user types in the shell).
     pub name: String,

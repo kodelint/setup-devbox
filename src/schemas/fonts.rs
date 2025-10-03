@@ -104,7 +104,7 @@ pub struct FontConfig {
 /// ## Font Identification
 /// The `name` field serves as the primary identifier for the font family
 /// and is used for state tracking, conflict detection, and display purposes.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct FontEntry {
     /// Name of the font (for identification and state tracking).
     ///

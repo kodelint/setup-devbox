@@ -53,7 +53,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
                 match serde_json::from_str(&contents) {
                     Ok(parsed_state) => {
                         log_info!(
-                            "Using state file: {}",
+                            "[SDB] Using state file: {}",
                             state_path_resolved.display().to_string().cyan()
                         ); // Informative log about using existing state file.
                         log_debug!(
