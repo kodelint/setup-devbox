@@ -1,12 +1,11 @@
 // This file handles the generation of default configuration files for `setup-devbox`.
 // It provides initial, sensible config templates for new users or for resetting configurations.
 
-use crate::libs::utilities::misc_utils::expand_tilde; // Helper to expand '~' in paths.
 use crate::{log_debug, log_error, log_info}; // Custom logging macros.
 use colored::Colorize; // For colored console output.
 use std::fs; // File system operations (create directories, create files).
 use std::io::Write; // Trait for writing data to files.
-use std::path::Path; // Type for working with file paths.
+use std::path::{Path, PathBuf}; // Type for working with file paths.
 
 // Constants defining standard filenames for generated configuration files.
 const TOOLS_FILE: &str = "tools.yaml";
@@ -163,27 +162,23 @@ fonts: $HOME/.setup-devbox/configs/fonts.yaml       # Tells devbox where to find
 /// # Arguments
 /// * `config_dir`: Optional custom directory for config files. Defaults to `~/.setup-devbox/configs/`.
 /// * `_state_path`: Unused parameter for future state file path specification.
-pub fn run(config_dir: Option<String>, _state_path: Option<String>) {
+pub fn run(config_dir: PathBuf, _state_path: PathBuf) {
     log_debug!(
         "[Generate] Starting generation with config_dir: {}",
-        config_dir.as_deref().unwrap_or("None")
+        config_dir.display().to_string().cyan()
     );
-
-    // Resolve the base directory for config generation.
-    let base_dir = config_dir.as_deref().unwrap_or("~/.setup-devbox/configs/");
-    let base_dir = expand_tilde(base_dir);
 
     log_info!(
         "[Generate] Using config directory: {}",
-        base_dir.to_string_lossy().green()
+        config_dir.to_string_lossy().green()
     );
 
     // Create the base configuration directory if it does not exist.
-    if !base_dir.exists() {
-        match fs::create_dir_all(&base_dir) {
+    if !config_dir.exists() {
+        match fs::create_dir_all(&config_dir) {
             Ok(_) => log_info!(
                 "[Generate] Created config directory {}",
-                base_dir.to_string_lossy().green()
+                config_dir.to_string_lossy().green()
             ),
             Err(e) => {
                 log_error!("[Generate] Failed to create config directory: {}", e);
@@ -193,13 +188,13 @@ pub fn run(config_dir: Option<String>, _state_path: Option<String>) {
     }
 
     // Generate individual configuration files from templates.
-    generate_file(&base_dir, TOOLS_FILE, TOOLS_TEMPLATE);
-    generate_file(&base_dir, SETTINGS_FILE, SETTINGS_TEMPLATE);
-    generate_file(&base_dir, SHELLRC_FILE, SHELLRC_TEMPLATE);
-    generate_file(&base_dir, FONTS_FILE, FONTS_TEMPLATE);
+    generate_file(&config_dir, TOOLS_FILE, TOOLS_TEMPLATE);
+    generate_file(&config_dir, SETTINGS_FILE, SETTINGS_TEMPLATE);
+    generate_file(&config_dir, SHELLRC_FILE, SHELLRC_TEMPLATE);
+    generate_file(&config_dir, FONTS_FILE, FONTS_TEMPLATE);
 
     // Generate the main `config.yaml` last, as it references the other files.
-    generate_file(&base_dir, CONFIG_FILE, CONFIG_TEMPLATE);
+    generate_file(&config_dir, CONFIG_FILE, CONFIG_TEMPLATE);
 
     log_info!("[Generate] All requested config files processed.");
 }
@@ -211,8 +206,8 @@ pub fn run(config_dir: Option<String>, _state_path: Option<String>) {
 /// * `base_dir`: The target base directory.
 /// * `filename`: The name of the file to create.
 /// * `content`: The template content to write.
-fn generate_file(base_dir: &Path, filename: &str, content: &str) {
-    let file_path = base_dir.join(filename);
+fn generate_file(config_dir: &Path, filename: &str, content: &str) {
+    let file_path = config_dir.join(filename);
 
     // Skip file creation if it already exists to preserve user modifications.
     if file_path.exists() {

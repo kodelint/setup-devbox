@@ -35,7 +35,6 @@
 //! - **Error**: Installation failures with specific error codes and messages
 
 use crate::libs::tool_installer::execute_post_installation_hooks;
-use crate::libs::utilities::misc_utils::{default_python_path, extract_version_number};
 use crate::schemas::state_file::ToolState;
 use crate::schemas::tools::ToolEntry;
 use crate::{log_debug, log_error, log_info, log_warn};
@@ -357,7 +356,7 @@ fn execute_uv_command(
     command_args: &[String],
     tool_entry: &ToolEntry,
 ) -> Option<Output> {
-    log_info!(
+    log_debug!(
         "[UV Installer] Executing: {} {} {}",
         "uv".cyan().bold(),
         subcommand.cyan().bold(),
@@ -830,4 +829,23 @@ fn is_valid_python_version(version_input: &str) -> bool {
 
     // Check if version matches any available version
     available_versions.iter().any(|v| v == &version_number)
+}
+
+/// Helper function to get the default Python installation path
+fn default_python_path(package_name: &str) -> String {
+    if let Ok(home) = std::env::var("HOME") {
+        format!("{home}/.local/share/uv/python/{package_name}")
+    } else {
+        format!("/usr/local/share/uv/python/{package_name}")
+    }
+}
+
+/// Extracts just the version number part from input string
+fn extract_version_number(input: &str) -> String {
+    // Find the first digit in the string and take everything from there
+    if let Some(pos) = input.find(|c: char| c.is_ascii_digit()) {
+        input[pos..].to_string()
+    } else {
+        input.to_string() // Fallback: return original input if no digits found
+    }
 }

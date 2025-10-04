@@ -2,17 +2,23 @@
 // Its primary function is to regenerate configuration YAML files from the application's
 // internal state file (`state.json`), or vice-versa.
 
-use crate::libs::state_management::read_devbox_state; // Function to read application state.
-use crate::libs::utilities::misc_utils::get_devbox_dir;
-use crate::schemas::common::MainConfig; // Schema definitions for config and state.
+use crate::libs::state_management::read_devbox_state;
+use crate::schemas::common::MainConfig;
+// Schema definitions for config and state.
 use crate::schemas::fonts::{FontConfig, FontEntry};
 use crate::schemas::os_settings::{OsSpecificSettings, SettingEntry, SettingsConfig};
+use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::tools::{ToolConfig, ToolEntry};
-use crate::{log_debug, log_error, log_info, log_warn}; // Custom logging macros.
-use clap::Args; // Clap macro for argument parsing.
-use colored::Colorize; // For colored terminal output.
-use std::fs; // File system operations.
-use std::path::{Path, PathBuf}; // Path manipulation utilities.
+use crate::{log_debug, log_error, log_info, log_warn};
+// Custom logging macros.
+use clap::Args;
+// Clap macro for argument parsing.
+use colored::Colorize;
+// For colored terminal output.
+use std::fs;
+// File system operations.
+use std::path::{Path, PathBuf};
+// Path manipulation utilities.
 
 /// Arguments for the `sync config` subcommand.
 #[derive(Debug, Args)]
@@ -49,20 +55,30 @@ pub fn run(args: SyncConfigArgs) {
     ); // Recommends 'now' for regular use.
     eprintln!("\n"); // Add another blank line.
 
-    // Resolve default paths for state and configs.
-    let devbox_dir = get_devbox_dir();
-    let default_state_path = devbox_dir.join("state.json");
-    let default_config_dir = devbox_dir.join("configs");
-
     log_info!("[Sync] Syncing config files from state file.");
-    // Use provided paths or fall back to defaults.
-    let state_path = args.state.unwrap_or(default_state_path);
-    let output_dir = args.output_dir.unwrap_or(default_config_dir);
+
+    // Initialize PathResolver to get default paths (respects SDB_CONFIG_PATH env var)
+    let paths = match PathResolver::new(None, None) {
+        Ok(p) => p,
+        Err(e) => {
+            log_error!("[Sync] Failed to initialize path resolver: {}", e);
+            eprintln!("Error: Failed to resolve configuration paths: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Use provided paths from args first, then fall back to defaults from PathResolver
+    let state_path = args
+        .state
+        .unwrap_or_else(|| paths.state_file().to_path_buf());
+    let output_dir = args.output_dir.unwrap_or_else(|| paths.configs_dir());
+
     log_debug!("[Sync] Syncing from state: {}", state_path.display());
     log_debug!(
         "[Sync] Outputting to config directory: {}",
         output_dir.display()
     );
+
     sync_state_to_configs(&state_path, &output_dir);
     log_info!("[Sync] Synchronization process completed.");
 }

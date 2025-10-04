@@ -1,4 +1,5 @@
 use crate::schemas::common::ConfigPaths;
+use crate::schemas::path_resolver::PathResolver;
 use crate::{log_debug, log_error, log_info, log_warn};
 use colored::Colorize;
 use sha2::{Digest, Sha256};
@@ -240,7 +241,14 @@ fn handle_config_edit(config_type: &str) {
     log_info!("[Edit] Auto-running 'now' command to apply configuration changes");
 
     // Import and call the now command
-    crate::commands::now::run(None, None, false);
+    // crate::commands::now::run(None, None, false);
+    match PathResolver::new(None, None) {
+        Ok(paths) => crate::commands::now::run(&paths, false),
+        Err(e) => {
+            log_error!("Failed to initialize path resolver: {}", e.red());
+            std::process::exit(1);
+        }
+    }
 
     log_info!(
         "{}",

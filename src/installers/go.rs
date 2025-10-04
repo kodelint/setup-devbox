@@ -349,7 +349,7 @@ fn prepare_go_install_command(tool_entry: &ToolEntry, installation_source: &str)
 /// - Provides specific error codes and messages for failures
 /// - Handles both command execution failures and non-zero exit codes
 fn execute_go_install_command(command_args: &[String], tool_entry: &ToolEntry) -> bool {
-    log_info!(
+    log_debug!(
         "[Go Installer] Executing: {} {}",
         "go".cyan().bold(),
         command_args.join(" ").cyan()

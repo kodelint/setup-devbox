@@ -19,8 +19,8 @@ use crate::libs::{
     settings_applier::apply_system_settings,
     state_management,
     tool_installer::install_tools,
-    utilities,
 };
+use crate::schemas::path_resolver::PathResolver;
 
 /// Main entry point for the `now` command.
 ///
@@ -34,7 +34,7 @@ use crate::libs::{
 /// # Arguments
 /// * `config_path`: Optional custom path to `config.yaml` or a single config file.
 /// * `state_path`: Optional custom path to `state.json`.
-pub fn run(config_path: Option<String>, state_path: Option<String>, update_latest: bool) {
+pub fn run(paths: &PathResolver, update_latest: bool) {
     log_debug!("Entered now::run() function.");
 
     if update_latest {
@@ -43,28 +43,42 @@ pub fn run(config_path: Option<String>, state_path: Option<String>, update_lates
             "Update latest".bright_yellow()
         );
     }
-    // Resolve configuration and state file paths.
-    let (config_path_resolved, config_filename, state_path_resolved) =
-        match utilities::misc_utils::resolve_paths(config_path, state_path) {
-            Some(paths) => paths,
-            None => return, // Exit if path resolution fails.
-        };
+
+    // Get resolved paths from the PathResolver
+    let config_path_resolved = paths.config_file();
+    let config_filename = paths.config_filename();
+    let state_path_resolved = paths.state_file();
+
+    log_debug!(
+        "[Now] Using config file: {}",
+        config_path_resolved.display()
+    );
+    log_debug!("[Now] Config filename: {}", config_filename);
+    log_debug!("[Now] Using state file: {}", state_path_resolved.display());
 
     // Load existing application state or initialize a new one.
-    let mut state: DevBoxState = state_management::load_or_initialize_state(&state_path_resolved);
+    let mut state: DevBoxState =
+        state_management::load_or_initialize_state(&state_path_resolved.to_path_buf());
 
     // Load configurations based on the detected config filename.
     let parsed_configs = if config_filename == "config.yaml" {
-        load_master_configs(&config_path_resolved)
+        load_master_configs(&config_path_resolved.to_path_buf())
     } else {
-        load_single_config(&config_path_resolved, &config_filename)
+        load_single_config(&config_path_resolved.to_path_buf(), config_filename)
     };
 
     // Apply configurations and update state for each section.
     // State is saved immediately after each major block if changes occur.
+
     // Install Tools.
     if let Some(tools_cfg) = parsed_configs.tools {
-        install_tools(tools_cfg, &mut state, &state_path_resolved, update_latest);
+        install_tools(
+            tools_cfg,
+            &mut state,
+            &state_path_resolved.to_path_buf(),
+            update_latest,
+            paths,
+        ); // Add paths
     } else {
         log_debug!(
             "[Tools] No tool configurations found (tools.yaml missing or empty). Skipping tool installation phase."
@@ -73,7 +87,7 @@ pub fn run(config_path: Option<String>, state_path: Option<String>, update_lates
 
     // Install Fonts.
     if let Some(fonts_cfg) = parsed_configs.fonts {
-        install_fonts(fonts_cfg, &mut state, &state_path_resolved);
+        install_fonts(fonts_cfg, &mut state, &state_path_resolved.to_path_buf());
     } else {
         log_debug!(
             "[Fonts] No font configurations found (fonts.yaml missing or empty). Skipping font installation phase."
@@ -91,7 +105,7 @@ pub fn run(config_path: Option<String>, state_path: Option<String>, update_lates
 
     // Apply macOS System Settings.
     if let Some(settings_cfg) = parsed_configs.settings {
-        apply_system_settings(settings_cfg, &mut state, &state_path_resolved);
+        apply_system_settings(settings_cfg, &mut state, &state_path_resolved.to_path_buf());
     } else {
         log_debug!(
             "[Settings] No system settings configurations found (settings.yaml missing or empty). Skipping settings application phase."

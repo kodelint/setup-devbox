@@ -307,7 +307,7 @@ fn prepare_brew_install_command(tool_entry: &ToolEntry) -> Vec<String> {
 /// # Command Execution
 /// Runs: `brew install <formula_name> [options]`
 fn execute_brew_install_command(command_args: &[String], tool_entry: &ToolEntry) -> bool {
-    log_info!(
+    log_debug!(
         "[Brew Installer] Executing: {} {}",
         "brew".cyan().bold(),
         command_args.join(" ").cyan()

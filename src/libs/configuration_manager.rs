@@ -20,21 +20,19 @@
 //! - Only processes files when actual changes are detected
 //! - Efficient format conversion with minimal intermediate representations
 
-use colored::Colorize;
-use serde_json::Value as JsonValue;
-use serde_yaml::Value as YamlValue;
-use sha2::{Digest, Sha256};
-use std::path::{Path, PathBuf};
-use std::{env, fs};
-use toml::Value as TomlValue;
-// The `expand_tilde` function is imported from a separate utilities library
-use crate::libs::utilities::misc_utils::expand_tilde;
 pub(crate) use crate::schemas::configuration_management::ConfigurationEvaluationResult;
 pub(crate) use crate::schemas::configuration_management::{
     ConfigurationManager, ConfigurationManagerProcessor, ConfigurationManagerState,
 };
+use crate::schemas::path_resolver::PathResolver;
 use crate::{log_debug, log_info, log_warn};
-
+use colored::Colorize;
+use serde_json::Value as JsonValue;
+use serde_yaml::Value as YamlValue;
+use sha2::{Digest, Sha256};
+use std::fs;
+use std::path::{Path, PathBuf};
+use toml::Value as TomlValue;
 // ============================================================================
 // CONFIGURATION MANAGER IMPLEMENTATIONS
 // ============================================================================
@@ -98,83 +96,84 @@ impl ConfigurationManagerState {
 /// management logic. It contains methods for resolving paths, processing configurations,
 /// and handling file updates and conversions.
 impl ConfigurationManagerProcessor {
-    /// Creates a new configuration manager processor with a properly resolved base path.
-    ///
-    /// The `config_base_path` parameter allows a custom path to be provided, but if not,
-    /// the method will fall back to environment variables and default paths.
+    /// Creates a new configuration manager processor using the PathResolver.
     ///
     /// ## Parameters
-    /// - `config_base_path`: Optional custom base path for configuration files
+    /// - `paths`: Reference to the PathResolver for accessing configuration paths
     ///
     /// ## Returns
     /// A new `ConfigurationManagerProcessor` instance with resolved base path.
-    pub fn new(config_base_path: Option<PathBuf>) -> Self {
-        let base_path = Self::resolve_config_base_path(config_base_path);
+    pub fn new(paths: &PathResolver) -> Self {
+        let base_path = paths.tools_config_dir().to_path_buf();
+        log_debug!(
+            "[Tools] Configuration manager using tools config dir: {}",
+            base_path.display()
+        );
         Self {
             config_base_path: base_path,
         }
     }
 
-    /// Resolves the configuration base path using a prioritized search order.
-    ///
-    /// The resolution logic follows these steps:
-    /// 1. Check for the `SDB_TOOLS_SOURCE_CONFIG_PATH` environment variable.
-    /// 2. Check for the `SDB_CONFIG_PATH` environment variable and append `configs/tools`.
-    /// 3. Use the `config_base_path` parameter if it was provided.
-    /// 4. Fall back to the default home directory path: `~/.setup-devbox/configs/tools`.
-    /// 5. As a last resort, use a relative path: `.setup-devbox/configs/tools`.
-    ///
-    /// ## Parameters
-    /// - `config_base_path`: Optional custom base path for configuration files
-    ///
-    /// ## Returns
-    /// Resolved `PathBuf` for the configuration base directory.
-    fn resolve_config_base_path(config_base_path: Option<PathBuf>) -> PathBuf {
-        // Priority 1: Environment variable SDB_TOOLS_SOURCE_CONFIG_PATH
-        if let Ok(env_path) = env::var("SDB_TOOLS_SOURCE_CONFIG_PATH") {
-            match Self::expand_path(&env_path) {
-                Ok(expanded_path) => return expanded_path,
-                Err(_) => {
-                    log_warn!(
-                        "[Tools] Failed to expand \"{}\", using fallback",
-                        "SDB_TOOLS_SOURCE_CONFIG_PATH".blue()
-                    );
-                }
-            }
-        }
-
-        // Priority 2: Environment variable SDB_CONFIG_PATH
-        if let Ok(env_path) = env::var("SDB_CONFIG_PATH") {
-            match Self::expand_path(&env_path) {
-                Ok(expanded_path) => {
-                    log_debug!(
-                        "[Tools] Using \"{}\" as SDB Tools Configuration folder",
-                        "SDB_CONFIG_PATH".blue()
-                    );
-                    // The tools configurations are located in a subdirectory
-                    return expanded_path.join("configs").join("tools");
-                }
-                Err(_) => {
-                    log_warn!(
-                        "[Tools] Failed to expand \"{}\", using fallback",
-                        "SDB_CONFIG_PATH".blue()
-                    );
-                }
-            }
-        }
-
-        // Priority 3: Provided parameter
-        if let Some(path) = config_base_path {
-            return path;
-        }
-
-        // Priority 4: Default home directory path
-        // This is a common convention for configuration files on Linux/macOS
-        dirs::home_dir()
-            .map(|home| home.join(".setup-devbox").join("configs").join("tools"))
-            // Priority 5: Fallback relative path
-            .unwrap_or_else(|| PathBuf::from(".setup-devbox/configs/tools"))
-    }
+    // Resolves the configuration base path using a prioritized search order.
+    //
+    // The resolution logic follows these steps:
+    // 1. Check for the `SDB_TOOLS_SOURCE_CONFIG_PATH` environment variable.
+    // 2. Check for the `SDB_CONFIG_PATH` environment variable and append `configs/tools`.
+    // 3. Use the `config_base_path` parameter if it was provided.
+    // 4. Fall back to the default home directory path: `~/.setup-devbox/configs/tools`.
+    // 5. As a last resort, use a relative path: `.setup-devbox/configs/tools`.
+    //
+    // ## Parameters
+    // - `config_base_path`: Optional custom base path for configuration files
+    //
+    // ## Returns
+    // Resolved `PathBuf` for the configuration base directory.
+    // fn resolve_config_base_path(config_base_path: Option<PathBuf>) -> PathBuf {
+    //     // Priority 1: Environment variable SDB_TOOLS_SOURCE_CONFIG_PATH
+    //     if let Ok(env_path) = env::var("SDB_TOOLS_SOURCE_CONFIG_PATH") {
+    //         match Self::expand_path(&env_path) {
+    //             Ok(expanded_path) => return expanded_path,
+    //             Err(_) => {
+    //                 log_warn!(
+    //                     "[Tools] Failed to expand \"{}\", using fallback",
+    //                     "SDB_TOOLS_SOURCE_CONFIG_PATH".blue()
+    //                 );
+    //             }
+    //         }
+    //     }
+    //
+    //     // Priority 2: Environment variable SDB_CONFIG_PATH
+    //     if let Ok(env_path) = env::var("SDB_CONFIG_PATH") {
+    //         match Self::expand_path(&env_path) {
+    //             Ok(expanded_path) => {
+    //                 log_debug!(
+    //                     "[Tools] Using \"{}\" as SDB Tools Configuration folder",
+    //                     "SDB_CONFIG_PATH".blue()
+    //                 );
+    //                 // The tools configurations are located in a subdirectory
+    //                 return expanded_path.join("configs").join("tools");
+    //             }
+    //             Err(_) => {
+    //                 log_warn!(
+    //                     "[Tools] Failed to expand \"{}\", using fallback",
+    //                     "SDB_CONFIG_PATH".blue()
+    //                 );
+    //             }
+    //         }
+    //     }
+    //
+    //     // Priority 3: Provided parameter
+    //     if let Some(path) = config_base_path {
+    //         return path;
+    //     }
+    //
+    //     // Priority 4: Default home directory path
+    //     // This is a common convention for configuration files on Linux/macOS
+    //     dirs::home_dir()
+    //         .map(|home| home.join(".setup-devbox").join("configs").join("tools"))
+    //         // Priority 5: Fallback relative path
+    //         .unwrap_or_else(|| PathBuf::from(".setup-devbox/configs/tools"))
+    // }
 
     /// Comprehensive evaluation that returns cached results to avoid duplicate SHA calculations.
     /// This method replaces the separate `evaluate_configuration_change_needed` method.
@@ -512,7 +511,11 @@ impl ConfigurationManagerProcessor {
             fs::write(destination_path, converted_content)?;
             log_info!(
                 "[Tools] Configuration written to: {}",
-                destination_path.display().to_string().green()
+                destination_path
+                    .display()
+                    .to_string()
+                    .bright_cyan()
+                    .italic()
             );
         }
 
@@ -780,7 +783,7 @@ impl ConfigurationManagerProcessor {
         };
 
         // Handle tilde expansion. The `expand_tilde` function is from a utility library.
-        let expanded_path = expand_tilde(&expanded);
+        let expanded_path = PathResolver::expand_tilde(&expanded);
 
         // Handle other environment variables using `shellexpand`.
         if expanded.contains('$') {

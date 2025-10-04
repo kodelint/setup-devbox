@@ -3,6 +3,7 @@ pub mod configuration_management;
 pub mod fonts;
 pub mod help;
 pub mod os_settings;
+pub mod path_resolver;
 pub mod shell_configuration;
 pub mod state_file;
 pub mod tools;

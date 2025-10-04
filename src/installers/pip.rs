@@ -371,7 +371,7 @@ fn execute_pip_install_command(
     command_args: &[String],
     tool_entry: &ToolEntry,
 ) -> bool {
-    log_info!(
+    log_debug!(
         "[Pip Installer] Executing: {} {}",
         pip_variant.command().cyan().bold(),
         command_args.join(" ").cyan()

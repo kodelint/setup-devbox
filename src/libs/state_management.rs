@@ -216,7 +216,7 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
                     eprintln!("\n");
                     log_info!(
                         "[StateSave] DevBox state saved successfully to {}",
-                        state_path.display().to_string().green()
+                        state_path.display().to_string().cyan()
                     ); // Success log for state saving.
                     log_debug!("[StateSave] State content written to disk."); // Debug log confirmation.
                     true // Indicate successful saving.

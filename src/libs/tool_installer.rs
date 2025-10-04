@@ -32,7 +32,6 @@ use crate::installers::{brew, cargo, github, go, pip, rustup, url, uv};
 use crate::libs::configuration_manager::ConfigurationEvaluationResult;
 use crate::libs::state_management::save_state_to_file;
 use crate::libs::utilities::assets::{is_timestamp_older_than, parse_duration, time_since};
-use crate::libs::utilities::misc_utils::format_duration;
 use crate::libs::utilities::platform::{check_installer_command_available, execute_hooks};
 use crate::schemas::configuration_management::ConfigurationManagerProcessor;
 // Import data schemas and the configuration processor
@@ -42,8 +41,9 @@ use crate::schemas::tools::{
     ToolEntry, ToolInstallationOrchestrator, ToolProcessingResult, VersionAction,
 };
 // Import logging macros
+use crate::libs::utilities::file_operations::format_duration;
+use crate::schemas::path_resolver::PathResolver;
 use crate::{log_debug, log_error, log_info, log_warn};
-
 // ============================================================================
 // INSTALLATION CONFIGURATION IMPLEMENTATION
 // ============================================================================
@@ -96,10 +96,12 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     ///
     /// ## Returns
     /// New `ToolInstallationOrchestrator` instance
-    fn new(state: &'a mut DevBoxState, configuration: &'a InstallationConfiguration) -> Self {
-        // The `ConfigurationManagerProcessor` is created with a `None` base path,
-        // relying on its internal fallback logic to resolve the correct path.
-        let config_processor = ConfigurationManagerProcessor::new(None);
+    fn new(
+        state: &'a mut DevBoxState,
+        configuration: &'a InstallationConfiguration,
+        paths: &PathResolver,
+    ) -> Self {
+        let config_processor = ConfigurationManagerProcessor::new(paths);
 
         Self {
             state,
@@ -499,17 +501,17 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     fn display_installation_header(&self, tool: &ToolEntry, operation_type: &str) {
         println!("\n{}", "=".repeat(80).bright_blue());
         log_info!(
-            "[Tools] {} tool from {}: {}",
-            operation_type.bright_yellow(),
-            tool.source.to_string().bright_yellow(),
-            tool.name.bright_blue().bold()
+            "[Tools] {} {} tool using {}",
+            operation_type.bright_blue().bold(),
+            tool.name.bright_green().bold(),
+            tool.source.to_string().bright_cyan(),
         );
     }
 
     // A helper function to display a formatted success message.
     fn display_installation_success(&self, tool: &ToolEntry, operation_type: &str) {
         log_info!(
-            "[Tools] Successfully {} tool: {}",
+            "[Tools] Successfully completed {} tool: {}",
             operation_type.to_lowercase(),
             tool.name.bold().bright_green()
         );
@@ -751,11 +753,13 @@ impl InstallationSummary {
 /// - `state`: Mutable reference to the application state
 /// - `state_file_path`: Path to the state file for persistence
 /// - `force_update_latest`: Whether to force updates of "latest" version tools
+///
 pub fn install_tools(
     tools_configuration: ToolConfig,
     state: &mut DevBoxState,
     state_file_path: &PathBuf,
     force_update_latest: bool,
+    paths: &PathResolver, // Add PathResolver parameter
 ) {
     eprintln!("\n");
     eprintln!("{}:", "TOOLS".bright_yellow().bold());
@@ -764,8 +768,8 @@ pub fn install_tools(
     // Create the installation configuration based on the provided parameters.
     let installation_config =
         InstallationConfiguration::new(&tools_configuration, force_update_latest);
-    // Initialize the main orchestrator with the shared state and configuration.
-    let mut orchestrator = ToolInstallationOrchestrator::new(state, &installation_config);
+    // Initialize the main orchestrator with the shared state, configuration, and paths.
+    let mut orchestrator = ToolInstallationOrchestrator::new(state, &installation_config, paths);
 
     log_debug!(
         "[Tools] Update policy: {}",
@@ -796,6 +800,51 @@ pub fn install_tools(
 
     eprintln!();
 }
+// pub fn install_tools(
+//     tools_configuration: ToolConfig,
+//     state: &mut DevBoxState,
+//     state_file_path: &PathBuf,
+//     force_update_latest: bool,
+// ) {
+//     eprintln!("\n");
+//     eprintln!("{}:", "TOOLS".bright_yellow().bold());
+//     eprintln!("{}", "=".repeat(7).bright_yellow());
+//
+//     // Create the installation configuration based on the provided parameters.
+//     let installation_config =
+//         InstallationConfiguration::new(&tools_configuration, force_update_latest);
+//     // Initialize the main orchestrator with the shared state and configuration.
+//     let mut orchestrator = ToolInstallationOrchestrator::new(state, &installation_config);
+//
+//     log_debug!(
+//         "[Tools] Update policy: {}",
+//         if installation_config.force_update_enabled {
+//             "forced update of all 'latest' version tools (--update-latest flag)".to_string()
+//         } else {
+//             format!(
+//                 "only update 'latest' versions if older than {:?}",
+//                 installation_config.update_threshold_duration
+//             )
+//         }
+//     );
+//
+//     // Process all tools and collect the results.
+//     let processing_results = orchestrator.process_all_tools(&tools_configuration.tools);
+//     // Create a summary object from the results for reporting.
+//     let summary = InstallationSummary::from_processing_results(processing_results);
+//
+//     // Display the final summary to the user.
+//     summary.display_summary();
+//
+//     // Only save the state file if there were changes to prevent unnecessary writes.
+//     if summary.has_state_changes() {
+//         save_state_to_file(state, state_file_path);
+//     } else {
+//         log_info!("[Tools] No new tools installed or state changes detected.");
+//     }
+//
+//     eprintln!();
+// }
 
 /// Executes a set of additional shell commands for a tool after its installation.
 ///

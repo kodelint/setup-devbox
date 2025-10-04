@@ -3,23 +3,17 @@
 //! This module provides the core logic for adding or updating various configuration items
 //! (tools, fonts, system settings, shell aliases) within the setup-devbox configuration files.
 //!
-//! ## Core Design Principles
-//!
-//! 1. **Strict Null Exclusion**: Fields that are `None` or `null` in the input struct are never
-//!    written to the resulting YAML, preventing unnecessary keys from cluttering the file.
-//! 2. **Configuration Manager Omission**: The entire `configuration_manager` block is omitted
-//!    if it is not explicitly enabled (`enabled: false`), keeping configuration minimal by default.
-//!
-//! ## Update Strategy
+//! ## Install or Update Strategy
 //!
 //! The update strategy ensures **format preservation** and **deep merging**:
 //!
-//! 1. **Deep Merge (Diff & Update)**: If an item exists, a programmatic deep merge is performed.
+//! 1. **Install or Update**: Determine if new tool to be installed or existing tool to be updated. 
+//! 2. **Deep Merge (Diff & Update)**: If an item exists, a programmatic deep merge is performed.
 //!    Only the configuration fields explicitly provided by the user (the 'new' configuration, which
 //!    are non-null) overwrite the existing configuration. All other existing fields are preserved.
-//! 2. **Format Preservation**: The file content is manipulated line-by-line to replace only the specific
+//! 3. **Format Preservation**: The file content is manipulated line-by-line to replace only the specific
 //!    item's YAML block, ensuring that surrounding comments, blank lines, and file structure are preserved.
-//! 3. **Apply Changes**: After successful configuration update, the internal `now::run` function is executed
+//! 4. **Apply Changes**: After successful configuration update, the internal `now::run` function is executed
 //!    to immediately trigger the installation/application of the changes.
 //!
 //! ## Supported Configuration Types
@@ -31,11 +25,14 @@
 //!
 //! ## Error Handling
 //!
-//! - Comprehensive logging at different levels (debug, info, warn, error)
-//! - Clear error messages with colored output for better UX
-//! - Graceful failure with appropriate exit codes
+//! Provides detailed error messages with color-coded output:
+//! - **Info**: General operation progress
+//! - **Debug**: Detailed execution flow (enabled with `--debug` flag)
+//! - **Warn**: Non-fatal issues or recommendations
+//! - **Error**: Critical failures with specific error context
 
 use crate::now;
+use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::{
     configuration_management::ConfigurationManager, fonts::FontEntry, os_settings::SettingEntry,
     shell_configuration::AliasEntry, tools::ToolEntry,
@@ -44,7 +41,6 @@ use crate::{log_debug, log_error, log_info, log_warn};
 use colored::Colorize;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_yaml::{self, Value};
-use std::env;
 use std::fs;
 use std::path::PathBuf;
 
@@ -67,6 +63,9 @@ struct ConfigurationUpdater {
 impl ConfigurationUpdater {
     /// Creates a new `ConfigurationUpdater` instance by resolving the base configuration path
     /// from the `SDB_CONFIG_PATH` environment variable.
+    /// 
+    /// # Arguments
+    /// * `paths`: A string slice (`&PathResolver`) representing the path.
     ///
     /// # Returns
     /// - `Ok(Self)`: Successfully initialized ConfigurationUpdater
@@ -76,25 +75,19 @@ impl ConfigurationUpdater {
     /// ```
     /// let updater = ConfigurationUpdater::new()?;
     /// ```
-    pub fn new() -> Result<Self, String> {
+    pub fn new(paths: &PathResolver) -> Result<Self, String> {
         log_debug!("[Updater] Initializing ConfigurationUpdater...");
 
-        // Resolve configuration base path from environment variable
-        let config_base = match env::var("SDB_CONFIG_PATH") {
-            Ok(path) => {
-                log_debug!("[Updater] SDB_CONFIG_PATH found: {}", path.cyan());
-                PathBuf::from(path)
-            }
-            Err(_) => {
-                let msg = "SDB_CONFIG_PATH environment variable not set. Cannot determine configuration directory.";
-                log_error!("{}", msg);
-                return Err(msg.to_string());
-            }
-        };
+        let config_base = paths.configs_dir();
+
+        log_debug!(
+            "[Updater] Using config directory: {}",
+            config_base.display().to_string().cyan()
+        );
 
         // Configuration files are stored in the 'configs' subdirectory
         Ok(ConfigurationUpdater {
-            config_base_path: config_base.join("configs"),
+            config_base_path: config_base,
         })
     }
 
@@ -161,7 +154,7 @@ impl ConfigurationUpdater {
         // 1. Read existing content or create a basic structure if missing
         let content = if config_path.exists() {
             fs::read_to_string(&config_path)
-                .map_err(|e| format!("Failed to read config file {}: {}", filename, e))?
+                .map_err(|e| format!("Failed to read config file {filename}: {e}"))?
         } else {
             log_warn!(
                 "Config file {} not found. Creating a new one.",
@@ -175,7 +168,7 @@ impl ConfigurationUpdater {
         let mut i = 0;
         let mut found_section = false;
         let mut item_updated = false;
-        let item_start_prefix = format!("- {}", item_key);
+        let item_start_prefix = format!("- {item_key}");
 
         log_debug!(
             "[Updater] Starting line-by-line search for section: {}",
@@ -305,7 +298,7 @@ impl ConfigurationUpdater {
         // 4. Write updated content back to file
         let final_content = result.join("\n");
         fs::write(&config_path, final_content)
-            .map_err(|e| format!("Failed to write config file {}: {}", filename, e))?;
+            .map_err(|e| format!("Failed to write config file {filename}: {e}"))?;
 
         log_debug!(
             "[Updater] File {} successfully written. Item updated: {}",
@@ -441,19 +434,17 @@ impl ConfigurationUpdater {
         // 1. Parse the existing block into a Value first to allow manipulation
         let mut existing_value: Value = serde_yaml::from_str(existing_yaml_block).map_err(|e| {
             format!(
-                "Failed to parse existing item YAML into generic Value: {}",
-                e
-            )
+                "Failed to parse existing item YAML into generic Value: {e}")
         })?;
 
         // FIX: Handle configuration_manager missing 'enabled' field for backward compatibility
         if let Some(map) = existing_value.as_mapping_mut() {
             if let Some(config_mgr) =
-                map.get_mut(&Value::String("configuration_manager".to_string()))
+                map.get_mut(Value::String("configuration_manager".to_string()))
             {
                 if let Some(config_map) = config_mgr.as_mapping_mut() {
                     if config_map
-                        .get(&Value::String("enabled".to_string()))
+                        .get(Value::String("enabled".to_string()))
                         .is_none()
                     {
                         log_warn!(
@@ -467,12 +458,12 @@ impl ConfigurationUpdater {
 
         // 2. Deserialize the (fixed) existing block into the struct
         let existing_struct: T = serde_yaml::from_value(existing_value.clone())
-            .map_err(|e| format!("Failed to parse existing item into struct for merge: {}", e))?;
+            .map_err(|e| format!("Failed to parse existing item into struct for merge: {e}"))?;
         log_debug!("[Merge] Existing struct: {:?}", existing_struct);
 
         // 3. Convert back to YAML Value for programmatic deep merging
         let mut existing_value = serde_yaml::to_value(existing_struct)
-            .map_err(|e| format!("Failed to convert existing struct to YAML Value: {}", e))?;
+            .map_err(|e| format!("Failed to convert existing struct to YAML Value: {e}"))?;
 
         // Serialize new item and remove nulls/defaults
         let new_value = serialize_without_nulls_to_value(new_item)?;
@@ -494,63 +485,10 @@ impl ConfigurationUpdater {
         remove_nulls(&mut existing_value);
 
         let final_yaml = serde_yaml::to_string(&existing_value)
-            .map_err(|e| format!("Failed to serialize final merged item: {}", e))?;
+            .map_err(|e| format!("Failed to serialize final merged item: {e}"))?;
 
         Ok(final_yaml)
     }
-}
-
-// ============================================================================
-// TOOL ADDITION IMPLEMENTATION
-// ============================================================================
-
-/// Validates tool-specific restrictions based on the installation source
-///
-/// Different installation sources have different required fields:
-/// - GitHub sources require both repository and tag information
-/// - URL sources require a direct download URL
-/// - Other sources may have their own validation rules
-///
-/// # Arguments
-/// * `new_tool`: The `ToolEntry` struct containing the tool configuration
-///
-/// # Returns
-/// - `Ok(())`: Validation passed successfully
-/// - `Err(String)`: Error message describing missing required fields
-fn validate_tool_restrictions(new_tool: &ToolEntry) -> Result<(), String> {
-    log_debug!(
-        "[SDB::Add::Validation] Starting validation for tool: {}",
-        new_tool.name.cyan()
-    );
-
-    match new_tool.source.to_lowercase().as_str() {
-        "github" => {
-            if new_tool.repo.is_none() || new_tool.tag.is_none() {
-                return Err(format!(
-                    "Source is '{}', but requires both {} and {} to be provided.",
-                    "github".cyan(),
-                    "repo".cyan(),
-                    "tag".cyan()
-                ));
-            }
-        }
-        "url" => {
-            if new_tool.url.is_none() {
-                return Err(format!(
-                    "Source is '{}', but requires {} to be provided.",
-                    "url".cyan(),
-                    "url".cyan()
-                ));
-            }
-        }
-        _ => {
-            log_debug!(
-                "[SDB::Add::Validation] No specific restrictions found for source: {}",
-                new_tool.source
-            );
-        }
-    }
-    Ok(())
 }
 
 /// Public interface for adding or updating a tool entry in the tools configuration
@@ -591,16 +529,18 @@ pub fn add_tool(
 ) {
     log_info!("[SDB::Add::Tool] Preparing to add tool: {name}...");
 
-    let updater = match ConfigurationUpdater::new() {
-        Ok(u) => u,
-        Err(e) => {
-            log_error!(
-                "[SDB::Add::Tool] Failed to initialize configuration updater: {}",
-                e
-            );
-            std::process::exit(1);
-        }
-    };
+    let paths = PathResolver::new(None, None).unwrap_or_else(|e| {
+        log_error!("[SDB::Add::Tool] Failed to initialize path resolver: {}", e);
+        std::process::exit(1);
+    });
+
+    let updater = ConfigurationUpdater::new(&paths).unwrap_or_else(|e| {
+        log_error!(
+            "[SDB::Add::Tool] Failed to initialize configuration updater: {}",
+            e
+        );
+        std::process::exit(1);
+    });
 
     // Construct the ToolEntry struct from the arguments
     let new_tool = ToolEntry {
@@ -627,7 +567,6 @@ pub fn add_tool(
             name.cyan(),
             e
         );
-        eprintln!("{}", format!("Error: Tool validation failed: {}", e).red());
         std::process::exit(1);
     }
 
@@ -686,16 +625,18 @@ pub fn add_font(
 ) {
     log_info!("[SDB::Add::Fonts] Preparing to add font: {name}...");
 
-    let updater = match ConfigurationUpdater::new() {
-        Ok(u) => u,
-        Err(e) => {
-            log_error!(
-                "[SDB::Add::Fonts] Failed to initialize configuration updater: {}",
-                e
-            );
-            std::process::exit(1);
-        }
-    };
+    let paths = PathResolver::new(None, None).unwrap_or_else(|e| {
+        log_error!("[SDB::Add::Tool] Failed to initialize path resolver: {}", e);
+        std::process::exit(1);
+    });
+
+    let updater = ConfigurationUpdater::new(&paths).unwrap_or_else(|e| {
+        log_error!(
+            "[SDB::Add::Tool] Failed to initialize configuration updater: {}",
+            e
+        );
+        std::process::exit(1);
+    });
 
     // Construct the FontEntry struct from arguments
     let new_font = FontEntry {
@@ -754,7 +695,7 @@ pub fn add_font(
 /// * `value`: Value to set for the configuration
 /// * `value_type`: Data type of the value (bool, string, int, float)
 pub fn add_setting(domain: String, key: String, value: String, value_type: String) {
-    let setting_name = format!("{}.{}", domain, key);
+    let setting_name = format!("{domain}.{key}");
     log_info!("[SDB::Add::Setting] Preparing to add setting: {setting_name}...");
 
     // Validate the input type against supported types
@@ -766,16 +707,18 @@ pub fn add_setting(domain: String, key: String, value: String, value_type: Strin
         std::process::exit(1);
     }
 
-    let updater = match ConfigurationUpdater::new() {
-        Ok(u) => u,
-        Err(e) => {
-            log_error!(
-                "[SDB::Add::Setting] Failed to initialize configuration updater: {}",
-                e
-            );
-            std::process::exit(1);
-        }
-    };
+    let paths = PathResolver::new(None, None).unwrap_or_else(|e| {
+        log_error!("[SDB::Add::Tool] Failed to initialize path resolver: {}", e);
+        std::process::exit(1);
+    });
+
+    let updater = ConfigurationUpdater::new(&paths).unwrap_or_else(|e| {
+        log_error!(
+            "[SDB::Add::Setting] Failed to initialize configuration updater: {}",
+            e
+        );
+        std::process::exit(1);
+    });
 
     // Construct the SettingEntry struct
     let new_setting = SettingEntry {
@@ -807,6 +750,121 @@ pub fn add_setting(domain: String, key: String, value: String, value_type: Strin
     run_now_command();
 }
 
+// ============================================================================
+// ALIAS ADDITION IMPLEMENTATION
+// ============================================================================
+
+/// Public interface for adding or updating a shell alias entry
+///
+/// Shell aliases are simple key-value pairs that create command shortcuts
+/// in the user's shell configuration.
+///
+/// # Arguments
+/// * `name`: Alias name (the shortcut command)
+/// * `value`: Full command that the alias expands to
+pub fn add_alias(name: String, value: String) {
+    log_info!("[SDB::Add:Alias] Preparing to add alias: {name}...");
+
+    let paths = PathResolver::new(None, None).unwrap_or_else(|e| {
+        log_error!("[SDB::Add::Tool] Failed to initialize path resolver: {}", e);
+        std::process::exit(1);
+    });
+
+    let updater = ConfigurationUpdater::new(&paths).unwrap_or_else(|e| {
+        log_error!(
+            "[SDB::Add::Alias] Failed to initialize configuration updater: {}",
+            e
+        );
+        std::process::exit(1);
+    });
+
+    // Construct the AliasEntry struct
+    let new_alias = AliasEntry {
+        name: name.clone(),
+        value,
+    };
+
+    // Call the generic list item update/add logic for aliases
+    match updater.update_or_add_list_item(
+        "shellrc.yaml",
+        "aliases:",
+        "name:",
+        &new_alias.name,
+        &new_alias,
+    ) {
+        Ok(is_update) => {
+            log_info!(
+                "[SDB::Add:Alias] Successfully {} alias '{}' in configuration",
+                if is_update { "updated" } else { "added" },
+                name.cyan()
+            );
+        }
+        Err(e) => {
+            log_error!(
+                "[SDB::Add:Alias] Failed to update configuration for alias {}: {}",
+                name.cyan(),
+                e
+            );
+            std::process::exit(1);
+        }
+    }
+
+    run_now_command();
+}
+
+// ============================================================================
+// TOOL ADDITION IMPLEMENTATION
+// ============================================================================
+
+/// Validates tool-specific restrictions based on the installation source
+///
+/// Different installation sources have different required fields:
+/// - GitHub sources require both repository and tag information
+/// - URL sources require a direct download URL
+/// - Other sources may have their own validation rules
+///
+/// # Arguments
+/// * `new_tool`: The `ToolEntry` struct containing the tool configuration
+///
+/// # Returns
+/// - `Ok(())`: Validation passed successfully
+/// - `Err(String)`: Error message describing missing required fields
+fn validate_tool_restrictions(new_tool: &ToolEntry) -> Result<(), String> {
+    log_debug!(
+        "[SDB::Add::Validation] Starting validation for tool: {}",
+        new_tool.name.cyan()
+    );
+
+    match new_tool.source.to_lowercase().as_str() {
+        "github" => {
+            if new_tool.repo.is_none() || new_tool.tag.is_none() {
+                return Err(format!(
+                    "Source is '{}', but requires both {} and {} to be provided.",
+                    "github".cyan(),
+                    "repo".cyan(),
+                    "tag".cyan()
+                ));
+            }
+        }
+        "url" => {
+            if new_tool.url.is_none() {
+                return Err(format!(
+                    "Source is '{}', but requires {} to be provided.",
+                    "url".cyan(),
+                    "url".cyan()
+                ));
+            }
+        }
+        _ => {
+            log_debug!(
+                "[SDB::Add::Validation] No specific restrictions found for source: {}",
+                new_tool.source
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Specialized handler for macOS settings due to nested YAML structure
 ///
 /// macOS settings have a specific structure in the YAML file that requires
@@ -829,7 +887,7 @@ fn update_or_add_macos_setting(
 
     let content = if config_path.exists() {
         fs::read_to_string(&config_path)
-            .map_err(|e| format!("Failed to read config file {}: {}", filename, e))?
+            .map_err(|e| format!("Failed to read config file {filename}: {e}"))?
     } else {
         log_warn!(
             "[SDB::Add] Config file {} not found. Creating a new one with basic structure.",
@@ -937,7 +995,7 @@ fn update_or_add_macos_setting(
     // 5. Write back to file
     let final_content = result.join("\n");
     fs::write(&config_path, final_content)
-        .map_err(|e| format!("[SDB::Add] Failed to write config file {}: {}", filename, e))?;
+        .map_err(|e| format!("[SDB::Add] Failed to write config file {filename}: {e}"))?;
 
     Ok(setting_updated)
 }
@@ -968,66 +1026,6 @@ fn find_setting_key_in_block(
         }
     }
     None
-}
-
-// ============================================================================
-// ALIAS ADDITION IMPLEMENTATION
-// ============================================================================
-
-/// Public interface for adding or updating a shell alias entry
-///
-/// Shell aliases are simple key-value pairs that create command shortcuts
-/// in the user's shell configuration.
-///
-/// # Arguments
-/// * `name`: Alias name (the shortcut command)
-/// * `value`: Full command that the alias expands to
-pub fn add_alias(name: String, value: String) {
-    log_info!("[SDB::Add:Alias] Preparing to add alias: {name}...");
-
-    let updater = match ConfigurationUpdater::new() {
-        Ok(u) => u,
-        Err(e) => {
-            log_error!(
-                "[SDB::Add:Alias] Failed to initialize configuration updater: {}",
-                e
-            );
-            std::process::exit(1);
-        }
-    };
-
-    // Construct the AliasEntry struct
-    let new_alias = AliasEntry {
-        name: name.clone(),
-        value,
-    };
-
-    // Call the generic list item update/add logic for aliases
-    match updater.update_or_add_list_item(
-        "shellrc.yaml",
-        "aliases:",
-        "name:",
-        &new_alias.name,
-        &new_alias,
-    ) {
-        Ok(is_update) => {
-            log_info!(
-                "[SDB::Add:Alias] Successfully {} alias '{}' in configuration",
-                if is_update { "updated" } else { "added" },
-                name.cyan()
-            );
-        }
-        Err(e) => {
-            log_error!(
-                "[SDB::Add:Alias] Failed to update configuration for alias {}: {}",
-                name.cyan(),
-                e
-            );
-            std::process::exit(1);
-        }
-    }
-
-    run_now_command();
 }
 
 // ============================================================================
@@ -1089,7 +1087,7 @@ fn extract_yaml_value(line: &str, key: &str) -> Option<String> {
     let full_key = if key.ends_with(':') {
         key.to_string()
     } else {
-        format!("{}:", key)
+        format!("{key}:")
     };
 
     if let Some(pos) = line.find(&full_key) {
@@ -1115,7 +1113,7 @@ fn extract_yaml_value(line: &str, key: &str) -> Option<String> {
 /// - `Err(String)`: Error message if serialization fails
 fn serialize_without_nulls<T: Serialize>(value: &T) -> Result<String, String> {
     let yaml_value = serialize_without_nulls_to_value(value)?;
-    serde_yaml::to_string(&yaml_value).map_err(|e| format!("Failed to serialize to string: {}", e))
+    serde_yaml::to_string(&yaml_value).map_err(|e| format!("Failed to serialize to string: {e}"))
 }
 
 /// Serializes a struct to YAML Value while removing null/default values
@@ -1124,7 +1122,7 @@ fn serialize_without_nulls<T: Serialize>(value: &T) -> Result<String, String> {
 /// internally for programmatic merging operations.
 fn serialize_without_nulls_to_value<T: Serialize>(value: &T) -> Result<Value, String> {
     let mut yaml_value =
-        serde_yaml::to_value(value).map_err(|e| format!("Failed to serialize to value: {}", e))?;
+        serde_yaml::to_value(value).map_err(|e| format!("Failed to serialize to value: {e}"))?;
     remove_nulls(&mut yaml_value);
     Ok(yaml_value)
 }
@@ -1253,5 +1251,11 @@ fn run_now_command() {
     log_debug!("[SDB::Now] Executing now::run(None, None, false);");
 
     // Call the internal function to reload and apply the configuration
-    now::run(None, None, false);
+    match PathResolver::new(None, None) {
+        Ok(paths) => now::run(&paths, false),
+        Err(e) => {
+            log_error!("Failed to initialize path resolver: {}", e.red());
+            std::process::exit(1);
+        }
+    }
 }

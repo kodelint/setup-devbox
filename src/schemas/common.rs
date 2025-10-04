@@ -153,7 +153,7 @@ pub struct Release {
 /// ```yaml
 /// tools: "~/.setup-devbox/tools.yaml"
 /// settings: "~/.setup-devbox/settings.yaml"
-/// shellrc: "~/.setup-devbox/shellac.yaml"
+/// shellrc: "~/.setup-devbox/shellrc.yaml"
 /// fonts: "~/.setup-devbox/fonts.yaml"
 /// ```
 ///
