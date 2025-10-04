@@ -43,11 +43,12 @@ setup-devbox is designed to automate the setup and configuration of your develop
 
   - ##### Available Help Topics:
     ```
-    • installers    - Show all supported installers and their details
-    • now           - Show detailed help for installation command
-    • generate      - Show help for configuration generation
-    • sync-config   - Show help for configuration synchronization
-    • version       - Show version information
+    • add         - Add tool, font, setting or alias
+    • generate    - Generates default configuration files
+    • now         - Installs and Configures Tools, Fonts, OS Settings and Shell Configs
+    • sync-config - Synchronizes or generates configurations from a state file
+    • version     - Show the current Version of the tool
+    • help        - Show detailed help for commands and installers
     ```
 
 
@@ -68,6 +69,31 @@ setup-devbox is designed to automate the setup and configuration of your develop
     **Usage:**
     ```bash
     setup-devbox version
+    ```
+- #### `add` to add tool, font, setting or alias from command line.
+
+    ##### **Description**:
+    You can use `add` command to install any tool, font, setting or alias from command line directly. It will validate 
+    the command and then update the corresponding configuration file and then automatically run `now::run` command.
+
+    **Usage:**
+    ```bash
+    # Install a tool
+    setup-devbox add tool 
+    --name lsd \
+    --version 1.1.5 \
+    --source cargo \ 
+    --enable-config-manager \
+    --config-paths $HOME/.config/lsd/config.yaml $HOME/.config/lsd/icons.yaml
+    
+    # Install a font
+    setup-devbox add font \
+    --name D2Coding \
+    --version 3.4.0 \
+    --source github \
+    --repo ryanoasis/nerd-fonts \
+    --tag v3.4.0 \
+    --install-only regular
     ```
 - #### `now` Installs and Configures Tools, Fonts, OS Settings, and Shell Configs.
 
