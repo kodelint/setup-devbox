@@ -112,6 +112,6 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
         );
     }
 
-    log_info!("'setup-devbox now' command completed!!");
+    log_info!("'{}' command completed!!", "setup-devbox now".cyan());
     log_debug!("Exited now::run() function.");
 }

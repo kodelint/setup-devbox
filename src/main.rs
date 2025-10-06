@@ -89,7 +89,6 @@ mod schemas; // Defines configuration file structures.
 
 use colored::Colorize;
 use std::fmt;
-use std::path::PathBuf;
 use std::str::FromStr;
 
 // Import specific `run` functions from the `commands` module.
@@ -161,10 +160,10 @@ enum Commands {
     SyncConfig {
         /// Optional path to the state file (defaults to ~/.setup-devbox/state.json).
         #[arg(long)]
-        state: Option<PathBuf>,
+        state: Option<String>,
         /// Optional output directory for generated configuration files (defaults to ~/.setup-devbox/configs).
         #[arg(long)]
-        output_dir: Option<PathBuf>,
+        output_dir: Option<String>,
     },
     /// Edit configuration files or state file in your preferred editor.
     /// Provides quick access to modify configurations using the system's default editor.
@@ -766,10 +765,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::SyncConfig { state, output_dir } => {
             log_debug!("[SDB] 'SyncConfig' subcommand detected.");
-            // Package arguments for the sync operation
-            let args = sync::SyncConfigArgs { state, output_dir };
-            // Synchronize configurations from state file
-            sync::run(args);
+            let paths = PathResolver::new(output_dir, state)?;
+            sync::run(paths);
         }
         Commands::Version => {
             log_debug!("[SDB] 'Version' subcommand detected. Calling version::run().");

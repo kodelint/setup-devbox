@@ -400,6 +400,15 @@ pub struct FontState {
     /// - `"Source Code Pro"`
     pub name: String,
 
+    /// Method used for installation (e.g., "github-release", "brew", "cargo").
+    ///
+    /// Determines how updates and reinstallations should be performed.
+    /// Must match one of the supported installation methods.
+    ///
+    /// ## Supported Methods
+    /// - `"github"`: GitHub release downloads
+    pub install_method: String,
+
     /// Original download URL for the font.
     ///
     /// Used for re-downloading and updating fonts when new versions are available.
@@ -445,4 +454,12 @@ pub struct FontState {
     /// `#[serde(default)]` ensures empty values are stored as `None`.
     #[serde(default)]
     pub tag: Option<String>,
+    /// Specific Fonts to be installed.
+    ///
+    /// This forces a filter to look for specific font type.
+    ///
+    /// ## Default Behavior
+    /// `#[serde(default)]` ensures empty values are stored as `None`.
+    #[serde(default)]
+    pub install_only: Option<Vec<String>>,
 }

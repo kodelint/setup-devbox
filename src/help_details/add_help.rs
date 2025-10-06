@@ -523,6 +523,12 @@ fn add_add_detailed_info(output: &mut String) {
     writeln!(output, "\n  Configuration files are located at:").unwrap();
     writeln!(
         output,
+        "    Configs:  {}",
+        "$SDB_CONFIG_PATH/configs/configs.yaml".cyan()
+    )
+    .unwrap();
+    writeln!(
+        output,
         "    Tools:    {}",
         "$SDB_CONFIG_PATH/configs/tools.yaml".cyan()
     )

@@ -13,14 +13,13 @@
 
 use crate::libs::utilities::assets::current_timestamp;
 use crate::schemas::configuration_management::ConfigurationManagerState;
-use crate::schemas::state_file::{DevBoxState, ToolState}; // Imports `DevBoxState` schema definition for application's runtime state.
+use crate::schemas::state_file::{DevBoxState, ToolState};
 use crate::schemas::tools::ToolEntry;
-use crate::{log_debug, log_error, log_info, log_warn}; // Custom logging macros for various log levels.
-use colored::Colorize; // Imports the `Colorize` trait for adding color to console output.
-use std::collections::HashMap; // Imports `HashMap` for storing key-value pairs (e.g., tool states).
-use std::path::{Path, PathBuf}; // Imports `Path` and `PathBuf` for working with file paths.
-use std::{fs, io};
-// Imports standard library modules for file system operations and I/O.
+use crate::{log_debug, log_error, log_info, log_warn};
+use colored::Colorize;
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 
 /// Loads the application's state from `state.json` or initializes a new one.
 ///
@@ -242,65 +241,6 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
             false // Indicate failure to serialize.
         }
     }
-}
-
-/// Loads the `DevBoxState` from a specified `state.json` file.
-///
-/// This function attempts to read the JSON content from the given path,
-/// then deserialize it into a `DevBoxState` struct. If the file does not exist,
-/// an empty (default) `DevBoxState` is returned, signifying a fresh start.
-/// This function is primarily used internally by `load_or_initialize_state`.
-///
-/// # Arguments
-/// * `state_path`: A reference to a `Path` indicating the full path to the `state.json` file.
-///
-/// # Returns
-/// * `io::Result<DevBoxState>`:
-///   - `Ok(DevBoxState)` containing the loaded state, or a default empty state if the file
-///     doesn't exist.
-///   - `Err(io::Error)` if the file exists but cannot be read (e.g., permissions),
-///     or if the JSON content is invalid and cannot be deserialized.
-pub fn read_devbox_state(state_path: &Path) -> io::Result<DevBoxState> {
-    log_debug!(
-        "[StateLoad] Attempting to load DevBoxState from: {:?}",
-        state_path.display().to_string().blue()
-    ); // Debug log for load attempt.
-
-    // Check if the state file exists.
-    if !state_path.exists() {
-        log_warn!(
-            "[StateLoad] DevBox state file does not exist at {:?}. Initializing with default (empty) state.",
-            state_path.display().to_string().yellow()
-        ); // Warning if file not found.
-        // If the file doesn't exist, return a default (empty) state.
-        return Ok(DevBoxState::default());
-    }
-
-    // Read the file content into a string.
-    let file_content = fs::read_to_string(state_path).map_err(|e| {
-        // If reading fails, log an error and return an `io::Error`.
-        log_error!(
-            "[StateLoad] Failed to read state file {:?}: {}",
-            state_path.display().to_string().red(),
-            e
-        );
-        e // Propagate the original I/O error.
-    })?; // Propagate the error if `read_to_string` fails.
-
-    // Try to deserialize the JSON string content into a `DevBoxState` struct.
-    serde_json::from_str(&file_content).map_err(|e| {
-        // If deserialization fails (e.g., malformed JSON, schema mismatch),
-        // log an error and return an `io::Error` wrapping the deserialization error.
-        log_error!(
-            "[StateLoad] Failed to parse state file {:?}: {}. The file might be corrupted.",
-            state_path.display().to_string().red(),
-            e
-        );
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("Failed to parse state file: {e}"),
-        )
-    })
 }
 
 /// Saves the current state to file if changes were made
