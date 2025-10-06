@@ -2,7 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2025-10-06
+
+### ♻️ Refactor
+
+- Path Resolver ([f934b4d](https://github.com/kodelint/setup-devbox/commit/f934b4d322a7af381496a65e45f214f427b07321))(by kodelint)
+- `sync-config` command ([dc9a26b](https://github.com/kodelint/setup-devbox/commit/dc9a26b6f6025ae9559001147f603566ea09926b))(by kodelint)
+- `generate` command ([c3279ad](https://github.com/kodelint/setup-devbox/commit/c3279adb47200cc0d2417dd74c4c93e6e026f5ca))(by kodelint)
+
+### 📚 Documentation
+
+- Documentation update ([b73aab0](https://github.com/kodelint/setup-devbox/commit/b73aab0d31033456df6a0786c75cd115b1aed30d))(by kodelint)
+
 ## [0.4.0] - 2025-10-03
+
+### 🏠 Miscellaneous Tasks
+
+- **release**: 0.4.0 [skip ci] ([63d6f03](https://github.com/kodelint/setup-devbox/commit/63d6f032c012b5cce67d17487eb21635e3a2f893))(by github-actions[bot])
 
 ### 🔧 Build System
 
