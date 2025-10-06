@@ -466,12 +466,13 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
         );
         Some(FontState {
             name: font.name.clone(),
-            // Derive version using the helper function.
             version: determine_font_version(font),
             url: font_details.url,
+            install_method: font.source.clone(),
             repo: font.repo.clone(),
             tag: font.tag.clone(),
             files: installed_font_files, // List of all successfully installed font files.
+            install_only: font.install_only.clone(),
         })
     } else {
         // If no files were installed, return `None` to indicate no state should be recorded,

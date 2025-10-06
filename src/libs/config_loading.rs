@@ -27,10 +27,9 @@ use crate::{log_debug, log_error, log_info, log_warn};
 use crate::schemas::common::MainConfig;
 use crate::schemas::fonts::FontConfig;
 use crate::schemas::os_settings::SettingsConfig;
+use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::shell_configuration::ShellConfig;
 use crate::schemas::tools::ToolConfig;
-// Imports a utility function to expand the `~` character in paths.
-use crate::libs::utilities::misc_utils::expand_tilde;
 
 /// A composite struct designed to hold all the parsed configuration data.
 ///
@@ -84,7 +83,7 @@ where
     // Check if a path string was provided. If not, log and return None, as there's no file to load.
     if let Some(path_str) = path_option {
         // Expand the `~` character in the path to the actual home directory path.
-        let path = expand_tilde(path_str);
+        let path = PathResolver::expand_tilde(path_str);
         // Log the attempt to load the configuration, including the resolved path.
         log_debug!(
             "Attempting to load {} config from: {}",

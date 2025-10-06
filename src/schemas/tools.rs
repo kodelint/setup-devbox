@@ -308,6 +308,7 @@ pub struct ToolEntry {
     ///
     /// ## Conflicts
     /// Cannot be used with GitHub-specific fields (`repo`, `tag`).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
 
     /// GitHub repository specification (required when `source` is `"github"`).
@@ -325,6 +326,7 @@ pub struct ToolEntry {
     ///
     /// ## Conflicts
     /// Cannot be used with URL-specific fields (`url`, `executable_path_after_extract`).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub repo: Option<String>,
 
     /// GitHub release tag to download (required when `source` is `"github"`).
@@ -339,6 +341,7 @@ pub struct ToolEntry {
     ///
     /// ## Special Values
     /// - Use `"latest"` in the `version` field instead of specifying a tag for the latest release
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tag: Option<String>,
 
     /// New name for the tool's executable after installation.
@@ -356,6 +359,7 @@ pub struct ToolEntry {
     /// - The renamed binary will be placed in the standard executable location
     /// - The original name is preserved in installation metadata for updates
     /// - Symlinks may be used depending on the installer implementation
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rename_to: Option<String>,
 
     /// Additional command-line options passed to the installer.
@@ -372,6 +376,7 @@ pub struct ToolEntry {
     /// ## Default Behavior
     /// When not specified (`#[serde(default)]`), no additional options are passed.
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<Vec<String>>,
 
     /// Path to the executable within extracted archives (for URL and GitHub sources).
@@ -394,6 +399,7 @@ pub struct ToolEntry {
     /// If not specified, the system will attempt to find an executable automatically
     /// by searching common locations and using the tool name.
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub executable_path_after_extract: Option<String>,
 
     /// Post-installation commands to execute after successful tool installation.
@@ -445,6 +451,7 @@ pub struct ToolEntry {
     ///   - "chmod +x contrib/completion.sh"
     /// ```
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub post_installation_hooks: Option<Vec<String>>,
 
     /// Configuration file management settings for this tool.
@@ -545,6 +552,7 @@ pub struct ToolEntry {
     /// - Backward compatibility is maintained when upgrading the system
     /// - Configuration is only managed when explicitly enabled by the user
     #[serde(default)]
+    #[serde(skip_serializing_if = "ConfigurationManager::is_default")]
     pub configuration_manager: ConfigurationManager,
 }
 

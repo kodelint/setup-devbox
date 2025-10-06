@@ -32,6 +32,11 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+/// Helper function to skip serialization if a boolean is false.
+pub fn is_false(b: &bool) -> bool {
+    !*b
+}
+
 // ============================================================================
 // CONFIGURATION MANAGEMENT SETTINGS
 // ============================================================================
@@ -66,6 +71,7 @@ pub struct ConfigurationManager {
     /// ## Default Behavior
     /// Typically defaults to `false` in tool definitions, requiring explicit
     /// enablement for configuration management.
+    #[serde(skip_serializing_if = "is_false")]
     pub enabled: bool,
 
     /// File system path where the tool's configuration should be stored.
@@ -91,7 +97,17 @@ pub struct ConfigurationManager {
     /// - `"$HOME/.config/helix/config.toml"`
     /// - `"/etc/myapp/config.json"`
     /// - `"./local-config.yaml"`
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tools_configuration_paths: Vec<String>,
+}
+
+// Implements a helper method to check if ConfigurationManager is in its default state.
+impl ConfigurationManager {
+    /// Checks if this ConfigurationManager instance is equal to its default value.
+    /// This function is used by serde to skip serialization if the struct is default.
+    pub fn is_default(&self) -> bool {
+        self == &Self::default()
+    }
 }
 
 // ============================================================================

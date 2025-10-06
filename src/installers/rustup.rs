@@ -172,9 +172,13 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     );
 
     // 3. Check if component is already Installed
-    if !check_if_installed(&tool_entry.name) {
-        log_info!(
+    if check_if_installed(&tool_entry.name) {
+        log_warn!(
             "[Rustup Installer] Component '{}' appears to be already installed, outside SDB",
+            tool_entry.name.green()
+        );
+        log_info!(
+            "[Rustup Installer] Updating SDB inventory for {}",
             tool_entry.name.green()
         );
         log_debug!(
@@ -355,7 +359,7 @@ fn check_toolchain_status(toolchain_name: &str) -> ToolchainStatus {
 fn install_toolchain(toolchain_name: &str) -> bool {
     let args = vec!["toolchain", "install", toolchain_name];
 
-    log_info!(
+    log_debug!(
         "[Rustup Installer] Executing: {} {}",
         "rustup".cyan().bold(),
         args.join(" ").cyan()
@@ -422,37 +426,20 @@ fn install_toolchain(toolchain_name: &str) -> bool {
 /// # Returns
 /// `true` if the component is found, `false` otherwise (including if `rustup` fails).
 fn check_if_installed(component_name: &str) -> bool {
-    // 1. Execute the rustup command to list installed components
     match Command::new("rustup")
         .args(["component", "list", "--installed"])
         .output()
     {
-        // 2. Check for successful command execution
         Ok(output) if output.status.success() => {
             let installed_components = String::from_utf8_lossy(&output.stdout);
-
-            // 3. Define the component name with a hyphen suffix for target-specific checks
-            // Example: "clippy" becomes "clippy-"
             let component_prefix = format!("{component_name}-");
 
-            // 4. Iterate over lines and check for a match
             installed_components.lines().any(|line| {
                 let trimmed_line = line.trim();
-
-                // Check for an exact match (for components like "rust-src")
-                if trimmed_line == component_name {
-                    return true;
-                }
-
-                // Check for a prefix match (for components like "clippy-...")
-                if trimmed_line.starts_with(&component_prefix) {
-                    return true;
-                }
-
-                false
+                // Exact match or prefix match
+                trimmed_line == component_name || trimmed_line.starts_with(&component_prefix)
             })
         }
-        // 5. Handle command failure (e.g., rustup not found, command fails)
         _ => false,
     }
 }
@@ -517,7 +504,7 @@ fn install_components(components: &[String], toolchain_name: &str) -> bool {
 fn install_single_component(component: &str, toolchain_name: &str) -> bool {
     let args = vec!["component", "add", component, "--toolchain", toolchain_name];
 
-    log_info!(
+    log_debug!(
         "[Rustup Installer] Executing: {} {}",
         "rustup".cyan().bold(),
         args.join(" ").cyan()

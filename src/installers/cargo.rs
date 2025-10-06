@@ -140,8 +140,8 @@ use colored::Colorize;
 /// ```
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_info!(
-        "[Cargo Installer] Attempting to install Cargo crate: {}",
-        tool_entry.name.bold()
+        "[Cargo Installer] Attempting to install Tool: {}",
+        tool_entry.name.green().bold()
     );
     log_debug!("[Cargo Installer] ToolEntry details: {:#?}", tool_entry);
 
@@ -151,9 +151,13 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         "[Cargo Installer] Checking if {} is already installed",
         tool_entry.name.bold()
     );
-    if !check_if_installed(&tool_entry.name) {
-        log_info!(
+    if check_if_installed(&tool_entry.name) {
+        log_warn!(
             "[Cargo Installer] Tool '{}' appears to be already installed, outside SDB",
+            tool_entry.name.green()
+        );
+        log_info!(
+            "[Cargo Installer] Updating SDB inventory for {}",
             tool_entry.name.green()
         );
         log_debug!(
@@ -210,7 +214,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     let actual_version = determine_installed_version(tool_entry, is_it_git_based_install);
 
     log_info!(
-        "[Cargo Installer] Successfully installed Cargo crate: {} (version: {})",
+        "[Cargo Installer] Successfully installed tool: {} (version: {})",
         tool_entry.name.bold().green(),
         actual_version.green()
     );
@@ -271,7 +275,8 @@ fn check_if_installed(tool_name: &str) -> bool {
             let installed_crates = String::from_utf8_lossy(&output.stdout);
             installed_crates
                 .lines()
-                .any(|line| line.trim().starts_with(tool_name) && line.contains(':'))
+                .filter(|line| line.starts_with(char::is_whitespace)) // Only indented binary lines
+                .any(|line| line.trim() == tool_name) // Exact match
         }
         _ => false,
     }
@@ -487,7 +492,7 @@ fn prepare_git_based_install_command(command_args: &mut Vec<String>, tool_entry:
 /// - Provides specific error codes and messages for failures
 /// - Handles both command execution failures and non-zero exit codes
 fn execute_cargo_install_command(command_args: &[String], tool_entry: &ToolEntry) -> bool {
-    log_info!(
+    log_debug!(
         "[Cargo Installer] Executing: {} {}",
         "cargo".cyan().bold(),
         command_args.join(" ").cyan()
@@ -496,7 +501,7 @@ fn execute_cargo_install_command(command_args: &[String], tool_entry: &ToolEntry
     match Command::new("cargo").args(command_args).output() {
         Ok(output) if output.status.success() => {
             log_info!(
-                "[Cargo Installer] Successfully installed crate: {}",
+                "[Cargo Installer] Successfully installed tool: {}",
                 tool_entry.name.bold().green()
             );
 
@@ -517,7 +522,7 @@ fn execute_cargo_install_command(command_args: &[String], tool_entry: &ToolEntry
         }
         Ok(output) => {
             log_error!(
-                "[Cargo Installer] Failed to install crate '{}'. Exit code: {}. Error: {}",
+                "[Cargo Installer] Failed to install tool '{}'. Exit code: {}. Error: {}",
                 tool_entry.name.bold().red(),
                 output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr).red()

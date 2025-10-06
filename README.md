@@ -40,6 +40,7 @@ By defining your desired tools, system settings, shell configurations, and fonts
   * 🐍 **Pip (`pip`)**: Install Python packages.
   * 🦀 **Rustup (`rustup`)**: Manage and install Rust toolchains and components.
   * 🚀 **URL (`direct URL`)**: Manage and install tool directly from URL.
+  *   **uv (`uv`)**: UV Installer to manage `python` version for the system.
 * **Highly Modular and Pluggable**: The architecture is designed for ease of extension. Adding support for new package managers or installation methods is straightforward, requiring minimal changes to the core logic and making `setup-devbox` adaptable to evolving needs.
 * **System Settings Application**: Define macOS system preferences to be applied automatically.
 * **Shell Configuration Management**: Manage shell aliases, environment variables, and dotfiles.
