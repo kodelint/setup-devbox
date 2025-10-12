@@ -114,67 +114,6 @@ impl ConfigurationManagerProcessor {
         }
     }
 
-    // Resolves the configuration base path using a prioritized search order.
-    //
-    // The resolution logic follows these steps:
-    // 1. Check for the `SDB_TOOLS_SOURCE_CONFIG_PATH` environment variable.
-    // 2. Check for the `SDB_CONFIG_PATH` environment variable and append `configs/tools`.
-    // 3. Use the `config_base_path` parameter if it was provided.
-    // 4. Fall back to the default home directory path: `~/.setup-devbox/configs/tools`.
-    // 5. As a last resort, use a relative path: `.setup-devbox/configs/tools`.
-    //
-    // ## Parameters
-    // - `config_base_path`: Optional custom base path for configuration files
-    //
-    // ## Returns
-    // Resolved `PathBuf` for the configuration base directory.
-    // fn resolve_config_base_path(config_base_path: Option<PathBuf>) -> PathBuf {
-    //     // Priority 1: Environment variable SDB_TOOLS_SOURCE_CONFIG_PATH
-    //     if let Ok(env_path) = env::var("SDB_TOOLS_SOURCE_CONFIG_PATH") {
-    //         match Self::expand_path(&env_path) {
-    //             Ok(expanded_path) => return expanded_path,
-    //             Err(_) => {
-    //                 log_warn!(
-    //                     "[Tools] Failed to expand \"{}\", using fallback",
-    //                     "SDB_TOOLS_SOURCE_CONFIG_PATH".blue()
-    //                 );
-    //             }
-    //         }
-    //     }
-    //
-    //     // Priority 2: Environment variable SDB_CONFIG_PATH
-    //     if let Ok(env_path) = env::var("SDB_CONFIG_PATH") {
-    //         match Self::expand_path(&env_path) {
-    //             Ok(expanded_path) => {
-    //                 log_debug!(
-    //                     "[Tools] Using \"{}\" as SDB Tools Configuration folder",
-    //                     "SDB_CONFIG_PATH".blue()
-    //                 );
-    //                 // The tools configurations are located in a subdirectory
-    //                 return expanded_path.join("configs").join("tools");
-    //             }
-    //             Err(_) => {
-    //                 log_warn!(
-    //                     "[Tools] Failed to expand \"{}\", using fallback",
-    //                     "SDB_CONFIG_PATH".blue()
-    //                 );
-    //             }
-    //         }
-    //     }
-    //
-    //     // Priority 3: Provided parameter
-    //     if let Some(path) = config_base_path {
-    //         return path;
-    //     }
-    //
-    //     // Priority 4: Default home directory path
-    //     // This is a common convention for configuration files on Linux/macOS
-    //     dirs::home_dir()
-    //         .map(|home| home.join(".setup-devbox").join("configs").join("tools"))
-    //         // Priority 5: Fallback relative path
-    //         .unwrap_or_else(|| PathBuf::from(".setup-devbox/configs/tools"))
-    // }
-
     /// Comprehensive evaluation that returns cached results to avoid duplicate SHA calculations.
     /// This method replaces the separate `evaluate_configuration_change_needed` method.
     ///
@@ -204,9 +143,10 @@ impl ConfigurationManagerProcessor {
             });
         }
 
-        let source_paths =
-            self.build_source_paths(&config_manager.tools_configuration_paths, tool_name);
-        let destination_paths = Self::expand_paths(&config_manager.tools_configuration_paths)?;
+        let source_paths = self
+            .build_configuration_source_paths(&config_manager.tools_configuration_paths, tool_name);
+        let destination_paths =
+            PathResolver::expand_paths(&config_manager.tools_configuration_paths)?;
 
         // If the source file doesn't exist, we can't do anything.
         let existing_source_paths: Vec<&PathBuf> =
@@ -214,7 +154,7 @@ impl ConfigurationManagerProcessor {
 
         if existing_source_paths.is_empty() {
             log_warn!(
-                "[Tools] Source configuration not found for {}: {}",
+                "[Tools::ConfigurationManager] Source configuration not found for {}: {}",
                 tool_name.red(),
                 source_paths
                     .iter()
@@ -293,7 +233,7 @@ impl ConfigurationManagerProcessor {
             Some(state) => state,
             None => {
                 log_debug!(
-                    "[Tools] No existing configuration state for {}, update needed",
+                    "[Tools::ConfigurationManager] No existing configuration state for {}, update needed",
                     tool_name
                 );
                 return Ok((true, Some("no existing state".to_string())));
@@ -303,7 +243,7 @@ impl ConfigurationManagerProcessor {
         // Check if source file changed by comparing SHAs.
         if current_source_sha != existing_state.source_configuration_sha {
             log_debug!(
-                "[Tools] Source file changed for {} - recorded: {}, current: {}",
+                "[Tools::ConfigurationManager] Source file changed for {} - recorded: {}, current: {}",
                 tool_name,
                 existing_state.source_configuration_sha.red(),
                 current_source_sha.green()
@@ -314,7 +254,7 @@ impl ConfigurationManagerProcessor {
         // Check if destination file exists.
         if current_destination_sha.is_none() {
             log_warn!(
-                "[Tools] Destination file missing for {}: {}, will recreate",
+                "[Tools::ConfigurationManager] Destination file missing for {}: {}, will recreate",
                 tool_name,
                 destination_paths
                     .iter()
@@ -330,7 +270,7 @@ impl ConfigurationManagerProcessor {
         if let Some(dest_sha) = current_destination_sha {
             if *dest_sha != existing_state.destination_configuration_sha {
                 log_debug!(
-                    "[Tools] Destination file modified for {} - recorded: {}, current: {}",
+                    "[Tools::ConfigurationManager] Destination file modified for {} - recorded: {}, current: {}",
                     tool_name,
                     existing_state.destination_configuration_sha.red(),
                     dest_sha.yellow()
@@ -369,7 +309,7 @@ impl ConfigurationManagerProcessor {
         // If configuration is disabled, there's nothing to do.
         if !config_manager.enabled {
             log_debug!(
-                "[Tools] Configuration manager disabled for tool: {}",
+                "[Tools::ConfigurationManager] Configuration manager disabled for tool: {}",
                 tool_name.cyan()
             );
             return Ok(None);
@@ -387,7 +327,7 @@ impl ConfigurationManagerProcessor {
         if !evaluation.needs_update {
             if let Some(reason) = &evaluation.reason {
                 log_info!(
-                    "[Tools] Configuration for {} is up to date ({}), skipping",
+                    "[Tools::ConfigurationManager] Configuration for {} is up to date ({}), skipping",
                     tool_name.green(),
                     reason
                 );
@@ -396,9 +336,10 @@ impl ConfigurationManagerProcessor {
         }
 
         // If an update is needed, perform the file copy and conversion.
-        let source_paths =
-            self.build_source_paths(&config_manager.tools_configuration_paths, tool_name);
-        let destination_paths = Self::expand_paths(&config_manager.tools_configuration_paths)?;
+        let source_paths = self
+            .build_configuration_source_paths(&config_manager.tools_configuration_paths, tool_name);
+        let destination_paths =
+            PathResolver::expand_paths(&config_manager.tools_configuration_paths)?;
 
         self.update_configuration_file(&source_paths, &destination_paths)?;
 
@@ -429,7 +370,7 @@ impl ConfigurationManagerProcessor {
     ///
     /// ## Returns
     /// Vector of `PathBuf` objects representing source file paths
-    pub(crate) fn build_source_paths(
+    fn build_configuration_source_paths(
         &self,
         destination_paths: &[String],
         tool_name: &str,
@@ -489,7 +430,7 @@ impl ConfigurationManagerProcessor {
         // Process each source-destination pair
         for (source_path, destination_path) in source_paths.iter().zip(destination_paths.iter()) {
             log_debug!(
-                "[Tools] Updating configuration from {} to {}",
+                "[Tools::ConfigurationManager] Updating configuration from {} to {}",
                 source_path.display().to_string().blue(),
                 destination_path.display().to_string().blue()
             );
@@ -510,7 +451,7 @@ impl ConfigurationManagerProcessor {
             // Write the converted content to the destination file.
             fs::write(destination_path, converted_content)?;
             log_info!(
-                "[Tools] Configuration written to: {}",
+                "[Tools::ConfigurationManager] Configuration written to: {}",
                 destination_path
                     .display()
                     .to_string()
@@ -755,57 +696,5 @@ impl ConfigurationManagerProcessor {
         }
 
         Ok(format!("{:x}", hasher.finalize()))
-    }
-
-    /// Expands environment variables and tilde (`~`) in a given path string.
-    ///
-    /// This is a critical utility for ensuring that user-provided paths (like
-    /// `~/config/my-file.txt` or `$HOME/config/my-file.txt`) are correctly resolved.
-    ///
-    /// ## Parameters
-    /// - `path`: Path string to expand
-    ///
-    /// ## Returns
-    /// `Ok(PathBuf)` with expanded path, `Err` if expansion fails
-    ///
-    /// ## Errors
-    /// Returns error if environment variable expansion fails
-    pub fn expand_path(path: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
-        // Handle $HOME environment variable first.
-        let expanded = if path.starts_with("$HOME") {
-            if let Some(home_dir) = dirs::home_dir() {
-                path.replace("$HOME", home_dir.to_str().unwrap_or(""))
-            } else {
-                path.to_string()
-            }
-        } else {
-            path.to_string()
-        };
-
-        // Handle tilde expansion. The `expand_tilde` function is from a utility library.
-        let expanded_path = PathResolver::expand_tilde(&expanded);
-
-        // Handle other environment variables using `shellexpand`.
-        if expanded.contains('$') {
-            let path_string = expanded_path.to_string_lossy().to_string();
-            let fully_expanded = shellexpand::full(&path_string)?;
-            Ok(PathBuf::from(fully_expanded.as_ref()))
-        } else {
-            Ok(expanded_path)
-        }
-    }
-
-    /// Expands multiple paths using the same logic as `expand_path`.
-    ///
-    /// ## Parameters
-    /// - `paths`: List of path strings to expand
-    ///
-    /// ## Returns
-    /// `Ok(Vec<PathBuf>)` with expanded paths, `Err` if any expansion fails
-    ///
-    /// ## Errors
-    /// Returns error if any path expansion fails
-    pub fn expand_paths(paths: &[String]) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
-        paths.iter().map(|path| Self::expand_path(path)).collect()
     }
 }

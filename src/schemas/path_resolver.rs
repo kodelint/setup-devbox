@@ -1,8 +1,8 @@
 use colored::Colorize;
-use std::env;
 use std::path::{Path, PathBuf};
+use std::{env, fs, io};
 
-use crate::{log_debug, log_info, log_warn};
+use crate::{log_debug, log_error, log_info, log_warn};
 
 /// # PathResolver
 ///
@@ -159,7 +159,7 @@ impl PathResolver {
             // Expand tilde in the environment path if present.
             return Self::expand_tilde(&env_path);
         }
-
+        log_debug!("[SDB] environment variable SDB_CONFIG_PATH not set");
         // Default fallback path, expanding '~' to the user's home directory.
         Self::expand_tilde("~/.setup-devbox")
     }
@@ -310,11 +310,174 @@ impl PathResolver {
     ///
     /// # Returns
     /// A `Result` containing the expanded `PathBuf` or an error if the result is empty.
-    fn expand_path(path: &str) -> Result<PathBuf, String> {
-        let expanded = Self::expand_tilde(path);
-        if expanded.as_os_str().is_empty() {
-            return Err("Expanded path is empty".to_string());
+
+    pub fn expand_path(path: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+        // Handle $HOME environment variable first.
+        let expanded = if path.starts_with("$HOME") {
+            if let Some(home_dir) = dirs::home_dir() {
+                path.replace("$HOME", home_dir.to_str().unwrap_or(""))
+            } else {
+                path.to_string()
+            }
+        } else {
+            path.to_string()
+        };
+
+        // Handle tilde expansion. The `expand_tilde` function is from a utility library.
+        let expanded_path = PathResolver::expand_tilde(&expanded);
+
+        // Handle other environment variables using `shellexpand`.
+        if expanded.contains('$') {
+            let path_string = expanded_path.to_string_lossy().to_string();
+            let fully_expanded = shellexpand::full(&path_string)?;
+            Ok(PathBuf::from(fully_expanded.as_ref()))
+        } else {
+            Ok(expanded_path)
         }
-        Ok(expanded)
+    }
+
+    /// Expands multiple paths using the same logic as `expand_path`.
+    ///
+    /// ## Parameters
+    /// - `paths`: List of path strings to expand
+    ///
+    /// ## Returns
+    /// `Ok(Vec<PathBuf>)` with expanded paths, `Err` if any expansion fails
+    ///
+    /// ## Errors
+    /// Returns error if any path expansion fails
+    pub fn expand_paths(paths: &[String]) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+        paths.iter().map(|path| Self::expand_path(path)).collect()
+    }
+
+    /// Determines the correct font installation directory for the current operating system.
+    ///
+    /// For macOS, this is `~/Library/Fonts`. This function also ensures the directory exists,
+    /// creating it if necessary.
+    ///
+    /// # Returns
+    /// A `Result` containing the `PathBuf` to the installation directory on success.
+    /// Returns `Err(io::Error)` if the home directory cannot be found or directory creation fails,
+    /// or if the operating system is not supported.
+    #[cfg(target_os = "macos")]
+    pub fn get_font_installation_dir() -> io::Result<PathBuf> {
+        log_debug!("[Font Paths] Attempting to get macOS font installation directory.");
+        let Some(home_dir) = dirs::home_dir() else {
+            log_error!(
+                "[Font Paths] Could not determine home directory. Cannot proceed with font installation."
+            );
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "Home directory not found",
+            ));
+        };
+
+        let font_dir = home_dir.join("Library").join("Fonts");
+
+        // Ensure the directory exists.
+        fs::create_dir_all(&font_dir).map_err(|e| {
+            log_error!(
+                "[Font Paths] Failed to create font installation directory '{}': {}",
+                font_dir.display(),
+                e.to_string().red()
+            );
+            e // Propagate the io::Error
+        })?;
+
+        log_debug!(
+            "[Font Paths] macOS font installation directory: {}",
+            font_dir.display()
+        );
+        Ok(font_dir)
+    }
+
+    /// Determines the working directory for post-installation hooks.
+    ///
+    /// This function finds the appropriate directory context for executing
+    /// additional setup commands. The working directory should provide context
+    /// for any relative paths or resources that post-installation hooks might need.
+    ///
+    /// # Strategy
+    ///
+    /// 1. If the executable is in a `bin/` directory, use the parent directory
+    ///    - This gives access to adjacent directories like `lib/`, `share/`, etc.
+    ///    - Example: `/tmp/extract/app/bin/tool` → working_dir = `/tmp/extract/app/`
+    ///
+    /// 2. Otherwise, use the directory containing the executable
+    ///    - Example: `/tmp/extract/tool` → working_dir = `/tmp/extract/`
+    ///
+    /// 3. If no parent directory exists, use the extraction root
+    ///    - Fallback for edge cases
+    ///
+    /// # Arguments
+    ///
+    /// * `executable_path` - Path to the main executable binary
+    /// * `extracted_path` - Root path where archive contents were extracted
+    ///
+    /// # Returns
+    ///
+    /// The appropriate working directory path for post-installation hook execution
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// // Executable in bin/ directory
+    /// executable: /tmp/extract/myapp/bin/mytool
+    /// returns:    /tmp/extract/myapp/
+    ///
+    /// // Executable at root level
+    /// executable: /tmp/extract/mytool
+    /// returns:    /tmp/extract/
+    /// ```
+    pub fn determine_working_directory(executable_path: &Path, extracted_path: &Path) -> PathBuf {
+        // Try to get the parent directory of the executable
+        if let Some(parent_dir) = executable_path.parent() {
+            // Check if the executable is in a bin/ directory
+            if parent_dir.file_name().is_some_and(|name| name == "bin") {
+                // If so, use the grandparent directory (one level up from bin/)
+                // This provides access to sibling directories like lib/, share/, etc.
+                if let Some(grandparent) = parent_dir.parent() {
+                    log_debug!(
+                        "[SDB] Working directory (parent of bin/): {}",
+                        grandparent.display()
+                    );
+                    return grandparent.to_path_buf();
+                }
+            }
+
+            // Otherwise, use the parent directory of the executable
+            log_debug!(
+                "[SDB] Working directory (executable parent): {}",
+                parent_dir.display()
+            );
+            return parent_dir.to_path_buf();
+        }
+
+        // Fallback to extraction root if parent directory cannot be determined
+        log_debug!(
+            "[SDB] Working directory (extraction root): {}",
+            extracted_path.display()
+        );
+        extracted_path.to_path_buf()
+    }
+
+    pub fn get_user_home_dir() -> Option<PathBuf> {
+        let home_dir = env::var("HOME")
+            .map_err(|_| {
+                log_warn!("[SDB] User $HOME environment variable not set");
+                log_error!("[SDB] Cannot determine installation path without $HOME");
+            })
+            .ok()?;
+
+        // Construct full installation path
+        let user_home_path = PathBuf::from(format!("{home_dir}/bin/"));
+
+        log_debug!(
+            "[SDB] Default Installation path: {}",
+            user_home_path.display().to_string().cyan()
+        );
+
+        // Return both paths (currently identical, but maintained for API consistency)
+        Some(user_home_path)
     }
 }

@@ -32,6 +32,7 @@ use crate::schemas::state_file::FontState;
 // Utility functions from other parts of the crate:
 use crate::libs::utilities::assets::download_file; // For downloading files from URLs.
 use crate::libs::utilities::compression::extract_archive;
+use crate::schemas::path_resolver::PathResolver;
 
 /// Helper struct to hold validated font entry details, reducing redundancy.
 #[allow(dead_code)]
@@ -102,46 +103,46 @@ fn validate_font_entry(font: &FontEntry) -> Option<ValidatedFontDetails> {
     })
 }
 
-/// Determines the correct font installation directory for the current operating system.
-///
-/// For macOS, this is `~/Library/Fonts`. This function also ensures the directory exists,
-/// creating it if necessary.
-///
-/// # Returns
-/// A `Result` containing the `PathBuf` to the installation directory on success.
-/// Returns `Err(io::Error)` if the home directory cannot be found or directory creation fails,
-/// or if the operating system is not supported.
-#[cfg(target_os = "macos")]
-fn get_font_installation_dir() -> io::Result<PathBuf> {
-    log_debug!("[Font Paths] Attempting to get macOS font installation directory.");
-    let Some(home_dir) = dirs::home_dir() else {
-        log_error!(
-            "[Font Paths] Could not determine home directory. Cannot proceed with font installation."
-        );
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "Home directory not found",
-        ));
-    };
-
-    let font_dir = home_dir.join("Library").join("Fonts");
-
-    // Ensure the directory exists.
-    fs::create_dir_all(&font_dir).map_err(|e| {
-        log_error!(
-            "[Font Paths] Failed to create font installation directory '{}': {}",
-            font_dir.display(),
-            e.to_string().red()
-        );
-        e // Propagate the io::Error
-    })?;
-
-    log_debug!(
-        "[Font Paths] macOS font installation directory: {}",
-        font_dir.display()
-    );
-    Ok(font_dir)
-}
+// /// Determines the correct font installation directory for the current operating system.
+// ///
+// /// For macOS, this is `~/Library/Fonts`. This function also ensures the directory exists,
+// /// creating it if necessary.
+// ///
+// /// # Returns
+// /// A `Result` containing the `PathBuf` to the installation directory on success.
+// /// Returns `Err(io::Error)` if the home directory cannot be found or directory creation fails,
+// /// or if the operating system is not supported.
+// #[cfg(target_os = "macos")]
+// pub fn get_font_installation_dir() -> io::Result<PathBuf> {
+//     log_debug!("[Font Paths] Attempting to get macOS font installation directory.");
+//     let Some(home_dir) = dirs::home_dir() else {
+//         log_error!(
+//             "[Font Paths] Could not determine home directory. Cannot proceed with font installation."
+//         );
+//         return Err(io::Error::new(
+//             io::ErrorKind::NotFound,
+//             "Home directory not found",
+//         ));
+//     };
+//
+//     let font_dir = home_dir.join("Library").join("Fonts");
+//
+//     // Ensure the directory exists.
+//     fs::create_dir_all(&font_dir).map_err(|e| {
+//         log_error!(
+//             "[Font Paths] Failed to create font installation directory '{}': {}",
+//             font_dir.display(),
+//             e.to_string().red()
+//         );
+//         e // Propagate the io::Error
+//     })?;
+//
+//     log_debug!(
+//         "[Font Paths] macOS font installation directory: {}",
+//         font_dir.display()
+//     );
+//     Ok(font_dir)
+// }
 
 // Placeholder for other operating systems.
 // This will return an error if compiled on a non-macOS system.
@@ -378,7 +379,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
     let font_details = validate_font_entry(font)?; // Returns None if validation fails
 
     // 2. Determine installation paths (temporary and final).
-    let font_install_dir = match get_font_installation_dir() {
+    let font_install_dir = match PathResolver::get_font_installation_dir() {
         Ok(dir) => dir,
         Err(_) => return None, // Already logged error, just abort
     };

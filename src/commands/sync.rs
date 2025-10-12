@@ -249,7 +249,7 @@ impl ToolEntry {
     /// A ToolEntry suitable for serialization to tools.yaml
     pub fn from_state(name: String, tool_state: &ToolState) -> Self {
         // Normalize the installation method to a shorter source type
-        let source = Self::normalize_source_type(&tool_state.install_method);
+        let source = ToolState::normalize_source_type(&tool_state.install_method);
 
         // Determine if URL should be included based on source type
         let url_for_config = Self::resolve_url_for_source(&source, &tool_state.url, &name);
@@ -275,42 +275,6 @@ impl ToolEntry {
                 tools_configuration_paths: Vec::new(),
             }),
         }
-    }
-
-    /// Normalizes installation method names to standard source types
-    ///
-    /// State files use verbose, descriptive names for installation methods,
-    /// while configuration files use shorter, standardized identifiers.
-    ///
-    /// # Mapping Table
-    ///
-    /// | State install_method | Config source |
-    /// |---------------------|---------------|
-    /// | uv-python           | uv            |
-    /// | uv-tool             | uv            |
-    /// | cargo-install       | cargo         |
-    /// | go-install          | go            |
-    /// | direct-url          | url           |
-    /// | brew                | brew          |
-    /// | github              | github        |
-    ///
-    /// # Arguments
-    ///
-    /// * `install_method` - The verbose installation method from state
-    ///
-    /// # Returns
-    ///
-    /// The standardized source type for configuration
-    fn normalize_source_type(install_method: &str) -> String {
-        match install_method {
-            "uv-python" => "uv",
-            "uv-tool" => "uv",
-            "cargo-install" => "cargo",
-            "go-install" => "go",
-            "direct-url" => "url",
-            other => other,
-        }
-        .to_string()
     }
 
     /// Normalizes version strings according to configuration conventions

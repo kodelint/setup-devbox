@@ -2,7 +2,7 @@ use crate::libs::shell_manager::{
     ensure_sections_exist, insert_into_section, is_command_update, log_section_stats,
     normalize_command, parse_existing_sections, section_header_name,
 };
-use crate::libs::utilities::file_operations::{
+use crate::libs::utilities::manage_rc_files::{
     get_rc_file, read_rc_file, remove_rc_file, source_rc_file, write_rc_file,
 };
 use crate::libs::utilities::platform::is_env_var_set;
