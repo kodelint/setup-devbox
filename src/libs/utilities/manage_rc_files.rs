@@ -1,5 +1,4 @@
 use crate::{log_info, log_warn};
-use chrono::Duration;
 use colored::Colorize;
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -157,50 +156,5 @@ pub fn read_rc_file(rc_path: &Path) -> Vec<String> {
             );
             vec![]
         }
-    }
-}
-
-/// Converts a Chrono `Duration` object into a human-readable string representation.
-///
-/// This function formats time durations for display purposes, selecting the most
-/// appropriate time unit (days, hours, or minutes) based on the duration's magnitude.
-/// It's particularly useful for user-facing messages, logs, and configuration displays
-/// where raw duration values would be less intuitive.
-///
-/// # Arguments
-/// * `duration` - A reference to a Chrono `Duration` object to be formatted
-///
-/// # Returns
-/// A `String` containing the formatted duration in the most appropriate time unit:
-/// - Days for durations ≥ 1 day
-/// - Hours for durations ≥ 1 hour but less than 1 day
-/// - Minutes for durations ≥ 1 minute but less than 1 hour
-/// - "0 minutes" for durations less than 1 minute
-///
-/// # Unit Selection Logic
-/// The function uses a hierarchical approach to determine the best unit:
-/// 1. **Days**: If the duration contains any complete days (≥ 86400 seconds)
-/// 2. **Hours**: If no days but contains complete hours (≥ 3600 seconds)
-/// 3. **Minutes**: If no hours but contains complete minutes (≥ 60 seconds)
-/// 4. **Fallback**: "0 minutes" for sub-minute durations
-pub fn format_duration(duration: &Duration) -> String {
-    // Check if the duration contains any complete days
-    // Using num_days() which returns the total number of whole days in the duration
-    if duration.num_days() > 0 {
-        format!("{} days", duration.num_days())
-    }
-    // If no days, check for complete hours
-    // num_hours() returns total whole hours, including those that might be part of days
-    else if duration.num_hours() > 0 {
-        format!("{} hours", duration.num_hours())
-    }
-    // If no hours, check for complete minutes
-    // num_minutes() returns total whole minutes in the duration
-    else if duration.num_minutes() > 0 {
-        format!("{} minutes", duration.num_minutes())
-    } else {
-        // Fallback for durations less than 1 minute
-        // This ensures we always return a meaningful string, even for very short durations
-        "0 minutes".to_string()
     }
 }
