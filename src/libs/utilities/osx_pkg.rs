@@ -25,7 +25,6 @@ use colored::Colorize;
 #[cfg(target_os = "macos")]
 use crate::{log_debug, log_error, log_info, log_warn};
 
-
 /// Installs a software from a .pkg file on macOS.
 /// This is a dummy implementation; your actual function needs to:
 /// 1. Execute the `installer` command with the .pkg file.
@@ -67,7 +66,6 @@ pub fn install_pkg(
             "Failed to install .pkg: {stderr}"
         )));
     }
-
 
     let check_cli_paths = |name: &str| -> Option<PathBuf> {
         // Check A: CLI Tool Root Directory (e.g., /usr/local/go)
@@ -143,7 +141,6 @@ pub fn install_pkg(
     );
     Ok(final_path)
 }
-
 
 /// Installs a software from a .dmg (Disk Image) file on macOS.
 ///
@@ -234,7 +231,6 @@ pub fn install_dmg(
             ),
         ));
     }
-
 
     let mounted_volume_path = mounted_path.ok_or_else(|| {
         std::io::Error::other("DMG was not mounted or mounted path could not be determined.")
