@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2025-10-13
+
+### ♻️ Refactor
+
+- `main` entrypoint ([35af4d8](https://github.com/kodelint/setup-devbox/commit/35af4d87e035bb9d910b27cad68dffc45a51c683))(by kodelint)
+- Renamed file_operations to manage_rc_files ([72a47ee](https://github.com/kodelint/setup-devbox/commit/72a47ee998c7d837d593a43aa6e92a16cc166c38))(by kodelint)
+- Code placements ([4b23e73](https://github.com/kodelint/setup-devbox/commit/4b23e73a6affb9a0ba7e4fc6fb7335449c0c8f56))(by kodelint)
+- Makefile ([9122173](https://github.com/kodelint/setup-devbox/commit/9122173764fd45cb45382d5e651bad3392ca5238))(by kodelint)
+- Fixed non-macOS code ([3ad1da9](https://github.com/kodelint/setup-devbox/commit/3ad1da9fc5e6e31aedd50550edd06ab7cbe50d5b))(by kodelint)
+
+### 📚 Documentation
+
+- Documentation changes ([04969f9](https://github.com/kodelint/setup-devbox/commit/04969f951a7c156e760ac8566cb57204ce5762fa))(by kodelint)
+
+### 🔧 Continuous Integration
+
+- Fixed the local CI ([53a3d4a](https://github.com/kodelint/setup-devbox/commit/53a3d4a7404f8f594a2aaa92174ce10bd37513ff))(by kodelint)
+- Fixed the local CI, format check ([957452e](https://github.com/kodelint/setup-devbox/commit/957452ee73c41a4f5c2321631c3685d0d2bb9013))(by kodelint)
+
+### 🚀 Features
+
+- Added remove command ([5e83a1e](https://github.com/kodelint/setup-devbox/commit/5e83a1eed1b4f6cca0f0b6d6cc9786dbf71e85a5))(by kodelint)
+
 ## [0.4.1] - 2025-10-06
 
 ### ♻️ Refactor
@@ -9,6 +32,10 @@ All notable changes to this project will be documented in this file.
 - Path Resolver ([f934b4d](https://github.com/kodelint/setup-devbox/commit/f934b4d322a7af381496a65e45f214f427b07321))(by kodelint)
 - `sync-config` command ([dc9a26b](https://github.com/kodelint/setup-devbox/commit/dc9a26b6f6025ae9559001147f603566ea09926b))(by kodelint)
 - `generate` command ([c3279ad](https://github.com/kodelint/setup-devbox/commit/c3279adb47200cc0d2417dd74c4c93e6e026f5ca))(by kodelint)
+
+### 🏠 Miscellaneous Tasks
+
+- **release**: 0.4.1 [skip ci] ([5121505](https://github.com/kodelint/setup-devbox/commit/51215057d7de6e1f3bf6ed4a9896b3825fb26867))(by github-actions[bot])
 
 ### 📚 Documentation
 
