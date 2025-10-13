@@ -1,14 +1,27 @@
+// =========================================================================== //
+//                          STANDARD LIBRARY DEPENDENCIES                      //
+// =========================================================================== //
+
+use std::fs;
+use std::path::PathBuf;
+
+// =========================================================================== //
+//                             EXTERNAL DEPENDENCIES                           //
+// =========================================================================== //
+
+use colored::Colorize;
+
+// =========================================================================== //
+//                              INTERNAL IMPORTS                               //
+// =========================================================================== //
 use crate::libs::uninstallers::{ItemToBeRemoved, RemovalResult, RemovalSummary};
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::state_file::{DevBoxState, FontState, ToolState};
 use crate::{log_debug, log_error, log_info, log_warn};
-use colored::Colorize;
-use std::fs;
-use std::path::PathBuf;
 
-// ============================================================================
-//                           REMOVAL ORCHESTRATOR
-// ============================================================================
+// =========================================================================== //
+//                           REMOVAL ORCHESTRATOR                              //
+// =========================================================================== //
 
 /// Orchestrates the complete removal process for tools and fonts.
 ///
@@ -206,12 +219,7 @@ impl<'a> RemovalOrchestrator<'a> {
         self.state
             .tools
             .iter()
-            .find(|(_, state)| {
-                state
-                    .renamed_to
-                    .as_ref()
-                    .map_or(false, |alias| alias == tool_name)
-            })
+            .find(|(_, state)| state.renamed_to.as_deref() == Some(tool_name))
             .map(|(key, _)| {
                 log_info!(
                     "[SDB::Remove::Tool] Found '{}' as alias for '{}'",
@@ -403,7 +411,7 @@ impl<'a> RemovalOrchestrator<'a> {
     /// If no font files are found, a warning is logged but this is not an error.
     fn remove_font_files(&self, font_state: &FontState) -> Result<(), String> {
         let fonts_dir = PathResolver::get_font_installation_dir()
-            .map_err(|e| format!("Failed to get fonts directory: {}", e))?;
+            .map_err(|e| format!("Failed to get fonts directory: {e}"))?;
 
         log_debug!("[SDB::Remove::Font] Searching in: {}", fonts_dir.display());
 
@@ -465,9 +473,9 @@ impl<'a> RemovalOrchestrator<'a> {
     }
 }
 
-// ============================================================================
-//                                 REMOVAL SUMMARY
-// ============================================================================
+// =========================================================================== //
+//                                 REMOVAL SUMMARY                             //
+// =========================================================================== //
 
 impl RemovalSummary {
     /// Displays a formatted summary of all removal operations.

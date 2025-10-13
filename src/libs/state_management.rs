@@ -11,15 +11,29 @@
 // - Error handling for file I/O and JSON parsing.
 // - Ensuring parent directories exist before writing.
 
+// =========================================================================== //
+//                          STANDARD LIBRARY DEPENDENCIES                      //
+// =========================================================================== //
+
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+
+// =========================================================================== //
+//                             EXTERNAL DEPENDENCIES                           //
+// =========================================================================== //
+
+use colored::Colorize;
+
+// =========================================================================== //
+//                              INTERNAL IMPORTS                               //
+// =========================================================================== //
+
 use crate::libs::utilities::timestamps::current_timestamp;
 use crate::schemas::configuration_management::ConfigurationManagerState;
 use crate::schemas::state_file::{DevBoxState, ToolState};
 use crate::schemas::tools::ToolEntry;
 use crate::{log_debug, log_error, log_info, log_warn};
-use colored::Colorize;
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
 
 /// Loads the application's state from `state.json` or initializes a new one.
 ///
@@ -293,6 +307,7 @@ impl ToolState {
     ///
     /// ## Returns
     /// A fully populated `ToolState` instance ready for storage in the state file
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         tool_entry: &ToolEntry,
         install_path: &PathBuf,

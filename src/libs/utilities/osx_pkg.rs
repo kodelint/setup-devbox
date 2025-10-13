@@ -1,10 +1,31 @@
-use crate::{log_debug, log_error, log_info, log_warn};
-use colored::Colorize;
+// ============================================================================
+//                          STANDARD LIBRARY DEPENDENCIES
+// ============================================================================
+
+#[cfg(target_os = "macos")]
+use std::ffi::OsStr;
+#[cfg(target_os = "macos")]
 use std::path::{Path, PathBuf};
+#[cfg(target_os = "macos")]
 use std::process::{Command, Stdio};
+#[cfg(target_os = "macos")]
 use std::{fs, io};
 
-// install_pkg function (Updated to return PathBuf for the installed app)
+// ============================================================================
+//                             EXTERNAL DEPENDENCIES
+// ============================================================================
+
+#[cfg(target_os = "macos")]
+use colored::Colorize;
+
+// ============================================================================
+//                              INTERNAL IMPORTS
+// ============================================================================
+
+#[cfg(target_os = "macos")]
+use crate::{log_debug, log_error, log_info, log_warn};
+
+
 /// Installs a software from a .pkg file on macOS.
 /// This is a dummy implementation; your actual function needs to:
 /// 1. Execute the `installer` command with the .pkg file.
@@ -47,7 +68,7 @@ pub fn install_pkg(
         )));
     }
 
-    // Helper closure to consolidate the two standard CLI path checks (DRY principle).
+
     let check_cli_paths = |name: &str| -> Option<PathBuf> {
         // Check A: CLI Tool Root Directory (e.g., /usr/local/go)
         let cli_root_path = PathBuf::from(format!("/usr/local/{name}"));
@@ -91,7 +112,7 @@ pub fn install_pkg(
         inferred_install_path = check_cli_paths(tool_name);
     }
 
-    // 3. NEW CHECK: If still not found, check using the 'tool_renamed_to' alias.
+    // 3. If still not found, check using the 'tool_renamed_to' alias.
     if inferred_install_path.is_none() {
         if let Some(alias) = tool_renamed_to.as_ref() {
             log_debug!(
@@ -123,18 +144,7 @@ pub fn install_pkg(
     Ok(final_path)
 }
 
-#[cfg(not(target_os = "macos"))]
-pub fn install_pkg(_pkg_path: &Path, _tool_name: &str) -> io::Result<PathBuf> {
-    log_warn!(
-        "[macOS Installer] .pkg installation is only supported on macOS. Skipping for this platform."
-    );
-    Err(io::Error::new(
-        io::ErrorKind::Other,
-        ".pkg installation is only supported on macOS.",
-    ))
-}
 
-// install_dmg function (With corrected return type logic to PathBuf)
 /// Installs a software from a .dmg (Disk Image) file on macOS.
 ///
 /// This function attempts to:
@@ -225,12 +235,9 @@ pub fn install_dmg(
         ));
     }
 
-    // This is the cleanest and most explicit approach for a non-static string literal error
+
     let mounted_volume_path = mounted_path.ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "DMG was not mounted or mounted path could not be determined.",
-        )
+        std::io::Error::other("DMG was not mounted or mounted path could not be determined.")
     })?;
 
     //  Perform Installation and ensure unmount happens
@@ -242,10 +249,10 @@ pub fn install_dmg(
         for entry in fs::read_dir(&mounted_volume_path)? {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().map_or(false, |ext| ext == "pkg") {
+            if path.extension() == Some(OsStr::new("pkg")) {
                 pkg_found = Some(path);
                 break;
-            } else if path.extension().map_or(false, |ext| ext == "app") {
+            } else if path.extension() == Some(OsStr::new("app")) {
                 app_found = Some(path);
             }
         }
@@ -265,7 +272,7 @@ pub fn install_dmg(
                 "[macOS Installer] Found .app bundle: {}",
                 app_path.display().to_string().bold()
             );
-            let target_app_path = PathBuf::from("/Applications").join(format!("{}.app", app_name));
+            let target_app_path = PathBuf::from("/Applications").join(format!("{app_name}.app"));
 
             if target_app_path.exists() {
                 log_info!(
@@ -358,18 +365,8 @@ pub fn install_dmg(
         "[macOS Installer] .dmg installation process completed for: {}",
         dmg_path.display().to_string().green()
     );
-    install_result // Return the result of the installation process (which includes the PathBuf)
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn install_dmg(_dmg_path: &Path, _app_name: &str) -> io::Result<PathBuf> {
-    log_warn!(
-        "[macOS Installer] .dmg installation is only supported on macOS. Skipping for this platform."
-    );
-    Err(io::Error::new(
-        io::ErrorKind::Other,
-        ".dmg installation is only supported on macOS.",
-    ))
+    // Return the result of the installation process (which includes the PathBuf)
+    install_result
 }
 
 /// Helper function to unmount a DMG.
@@ -380,6 +377,7 @@ pub fn install_dmg(_dmg_path: &Path, _app_name: &str) -> io::Result<PathBuf> {
 /// # Returns
 /// * `io::Result<()>`: `Ok(())` if the DMG was unmounted successfully,
 ///   `Err(io::Error)` otherwise.
+#[cfg(target_os = "macos")]
 fn unmount_dmg(mount_path: &Path) -> io::Result<()> {
     log_debug!(
         "[macOS Installer] Attempting to unmount DMG from: {}",
@@ -416,6 +414,7 @@ fn unmount_dmg(mount_path: &Path) -> io::Result<()> {
 ///
 /// # Returns
 /// * `Option<String>`: The mounted path as a `String` if found, otherwise `None`.
+#[cfg(target_os = "macos")]
 fn extract_mounted_path_from_hdiutil_plist(plist_output: &str) -> Option<String> {
     // A simple line-by-line search for the mount-point key and its subsequent string value.
     // For more complex plist structures, using a dedicated plist parser crate would be ideal.
