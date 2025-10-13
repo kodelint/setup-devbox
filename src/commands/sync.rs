@@ -45,7 +45,7 @@ use std::{
 };
 
 // ============================================================================
-// ERROR HANDLING
+//                               ERROR HANDLING
 // ============================================================================
 
 /// Comprehensive error types for sync operations
@@ -101,7 +101,7 @@ impl std::fmt::Display for SyncError {
 pub type SyncResult<T> = Result<T, SyncError>;
 
 // ============================================================================
-// STATE STRUCTURES
+//                              STATE STRUCTURES
 // ============================================================================
 
 /// Root application state structure
@@ -123,7 +123,7 @@ pub struct AppState {
 }
 
 // ============================================================================
-// CONFIGURATION STRUCTURES
+//                           CONFIGURATION STRUCTURES
 // ============================================================================
 
 /// Main configuration file structure (config.yaml)
@@ -195,7 +195,7 @@ pub struct ShellCommand {
 }
 
 // ============================================================================
-// TYPE CONVERSIONS
+//                              TYPE CONVERSIONS
 // ============================================================================
 
 impl From<&FontState> for FontEntry {
@@ -249,7 +249,7 @@ impl ToolEntry {
     /// A ToolEntry suitable for serialization to tools.yaml
     pub fn from_state(name: String, tool_state: &ToolState) -> Self {
         // Normalize the installation method to a shorter source type
-        let source = Self::normalize_source_type(&tool_state.install_method);
+        let source = ToolState::normalize_source_type(&tool_state.install_method);
 
         // Determine if URL should be included based on source type
         let url_for_config = Self::resolve_url_for_source(&source, &tool_state.url, &name);
@@ -275,42 +275,6 @@ impl ToolEntry {
                 tools_configuration_paths: Vec::new(),
             }),
         }
-    }
-
-    /// Normalizes installation method names to standard source types
-    ///
-    /// State files use verbose, descriptive names for installation methods,
-    /// while configuration files use shorter, standardized identifiers.
-    ///
-    /// # Mapping Table
-    ///
-    /// | State install_method | Config source |
-    /// |---------------------|---------------|
-    /// | uv-python           | uv            |
-    /// | uv-tool             | uv            |
-    /// | cargo-install       | cargo         |
-    /// | go-install          | go            |
-    /// | direct-url          | url           |
-    /// | brew                | brew          |
-    /// | github              | github        |
-    ///
-    /// # Arguments
-    ///
-    /// * `install_method` - The verbose installation method from state
-    ///
-    /// # Returns
-    ///
-    /// The standardized source type for configuration
-    fn normalize_source_type(install_method: &str) -> String {
-        match install_method {
-            "uv-python" => "uv",
-            "uv-tool" => "uv",
-            "cargo-install" => "cargo",
-            "go-install" => "go",
-            "direct-url" => "url",
-            other => other,
-        }
-        .to_string()
     }
 
     /// Normalizes version strings according to configuration conventions
@@ -424,7 +388,7 @@ impl ToolEntry {
 }
 
 // ============================================================================
-// FILE GENERATION
+//                                FILE GENERATION
 // ============================================================================
 
 /// Responsible for writing Rust data structures to disk as formatted YAML
@@ -560,7 +524,7 @@ impl FileWriter {
 }
 
 // ============================================================================
-// CONFIGURATION GENERATION
+//                         CONFIGURATION GENERATION
 // ============================================================================
 
 /// Core engine for converting application state to configuration files
@@ -855,6 +819,7 @@ impl ConfigGenerator {
         let settings_config = SettingsConfig {
             settings: OsSpecificSettings {
                 macos: macos_settings,
+                linux: vec![],
             },
         };
 
@@ -937,7 +902,7 @@ impl ConfigGenerator {
 }
 
 // ============================================================================
-// SYNCHRONIZATION ORCHESTRATION
+//                    SYNCHRONIZATION ORCHESTRATION
 // ============================================================================
 
 /// Orchestrates the complete synchronization workflow
@@ -1068,7 +1033,7 @@ impl SyncOrchestrator {
 }
 
 // ============================================================================
-// PUBLIC API
+//                                   PUBLIC API
 // ============================================================================
 
 /// Main entry point for the sync command

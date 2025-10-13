@@ -1,249 +1,326 @@
-# Makefile for Rust project development
-# Run 'make help' to see all available commands
-#
-# Alternative: You can also use ./dev.sh [command] for the same functionality
-# Choose whichever interface you prefer!
+# Local CI/CD commands - run these before pushing to GitHub
+# Usage: make <target>
 
-.PHONY: help install check format lint test build clean quality advanced all pre-commit release-check dev
+.PHONY: help install-tools fmt-check fmt clippy check-unused audit check-outdated
+.PHONY: validate-cargo check-features check-docs quality test build advanced-checks
+.PHONY: pre-pr quick fix clean analyze-version release preview-release changelog
+.PHONY: check-linux quality-linux pre-pr-with-linux _check-docker
 
-# Default target
-help: ## Show this help message
-	@echo "🦀 setup-devbox aka SDB Development, Build, Check and CI Commands"
+# Default target shows help
+help:
+	@echo "Available targets:"
 	@echo ""
-	@echo "Core commands:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+	@echo "Setup:"
+	@echo "  install-tools     - Install required Rust tools"
 	@echo ""
-	@echo "Examples:"
-	@echo "  make install     # Set up development environment"
-	@echo "  make check       # Quick checks before commit"
-	@echo "  make quality     # Full quality analysis (like CI)"
-	@echo "  make all         # Run everything"
-
-# Installation and setup
-install: ## Install all required tools for development
-	@echo "🔧 Installing Rust development tools..."
-	@echo "Checking Rust installation..."
-	@if ! command -v rustc >/dev/null 2>&1; then \
-		echo "❌ Rust not found. Please install Rust first: https://rustup.rs/"; \
-		exit 1; \
-	fi
-	@echo "✅ Rust found: $(rustc --version)"
-	@echo "Setting up default toolchain if needed..."
-	@rustup default stable || echo "⚠️  Default toolchain already set or using system Rust"
-	@echo "📦 Installing Rust components..."
-	@rustup component add rustfmt clippy rust-src || echo "⚠️  Some components may already be installed"
-	@echo "🔧 Installing nightly toolchain..."
-	@rustup install nightly || echo "⚠️  Nightly already installed"
-	@rustup component add rust-src --toolchain nightly || echo "⚠️  Nightly rust-src already installed"
-	@echo "📦 Installing additional cargo tools..."
-	@echo "This may take a few minutes..."
-	@for tool in cargo-audit cargo-outdated cargo-machete cargo-deny cargo-udeps cargo-pants; do \
-		echo "Installing $tool..."; \
-		cargo install $tool --locked || echo "⚠️  $tool installation failed or already installed"; \
-	done
-	@echo "✅ Installation completed!"
+	@echo "Quality Checks:"
+	@echo "  fmt-check        - Check code formatting"
+	@echo "  fmt              - Fix code formatting"
+	@echo "  clippy           - Run Clippy lints"
+	@echo "  check-unused     - Check for unused dependencies"
+	@echo "  audit            - Run security audit"
+	@echo "  check-outdated   - Check for outdated dependencies"
+	@echo "  validate-cargo   - Validate Cargo.toml"
+	@echo "  check-features   - Check feature combinations"
+	@echo "  check-docs       - Check documentation"
+	@echo "  quality          - Run all quality checks"
 	@echo ""
-	@echo "🔍 Verification:"
-	@rustc --version || echo "❌ rustc not working"
-	@cargo --version || echo "❌ cargo not working"
-	@rustup --version || echo "❌ rustup not working"
+	@echo "Build & Test:"
+	@echo "  test             - Run tests"
+	@echo "  build            - Build release binary"
+	@echo "  advanced-checks  - Run advanced analysis"
+	@echo ""
+	@echo "Convenience:"
+	@echo "  pre-pr           - Full pre-PR check (quality + test + build)"
+	@echo "  quick            - Quick check (fmt + basic compile)"
+	@echo "  fix              - Auto-fix issues"
+	@echo "  clean            - Clean build artifacts"
+	@echo ""
+	@echo "Linux/Docker Checks:"
+	@echo "  check-linux      - Check compilation on Linux (Docker)"
+	@echo "  quality-linux    - Run quality checks on Linux (Docker)"
+	@echo "  pre-pr-with-linux - Full pre-PR check + Linux verification"
+	@echo ""
+	@echo "Release (standalone):"
+	@echo "  analyze-version  - Analyze what version bump is needed"
+	@echo "  release-major    - Create major release"
+	@echo "  release-minor    - Create minor release"
+	@echo "  release-patch    - Create patch release"
+	@echo "  preview-release  - Preview next release changelog"
+	@echo "  changelog        - View current changelog"
 
-# Quick development checks
-check: ## Quick compilation check (fastest feedback)
-	@echo "🔍 Running quick compilation check..."
-	@cargo check
-	@echo "✅ Quick check passed!"
+# Install all required Rust tools
+install-tools:
+	@echo "📦 Installing required Rust tools..."
+	@cargo install cargo-release git-cliff cargo-audit cargo-outdated cargo-machete --locked
+	@echo "✅ All tools installed"
 
-format: ## Format code and check formatting
-	@echo "🎨 Formatting code..."
-	@cargo fmt
-	@echo "✅ Code formatted!"
-
-format-check: ## Check if code is properly formatted (CI mode)
+# Check code formatting
+fmt-check:
 	@echo "🎨 Checking code formatting..."
-	@cargo fmt -- --check || (echo "❌ Code needs formatting. Run 'make format' to fix." && exit 1)
-	@echo "✅ Code formatting is correct!"
+	@cargo fmt -- --check
 
-lint: ## Run Clippy lints
+# Fix code formatting
+fmt:
+	@echo "🎨 Fixing code formatting..."
+	@cargo fmt
+
+# Run Clippy lints
+clippy:
 	@echo "📎 Running Clippy lints..."
 	@cargo clippy --all-targets --all-features -- -D warnings -D clippy::all -W clippy::pedantic -W clippy::nursery
-	@echo "✅ No Clippy issues found!"
 
-lint-fix: ## Run Clippy with automatic fixes
-	@echo "📎 Running Clippy with automatic fixes..."
-	@cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features
-	@echo "✅ Clippy fixes applied!"
-
-test: ## Run tests (if any exist)
-	@echo "🧪 Running tests..."
-	@if find . -name "*.rs" -path "*/tests/*" -o -name "lib.rs" -exec grep -l "#\[cfg(test)\]" {} \; | head -1 | grep -q .; then \
-		cargo test; \
-	else \
-		echo "ℹ️  No tests found, skipping test execution"; \
-	fi
-	@echo "✅ Tests completed!"
-
-build: ## Build the project in release mode
-	@echo "🔨 Building release binary..."
-	@cargo build --release
-	@echo "✅ Build completed!"
-	@ls -lah target/release/setup-devbox 2>/dev/null || echo "Binary location: target/release/"
-
-clean: ## Clean build artifacts
-	@echo "🧹 Cleaning build artifacts..."
-	@cargo clean
-	@echo "✅ Clean completed!"
-
-# Comprehensive quality checks (matches CI)
-quality: format-check security deps-check features docs ## Run all quality checks (matches CI)
-	@echo ""
-	@echo "🎉 All quality checks passed! Ready for commit."
-
-security: ## Run security audit
-	@echo "🔒 Running security audit..."
-	@cargo audit
-	@echo "✅ No security vulnerabilities found!"
-
-deps-check: ## Check for unused and outdated dependencies
+# Check for unused dependencies
+check-unused:
 	@echo "🔍 Checking for unused dependencies..."
 	@cargo machete
+
+# Run security audit
+audit:
+	@echo "🔒 Running security audit..."
+	@cargo audit
+
+# Check for outdated dependencies (non-blocking)
+check-outdated:
 	@echo "📦 Checking for outdated dependencies..."
 	@cargo outdated --exit-code 1 || echo "⚠️  Some dependencies are outdated (not blocking)"
-	@echo "✅ Dependency checks completed!"
 
-features: ## Test different feature combinations
-	@echo "🔧 Testing feature combinations..."
-	@echo "  Testing default features..."
-	@cargo check
-	@echo "  Testing no default features..."
-	@cargo check --no-default-features
-	@echo "  Testing all features..."
-	@cargo check --all-features
-	@echo "✅ All feature combinations compile!"
+# Validate Cargo.toml
+validate-cargo:
+	@echo "📋 Validating Cargo.toml..."
+	@cargo metadata --format-version 1 > /dev/null
+	@grep -q '^description = ' Cargo.toml || echo "⚠️  Consider adding a description field"
+	@grep -q '^license = ' Cargo.toml || grep -q '^license-file = ' Cargo.toml || echo "⚠️  Consider adding a license field"
+	@grep -q '^repository = ' Cargo.toml || echo "⚠️  Consider adding a repository field"
+	@echo "✅ Cargo.toml validation complete"
 
-docs: ## Generate and check documentation
-	@echo "📚 Checking documentation..."
+# Check compilation with different feature combinations
+check-features:
+	@echo "🔧 Checking compilation with different features..."
+	@echo "  → Default features..."
+	@cargo check --all-targets
+	@echo "  → No default features..."
+	@cargo check --no-default-features --all-targets
+	@echo "  → All features..."
+	@cargo check --all-features --all-targets
+	@echo "✅ All feature combinations compile"
+
+# Check documentation generation
+check-docs:
+	@echo "📚 Checking documentation generation..."
 	@RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items
-	@echo "✅ Documentation generates without warnings!"
+	@echo "✅ Documentation generates without warnings"
 
-# Advanced analysis (like CI advanced-checks)
-advanced: ## Run advanced analysis tools
-	@echo "🔬 Running advanced analysis..."
-	@echo "🚫 Running cargo-deny checks..."
-	@cargo deny check || echo "⚠️  cargo-deny found issues (check deny.toml config)"
-	@echo "🔍 Checking for unused dependencies (nightly)..."
-	@cargo +nightly udeps --all-targets || echo "⚠️  cargo-udeps found issues"
-	@echo "🧹 Checking for unused features..."
-	@cargo pants || echo "⚠️  cargo-pants found issues"
-	@$(MAKE) analyze-patterns
-	@echo "✅ Advanced analysis completed!"
-
-analyze-patterns: ## Analyze code for common anti-patterns
-	@echo "🕵️  Checking for common anti-patterns..."
-	@echo -n "  unwrap() calls in src/: "
-	@find src -name "*.rs" -not -path "*/tests/*" -exec grep -n "\.unwrap()" {} \; | wc -l | tr -d ' ' || echo "0"
-	@echo -n "  expect() calls in src/: "
-	@find src -name "*.rs" -not -path "*/tests/*" -exec grep -n "\.expect(" {} \; | wc -l | tr -d ' ' || echo "0"
-	@echo -n "  panic! calls in src/: "
-	@find src -name "*.rs" -not -path "*/tests/*" -exec grep -n "panic!" {} \; | wc -l | tr -d ' ' || echo "0"
-
-# Workflow simulation
-pre-commit: quality ## Run all checks before committing (recommended)
+# Run all quality checks
+quality: fmt-check check-unused audit check-outdated validate-cargo check-features check-docs
 	@echo ""
-	@echo "🚀 Pre-commit checks completed!"
-	@echo "Your code is ready for commit and should pass CI."
-
-release-check: quality build advanced ## Full release readiness check
+	@echo "🎉 All quality checks passed!"
 	@echo ""
-	@echo "📦 Release readiness check completed!"
-	@echo "Your code is ready for release."
+	@echo "Quality checks completed:"
+	@echo "  ✅ Code formatting"
+	@echo "  ✅ Unused dependencies"
+	@echo "  ✅ Security audit"
+	@echo "  ✅ Outdated dependencies"
+	@echo "  ✅ Cargo.toml validation"
+	@echo "  ✅ Feature combinations"
+	@echo "  ✅ Documentation"
 
-# Convenience targets
-all: quality build ## Run quality checks and build
-	@echo ""
-	@echo "🎯 All tasks completed successfully!"
+# Run tests if they exist
+test:
+	@echo "🧪 Running tests..."
+	@if find . -name "*.rs" -path "*/tests/*" -o -name "lib.rs" -exec grep -l "#\[cfg(test)\]" {} \; | head -1 | grep -q .; then \
+		cargo test --release; \
+	else \
+		echo "ℹ️  No tests found, skipping"; \
+	fi
 
-dev: format ## Quick development cycle (format + lint)
-	@echo ""
-	@echo "🚀 Development checks completed!"
+# Build release binary
+build:
+	@echo "🔨 Building release binary..."
+	@echo "  → Checking all targets first..."
+	@cargo check --all-targets --release
+	@echo "  → Building release binary..."
+	@cargo build --release
+	@echo "✅ Build complete: target/release/setup-devbox"
 
-# Continuous development helpers
-watch: ## Watch for file changes and run quick checks
-	@echo "👀 Watching for changes... (Press Ctrl+C to stop)"
-	@echo "Will run 'cargo check' on file changes"
-	@cargo watch -x check
-
-watch-test: ## Watch for file changes and run tests
-	@echo "👀 Watching for changes and running tests... (Press Ctrl+C to stop)"
-	@cargo watch -x test
-
-watch-lint: ## Watch for file changes and run clippy
-	@echo "👀 Watching for changes and running clippy... (Press Ctrl+C to stop)"
-	@cargo watch -x 'clippy --all-targets --all-features'
-
-# Git hooks helpers
-install-hooks: ## Install git pre-commit hooks
-	@echo "🪝 Installing git pre-commit hooks..."
-	@mkdir -p .git/hooks
-	@echo '#!/bin/bash' > .git/hooks/pre-commit
-	@echo 'set -e' >> .git/hooks/pre-commit
-	@echo 'echo "🔍 Running pre-commit checks..."' >> .git/hooks/pre-commit
-	@echo 'make pre-commit' >> .git/hooks/pre-commit
-	@chmod +x .git/hooks/pre-commit
-	@echo "✅ Git pre-commit hook installed!"
-	@echo "Now 'git commit' will automatically run quality checks."
-
-# Benchmarking and profiling
-bench: ## Run benchmarks (if any exist)
-	@echo "🏎️  Running benchmarks..."
+# Run advanced checks (non-blocking)
+advanced-checks:
+	@echo "🔬 Running advanced checks..."
+	@echo "  → Analyzing binary size..."
+	@cargo build --release
+	@ls -lah target/release/setup-devbox
+	@echo "  → Checking benchmarks..."
 	@if find . -name "*.rs" -exec grep -l "#\[bench\]" {} \; | head -1 | grep -q .; then \
-		cargo bench; \
+		cargo bench --no-run && echo "✅ Benchmarks compile"; \
 	else \
 		echo "ℹ️  No benchmarks found"; \
 	fi
+	@echo "✅ Advanced checks complete"
 
-profile: ## Build with profiling enabled
-	@echo "📊 Building with profiling..."
-	@cargo build --release --features profiling || cargo build --release
-	@echo "✅ Profile build completed!"
+# Full pre-PR check
+pre-pr: quality test build
+	@echo ""
+	@echo "✨ Ready to create your PR!"
+	@echo ""
+	@echo "Everything looks good:"
+	@echo "  ✅ All quality checks passed"
+	@echo "  ✅ Tests passed"
+	@echo "  ✅ Release build successful"
 
-# Size analysis
-size: build ## Analyze binary size
-	@echo "📏 Analyzing binary size..."
-	@ls -lah target/release/setup-devbox
-	@echo ""
-	@echo "📊 Size breakdown:"
-	@size target/release/setup-devbox 2>/dev/null || echo "  (size command not available)"
+# Quick check
+quick: fmt-check
+	@echo "⚡ Running quick checks..."
+	@cargo check --all-targets
+	@echo "✅ Quick checks passed"
 
-# Dependency management
-update: ## Update dependencies
-	@echo "📦 Updating dependencies..."
-	@cargo update
-	@echo "✅ Dependencies updated!"
+# Fix common issues automatically
+fix: fmt
+	@echo "🔧 Auto-fixing issues..."
+	@echo "  → Running cargo fix..."
+	@cargo fix --allow-dirty --allow-staged
+	@echo "✅ Auto-fixes applied (review changes with git diff)"
 
-tree: ## Show dependency tree
-	@echo "🌳 Dependency tree:"
-	@cargo tree
+# Clean build artifacts
+clean:
+	@echo "🧹 Cleaning build artifacts..."
+	@cargo clean
+	@echo "✅ Clean complete"
 
-# Quick fixes
-fix: lint-fix format ## Apply automatic fixes (clippy + format)
-	@echo "✅ Automatic fixes applied!"
+# ============================================================================
+# LINUX/DOCKER CHECKS (to match Ubuntu CI environment)
+# ============================================================================
 
-# Development environment info
-info: ## Show development environment information
-	@echo "🦀 Development Environment Info:"
+# Internal: Check if Docker is available
+_check-docker:
+	@command -v docker >/dev/null 2>&1 || (echo "❌ Docker not found. Install Docker Desktop to run Linux checks." && exit 1)
+
+# Check compilation on Linux using Docker (matches CI environment)
+check-linux: _check-docker
+	@echo "🐧 Running Linux checks in Docker (matching CI environment)..."
+	@echo "  → Pulling Rust Docker image..."
+	@docker pull rust:latest
+	@echo "  → Running cargo check on Linux..."
+	@docker run --rm -v $(pwd):/workspace -w /workspace rust:latest \
+		bash -c "cargo check --all-targets --all-features"
+	@echo "✅ Linux checks passed"
+
+# Run all quality checks on Linux using Docker
+quality-linux: _check-docker
+	@echo "🐧 Running full quality suite on Linux..."
+	@docker pull rust:latest
+	@docker run --rm -v $(pwd):/workspace -w /workspace rust:latest \
+		bash -c "\
+			echo '🎨 Checking formatting...' && \
+			cargo fmt -- --check && \
+			echo '🔧 Checking features...' && \
+			cargo check --all-targets && \
+			cargo check --no-default-features --all-targets && \
+			cargo check --all-features --all-targets && \
+			echo '📚 Checking docs...' && \
+			RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items && \
+			echo '✅ All Linux quality checks passed!'"
+
+# Full pre-PR check including Linux verification
+pre-pr-with-linux: quality test build check-linux
 	@echo ""
-	@echo "Rust version:"
-	@rustc --version
+	@echo "✨ Ready to create your PR (Linux verified)!"
 	@echo ""
-	@echo "Cargo version:"
-	@cargo --version
+	@echo "Everything looks good:"
+	@echo "  ✅ All quality checks passed"
+	@echo "  ✅ Tests passed"
+	@echo "  ✅ Release build successful"
+	@echo "  ✅ Linux compilation verified"
+
+# ============================================================================
+# RELEASE COMMANDS (standalone - don't run these casually!)
+# ============================================================================
+
+# Analyze what version bump is needed
+analyze-version:
+	@current_version=$$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
+	echo "Current version: $$current_version"; \
+	echo ""; \
+	last_tag=$$(git describe --tags --abbrev=0 2>/dev/null || echo ""); \
+	if [ -z "$$last_tag" ]; then \
+		echo "No previous tags found - this will be initial release"; \
+		echo "Suggested: minor bump"; \
+		exit 0; \
+	fi; \
+	echo "Last tag: $$last_tag"; \
+	echo ""; \
+	echo "Commits since last release:"; \
+	git log $$last_tag..HEAD --oneline; \
+	echo ""; \
+	if git log $$last_tag..HEAD --grep="BREAKING CHANGE" | grep -q "BREAKING CHANGE"; then \
+		echo "⚠️  Breaking changes detected → MAJOR bump needed"; \
+	elif git log $$last_tag..HEAD --oneline | grep -q "feat:"; then \
+		echo "✨ Features detected → MINOR bump suggested"; \
+	elif git log $$last_tag..HEAD --oneline | grep -qE "fix:|perf:|refactor:"; then \
+		echo "🐛 Patches/fixes detected → PATCH bump suggested"; \
+	else \
+		echo "ℹ️  No conventional commits found"; \
+	fi
+
+# Internal release helper (don't call directly)
+_do-release:
+	@if [ -z "$(BUMP_TYPE)" ]; then \
+		echo "❌ Error: Use 'make release-major', 'make release-minor', or 'make release-patch'"; \
+		exit 1; \
+	fi; \
+	echo "🚀 Creating $(BUMP_TYPE) release..."; \
+	echo ""; \
+	branch=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$branch" != "main" ] && [ "$$branch" != "development" ]; then \
+		echo "❌ Releases must be created from 'main' or 'development' branch"; \
+		echo "   Current branch: $$branch"; \
+		exit 1; \
+	fi; \
+	if [ -n "$$(git status --porcelain)" ]; then \
+		echo "❌ Working directory is not clean. Commit or stash your changes first."; \
+		git status --short; \
+		exit 1; \
+	fi; \
+	echo "📝 Updating version in Cargo.toml..."; \
+	cargo release version --execute $(BUMP_TYPE) --no-confirm; \
+	new_version=$$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
+	echo "New version: $$new_version"; \
+	echo "📋 Generating changelog..."; \
+	git-cliff --tag v$$new_version > CHANGELOG.md; \
+	echo "💾 Committing version bump and changelog..."; \
+	git add Cargo.toml Cargo.lock CHANGELOG.md; \
+	git commit -m "chore(release): $$new_version [skip ci]"; \
+	echo "🏷️  Creating tag v$$new_version..."; \
+	git tag -a "v$$new_version" -m "Release v$$new_version"; \
+	echo ""; \
+	echo "✅ Release v$$new_version prepared!"; \
+	echo ""; \
+	echo "Next steps:"; \
+	echo "  1. Review the changes: git log -1 && git show v$$new_version"; \
+	echo "  2. Push to GitHub: git push origin $$branch && git push origin v$$new_version"; \
+	echo "  3. GitHub Actions will create the release automatically"; \
+	echo ""; \
+	echo "To undo: git reset --hard HEAD~1 && git tag -d v$$new_version"
+
+# Create major release
+release-major:
+	@$(MAKE) _do-release BUMP_TYPE=major
+
+# Create minor release
+release-minor:
+	@$(MAKE) _do-release BUMP_TYPE=minor
+
+# Create patch release
+release-patch:
+	@$(MAKE) _do-release BUMP_TYPE=patch
+
+# Preview what the next release would look like
+preview-release:
+	@echo "📋 Preview of next release changelog:"
 	@echo ""
-	@echo "Installed components:"
-	@rustup component list --installed
+	@git-cliff --unreleased
+
+# View current changelog
+changelog:
+	@echo "📖 Current changelog:"
 	@echo ""
-	@echo "Toolchains:"
-	@rustup toolchain list
-	@echo ""
-	@echo "Project info:"
-	@cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "setup-devbox") | "  Name: \(.name)\n  Version: \(.version)\n  Description: \(.description // "N/A")"' 2>/dev/null || echo "  (jq not available for detailed project info)"
+	@if [ -f CHANGELOG.md ]; then cat CHANGELOG.md; else echo "No CHANGELOG.md found"; fi

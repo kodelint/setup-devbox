@@ -38,19 +38,14 @@
 //! - **Warn**: Non-fatal issues or warnings during installation
 //! - **Error**: Installation failures with specific error codes and messages
 
-use std::env;
-use std::path::{Path, PathBuf};
-
 // External crate imports
 use colored::Colorize;
-use tempfile::Builder as TempFileBuilder;
 
 // Utility imports
 use crate::libs::tool_installer::execute_post_installation_hooks;
+use crate::libs::utilities::assets;
 use crate::libs::utilities::{
-    assets::{detect_file_type, download_file, install_dmg, install_pkg},
-    binary::{find_executable, make_executable, move_and_rename_binary},
-    compression,
+    assets::detect_file_type,
     platform::{asset_matches_platform, detect_architecture, detect_os},
 };
 
@@ -76,10 +71,9 @@ use crate::{log_debug, log_error, log_info};
 /// 4. **Asset Selection**: Finds and prioritizes platform-appropriate assets
 /// 5. **Asset Download**: Downloads the selected asset to temporary location
 /// 6. **File Type Detection**: Determines installation strategy based on file type
-/// 7. **Installation Path Resolution**: Determines final binary installation path
-/// 8. **Asset Processing**: Handles extraction, installation, or direct binary placement
-/// 9. **Post-Installation Hooks**: Executes any additional setup commands
-/// 10. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
+/// 7. **Asset Processing**: Handles extraction, installation, or direct binary placement
+/// 8. **Post-Installation Hooks**: Executes any additional setup commands
+/// 9. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
 ///
 /// # Arguments
 ///
@@ -171,7 +165,8 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         "[GitHub Installer] Downloading asset: {}",
         asset.name.bold()
     );
-    let (temp_dir, downloaded_path) = download_github_asset(tool_entry, asset)?;
+    let (temp_dir, downloaded_path) =
+        assets::download_url_asset(tool_entry, &asset.browser_download_url)?;
 
     // Step 6: Detect file type and determine installation strategy
     let file_type = detect_file_type(&downloaded_path);
@@ -180,19 +175,11 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         file_type.to_string().magenta()
     );
 
-    // Step 7: Determine final installation path in user's bin directory
-    let (install_path, final_install_path) = determine_installation_path(tool_entry)?;
+    // Step 7: Process asset based on file type (binary, archive, or macOS package)
+    let (package_type, final_install_path, working_dir) =
+        assets::process_asset_by_type(tool_entry, &downloaded_path, &file_type, &temp_dir)?;
 
-    // Step 8: Process asset based on file type (binary, archive, or macOS package)
-    let (package_type, working_dir) = process_asset_by_type(
-        tool_entry,
-        &downloaded_path,
-        &file_type,
-        &temp_dir,
-        &install_path,
-    )?;
-
-    // Step 9: Execute any post-installation hooks defined in tool configuration
+    // Step 8: Execute any post-installation hooks defined in tool configuration
     log_debug!(
         "[GitHub Installer] Executing post-installation hooks for {}",
         tool_entry.name.bold()
@@ -206,7 +193,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         tag.green()
     );
 
-    // Step 10: Return comprehensive ToolState for state tracking and persistence
+    // Step 9: Return comprehensive ToolState for state tracking and persistence
     Some(ToolState::new(
         tool_entry,
         &final_install_path,
@@ -478,416 +465,4 @@ fn select_platform_asset<'a>(
     );
 
     Some(selected_asset)
-}
-
-/// Downloads the GitHub asset to a temporary location.
-///
-/// This function creates a temporary directory and downloads the selected
-/// release asset to it. Using a temporary directory ensures proper cleanup
-/// and prevents conflicts with existing files. The temporary directory is
-/// automatically cleaned up when it goes out of scope.
-///
-/// # Arguments
-///
-/// * `tool_entry` - The tool being installed (used for naming and error messages)
-/// * `asset` - The release asset to download, containing the download URL and filename
-///
-/// # Returns
-///
-/// * `Some((temp_dir, downloaded_path))` - Tuple containing the temporary directory
-///   handle and the path to the downloaded file if successful
-/// * `None` - If temporary directory creation or download fails
-///
-/// # Temporary Directory
-///
-/// The temporary directory is created with a prefix that includes the tool name
-/// for easier debugging and identification. The directory persists only as long
-/// as the `TempDir` handle is in scope, then is automatically cleaned up.
-///
-/// Example temp dir: `/tmp/setup-devbox-install-gh-abc123/`
-fn download_github_asset(
-    tool_entry: &ToolEntry,
-    asset: &ReleaseAsset,
-) -> Option<(tempfile::TempDir, PathBuf)> {
-    // Create temporary directory with descriptive prefix
-    let temp_dir = match TempFileBuilder::new()
-        .prefix(&format!("setup-devbox-install-{}-", tool_entry.name))
-        .tempdir()
-    {
-        Ok(dir) => dir,
-        Err(e) => {
-            log_error!(
-                "[GitHub Installer] Failed to create temporary directory for {}: {}",
-                tool_entry.name.red(),
-                e
-            );
-            return None;
-        }
-    };
-
-    // Construct full path for downloaded file using original asset name
-    let downloaded_path = temp_dir.path().join(&asset.name);
-
-    log_debug!(
-        "[GitHub Installer] Downloading to: {}",
-        downloaded_path.display().to_string().cyan()
-    );
-
-    // Download file from GitHub to temporary location
-    if let Err(err) = download_file(&asset.browser_download_url, &downloaded_path) {
-        log_error!(
-            "[GitHub Installer] Failed to download {} from {}: {}",
-            tool_entry.name.red(),
-            asset.browser_download_url.red(),
-            err
-        );
-        return None;
-    }
-
-    log_info!(
-        "[GitHub Installer] Download completed for {}",
-        tool_entry.name.bright_blue()
-    );
-
-    Some((temp_dir, downloaded_path))
-}
-
-/// Determines the installation path for the tool.
-///
-/// This function constructs the final installation path in the user's bin directory,
-/// taking into account any custom binary name specified in the configuration. The
-/// default location is `$HOME/bin/{tool_name}`, which should be in the user's PATH.
-///
-/// # Arguments
-///
-/// * `tool_entry` - The tool configuration, which may include a custom binary name
-///
-/// # Returns
-///
-/// * `Some((install_path, final_install_path))` - Tuple containing both paths
-///   (they are the same in this implementation, but separated for potential future use)
-/// * `None` - If the HOME environment variable is not set
-///
-/// # Path Construction
-///
-/// - Default: `$HOME/bin/{tool_name}`
-/// - With rename: `$HOME/bin/{rename_to}`
-///
-/// # Examples
-///
-/// ```
-/// // Without rename_to
-/// $HOME/bin/gh
-///
-/// // With rename_to: "helm3"
-/// $HOME/bin/helm3
-/// ```
-///
-/// # Environment Requirements
-///
-/// Requires the `$HOME` environment variable to be set. On Unix-like systems,
-/// this should always be available. If not set, installation cannot proceed.
-fn determine_installation_path(tool_entry: &ToolEntry) -> Option<(PathBuf, PathBuf)> {
-    // Get HOME environment variable
-    let home_dir = env::var("HOME")
-        .map_err(|_| {
-            log_error!(
-                "[GitHub Installer] $HOME environment variable not set for {}",
-                tool_entry.name.red()
-            );
-            log_error!("[GitHub Installer] Cannot determine installation path without $HOME");
-        })
-        .ok()?;
-
-    // Use custom binary name if provided, otherwise use tool name
-    let bin_name = tool_entry
-        .rename_to
-        .clone()
-        .unwrap_or_else(|| tool_entry.name.clone());
-
-    // Construct full installation path
-    let install_path = PathBuf::from(format!("{home_dir}/bin/{bin_name}"));
-
-    log_debug!(
-        "[GitHub Installer] Installation path: {}",
-        install_path.display().to_string().cyan()
-    );
-
-    // Return both paths (currently identical, but maintained for API consistency)
-    Some((install_path.clone(), install_path))
-}
-
-/// Processes the downloaded asset based on its file type.
-///
-/// This function handles different asset types with appropriate installation strategies:
-/// - **macOS Packages (.pkg)**: Uses system installer for proper integration
-/// - **macOS Disk Images (.dmg)**: Mounts and extracts application bundles
-/// - **Binaries**: Direct installation with executable permissions
-/// - **Archives**: Extraction, executable search, and installation
-///
-/// Each file type requires different handling to ensure proper installation and
-/// functionality. The function determines the appropriate strategy and executes it.
-///
-/// # Arguments
-///
-/// * `tool_entry` - The tool configuration
-/// * `downloaded_path` - Path to the downloaded asset file
-/// * `file_type` - Detected file type (e.g., "pkg", "dmg", "binary", "zip", "tar.gz")
-/// * `temp_dir` - Temporary directory for extraction and processing
-/// * `install_path` - Target installation path for the final binary
-///
-/// # Returns
-///
-/// * `Some((package_type, working_dir))` - Tuple containing:
-///   - `package_type`: String describing the installation type (e.g., "binary", "macos-pkg-installer")
-///   - `working_dir`: Directory path for post-installation hooks execution
-/// * `None` - If processing fails at any step
-///
-/// # File Type Handling
-///
-/// - **pkg/dmg**: System-level installation, returns actual install location
-/// - **binary**: Direct move to bin directory with executable permissions
-/// - **Archives**: Extract → find executable → move to bin → set permissions
-fn process_asset_by_type(
-    tool_entry: &ToolEntry,
-    downloaded_path: &Path,
-    file_type: &str,
-    temp_dir: &tempfile::TempDir,
-    install_path: &Path,
-) -> Option<(String, PathBuf)> {
-    // Initialize working directory (default to temp directory)
-    let mut working_dir = temp_dir.path().to_path_buf();
-
-    // Package type identifier for state tracking
-    let package_type: String;
-
-    match file_type {
-        // macOS .pkg installer - uses system installer for proper integration
-        "pkg" => {
-            log_info!(
-                "[GitHub Installer] Installing .pkg for {}",
-                tool_entry.name.bold()
-            );
-            match install_pkg(downloaded_path, &tool_entry.name) {
-                Ok(_path) => {
-                    package_type = "macos-pkg-installer".to_string();
-                }
-                Err(err) => {
-                    log_error!(
-                        "[GitHub Installer] Failed to install .pkg for {}: {}",
-                        tool_entry.name.red(),
-                        err
-                    );
-                    return None;
-                }
-            }
-        }
-
-        // macOS .dmg disk image - mounts and extracts application
-        "dmg" => {
-            log_info!(
-                "[GitHub Installer] Installing .dmg for {}",
-                tool_entry.name.bold()
-            );
-            match install_dmg(downloaded_path, &tool_entry.name) {
-                Ok(_path) => {
-                    package_type = "macos-dmg-installer".to_string();
-                }
-                Err(err) => {
-                    log_error!(
-                        "[GitHub Installer] Failed to install .dmg for {}: {}",
-                        tool_entry.name.red(),
-                        err
-                    );
-                    return None;
-                }
-            }
-        }
-
-        // Raw binary - direct installation to bin directory
-        "binary" => {
-            log_debug!(
-                "[GitHub Installer] Installing binary for {}",
-                tool_entry.name.bold()
-            );
-
-            // Move binary to installation path
-            if let Err(err) = move_and_rename_binary(downloaded_path, install_path) {
-                log_error!(
-                    "[GitHub Installer] Failed to move binary for {}: {}",
-                    tool_entry.name.red(),
-                    err
-                );
-                return None;
-            }
-
-            // Set executable permissions (chmod +x)
-            if let Err(err) = make_executable(install_path) {
-                log_error!(
-                    "[GitHub Installer] Failed to make binary executable for {}: {}",
-                    tool_entry.name.red(),
-                    err
-                );
-                return None;
-            }
-
-            package_type = "binary".to_string();
-        }
-
-        // Archive formats - extract, find executable, and install
-        archive_type @ ("zip" | "tar.gz" | "gz" | "tar.bz2" | "tar" | "tar.xz" | "tar.bz"
-        | "txz" | "tbz2") => {
-            log_debug!(
-                "[GitHub Installer] Extracting {} archive for {}",
-                archive_type,
-                tool_entry.name.blue()
-            );
-
-            // Extract archive contents to temporary directory
-            let extracted_path = match compression::extract_archive(
-                downloaded_path,
-                temp_dir.path(),
-                Some(archive_type),
-            ) {
-                Ok(path) => path,
-                Err(err) => {
-                    log_error!(
-                        "[GitHub Installer] Failed to extract archive for {}: {}",
-                        tool_entry.name.red(),
-                        err
-                    );
-                    return None;
-                }
-            };
-
-            // Search extracted contents for the executable binary
-            let executable_path = find_executable(
-                &extracted_path,
-                &tool_entry.name,
-                tool_entry.rename_to.as_deref(),
-            )
-            .or_else(|| {
-                log_error!(
-                    "[GitHub Installer] No executable found in archive for {}",
-                    tool_entry.name.red()
-                );
-                log_error!(
-                    "[GitHub Installer] Expected to find binary named '{}' or similar",
-                    tool_entry.name
-                );
-                None
-            })?;
-
-            // Determine appropriate working directory for post-installation hooks
-            // This is typically the parent directory of the executable
-            working_dir = determine_working_directory(&executable_path, &extracted_path);
-
-            // Move extracted binary to final installation location
-            if let Err(err) = move_and_rename_binary(&executable_path, install_path) {
-                log_error!(
-                    "[GitHub Installer] Failed to move extracted binary for {}: {}",
-                    tool_entry.name.red(),
-                    err
-                );
-                return None;
-            }
-
-            // Set executable permissions on the installed binary
-            if let Err(err) = make_executable(install_path) {
-                log_error!(
-                    "[GitHub Installer] Failed to make extracted binary executable for {}: {}",
-                    tool_entry.name.red(),
-                    err
-                );
-                return None;
-            }
-
-            package_type = "binary".to_string();
-        }
-
-        // Unsupported file type
-        unknown => {
-            log_error!(
-                "[GitHub Installer] Unsupported file type '{}' for {}",
-                unknown.red(),
-                tool_entry.name.red()
-            );
-            log_error!(
-                "[GitHub Installer] Supported types: binary, zip, tar.gz, tar.xz, tar.bz2, pkg, dmg"
-            );
-            return None;
-        }
-    }
-
-    Some((package_type, working_dir))
-}
-
-/// Determines the working directory for post-installation hooks.
-///
-/// This function finds the appropriate directory context for executing
-/// additional setup commands. The working directory should provide context
-/// for any relative paths or resources that post-installation hooks might need.
-///
-/// # Strategy
-///
-/// 1. If the executable is in a `bin/` directory, use the parent directory
-///    - This gives access to adjacent directories like `lib/`, `share/`, etc.
-///    - Example: `/tmp/extract/app/bin/tool` → working_dir = `/tmp/extract/app/`
-///
-/// 2. Otherwise, use the directory containing the executable
-///    - Example: `/tmp/extract/tool` → working_dir = `/tmp/extract/`
-///
-/// 3. If no parent directory exists, use the extraction root
-///    - Fallback for edge cases
-///
-/// # Arguments
-///
-/// * `executable_path` - Path to the main executable binary
-/// * `extracted_path` - Root path where archive contents were extracted
-///
-/// # Returns
-///
-/// The appropriate working directory path for post-installation hook execution
-///
-/// # Examples
-///
-/// ```
-/// // Executable in bin/ directory
-/// executable: /tmp/extract/myapp/bin/mytool
-/// returns:    /tmp/extract/myapp/
-///
-/// // Executable at root level
-/// executable: /tmp/extract/mytool
-/// returns:    /tmp/extract/
-/// ```
-fn determine_working_directory(executable_path: &Path, extracted_path: &Path) -> PathBuf {
-    // Try to get the parent directory of the executable
-    if let Some(parent_dir) = executable_path.parent() {
-        // Check if the executable is in a bin/ directory
-        if parent_dir.file_name().is_some_and(|name| name == "bin") {
-            // If so, use the grandparent directory (one level up from bin/)
-            // This provides access to sibling directories like lib/, share/, etc.
-            if let Some(grandparent) = parent_dir.parent() {
-                log_debug!(
-                    "[GitHub Installer] Working directory (parent of bin/): {}",
-                    grandparent.display()
-                );
-                return grandparent.to_path_buf();
-            }
-        }
-
-        // Otherwise, use the parent directory of the executable
-        log_debug!(
-            "[GitHub Installer] Working directory (executable parent): {}",
-            parent_dir.display()
-        );
-        return parent_dir.to_path_buf();
-    }
-
-    // Fallback to extraction root if parent directory cannot be determined
-    log_debug!(
-        "[GitHub Installer] Working directory (extraction root): {}",
-        extracted_path.display()
-    );
-    extracted_path.to_path_buf()
 }

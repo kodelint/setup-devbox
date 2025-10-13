@@ -11,15 +11,29 @@
 // - Error handling for file I/O and JSON parsing.
 // - Ensuring parent directories exist before writing.
 
-use crate::libs::utilities::assets::current_timestamp;
+// =========================================================================== //
+//                          STANDARD LIBRARY DEPENDENCIES                      //
+// =========================================================================== //
+
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+
+// =========================================================================== //
+//                             EXTERNAL DEPENDENCIES                           //
+// =========================================================================== //
+
+use colored::Colorize;
+
+// =========================================================================== //
+//                              INTERNAL IMPORTS                               //
+// =========================================================================== //
+
+use crate::libs::utilities::timestamps::current_timestamp;
 use crate::schemas::configuration_management::ConfigurationManagerState;
 use crate::schemas::state_file::{DevBoxState, ToolState};
 use crate::schemas::tools::ToolEntry;
 use crate::{log_debug, log_error, log_info, log_warn};
-use colored::Colorize;
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
 
 /// Loads the application's state from `state.json` or initializes a new one.
 ///
@@ -293,6 +307,7 @@ impl ToolState {
     ///
     /// ## Returns
     /// A fully populated `ToolState` instance ready for storage in the state file
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         tool_entry: &ToolEntry,
         install_path: &PathBuf,
@@ -351,5 +366,41 @@ impl ToolState {
             // Configuration Manager for the tool, if SDB is managing the configuration for the tool.
             configuration_manager: None,
         }
+    }
+
+    /// Normalizes installation method names to standard source types
+    ///
+    /// State files use verbose, descriptive names for installation methods,
+    /// while configuration files use shorter, standardized identifiers.
+    ///
+    /// # Mapping Table
+    ///
+    /// | State install_method | Config source |
+    /// |---------------------|---------------|
+    /// | uv-python           | uv            |
+    /// | uv-tool             | uv            |
+    /// | cargo-install       | cargo         |
+    /// | go-install          | go            |
+    /// | direct-url          | url           |
+    /// | brew                | brew          |
+    /// | github              | github        |
+    ///
+    /// # Arguments
+    ///
+    /// * `install_method` - The verbose installation method from state
+    ///
+    /// # Returns
+    ///
+    /// The standardized source type for configuration
+    pub fn normalize_source_type(install_method: &str) -> String {
+        match install_method {
+            "uv-python" => "uv",
+            "uv-tool" => "uv",
+            "cargo-install" => "cargo",
+            "go-install" => "go",
+            "direct-url" => "url",
+            other => other,
+        }
+        .to_string()
     }
 }

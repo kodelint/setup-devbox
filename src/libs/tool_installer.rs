@@ -31,8 +31,8 @@ use crate::installers::{brew, cargo, github, go, pip, rustup, url, uv};
 // Import utility functions for state and time management
 use crate::libs::configuration_manager::ConfigurationEvaluationResult;
 use crate::libs::state_management::save_state_to_file;
-use crate::libs::utilities::assets::{is_timestamp_older_than, parse_duration, time_since};
 use crate::libs::utilities::platform::{check_installer_command_available, execute_hooks};
+use crate::libs::utilities::timestamps::{is_timestamp_older_than, parse_duration, time_since};
 use crate::schemas::configuration_management::ConfigurationManagerProcessor;
 // Import data schemas and the configuration processor
 use crate::schemas::state_file::{DevBoxState, ToolState};
@@ -41,9 +41,10 @@ use crate::schemas::tools::{
     ToolEntry, ToolInstallationOrchestrator, ToolProcessingResult, VersionAction,
 };
 // Import logging macros
-use crate::libs::utilities::file_operations::format_duration;
+use crate::libs::utilities::timestamps::format_duration;
 use crate::schemas::path_resolver::PathResolver;
 use crate::{log_debug, log_error, log_info, log_warn};
+
 // ============================================================================
 // INSTALLATION CONFIGURATION IMPLEMENTATION
 // ============================================================================
@@ -800,51 +801,6 @@ pub fn install_tools(
 
     eprintln!();
 }
-// pub fn install_tools(
-//     tools_configuration: ToolConfig,
-//     state: &mut DevBoxState,
-//     state_file_path: &PathBuf,
-//     force_update_latest: bool,
-// ) {
-//     eprintln!("\n");
-//     eprintln!("{}:", "TOOLS".bright_yellow().bold());
-//     eprintln!("{}", "=".repeat(7).bright_yellow());
-//
-//     // Create the installation configuration based on the provided parameters.
-//     let installation_config =
-//         InstallationConfiguration::new(&tools_configuration, force_update_latest);
-//     // Initialize the main orchestrator with the shared state and configuration.
-//     let mut orchestrator = ToolInstallationOrchestrator::new(state, &installation_config);
-//
-//     log_debug!(
-//         "[Tools] Update policy: {}",
-//         if installation_config.force_update_enabled {
-//             "forced update of all 'latest' version tools (--update-latest flag)".to_string()
-//         } else {
-//             format!(
-//                 "only update 'latest' versions if older than {:?}",
-//                 installation_config.update_threshold_duration
-//             )
-//         }
-//     );
-//
-//     // Process all tools and collect the results.
-//     let processing_results = orchestrator.process_all_tools(&tools_configuration.tools);
-//     // Create a summary object from the results for reporting.
-//     let summary = InstallationSummary::from_processing_results(processing_results);
-//
-//     // Display the final summary to the user.
-//     summary.display_summary();
-//
-//     // Only save the state file if there were changes to prevent unnecessary writes.
-//     if summary.has_state_changes() {
-//         save_state_to_file(state, state_file_path);
-//     } else {
-//         log_info!("[Tools] No new tools installed or state changes detected.");
-//     }
-//
-//     eprintln!();
-// }
 
 /// Executes a set of additional shell commands for a tool after its installation.
 ///

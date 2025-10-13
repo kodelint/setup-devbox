@@ -6,21 +6,27 @@
 // to manage font installations, particularly for developer-centric fonts
 // often distributed via GitHub.
 
-// Standard library imports:
-use std::env; // For interacting with environment variables, like $HOME.
-use std::fs; // For file system operations (creating directories, copying files, reading directories).
+// =========================================================================== //
+//                          STANDARD LIBRARY DEPENDENCIES                      //
+// =========================================================================== //
+use std::env;
+use std::fs;
 use std::io;
-use std::path::{Path, PathBuf}; // For ergonomic and platform-agnostic path manipulation. // For core input/output functionalities and error types.
+use std::path::{Path, PathBuf};
 
-// External crate imports:
-use colored::Colorize; // Used for adding color to terminal output, enhancing readability of logs.
+// =========================================================================== //
+//                             EXTERNAL DEPENDENCIES                           //
+// =========================================================================== //
 
-// Internal module imports:
-// Custom logging macros for different verbosity levels. These provide consistent
-// and colored output throughout the application, aiding in debugging and user feedback.
+use colored::Colorize;
+
+// =========================================================================== //
+//                              INTERNAL IMPORTS                               //
+// =========================================================================== //
+
+use crate::libs::utilities::assets::download_file;
+use crate::libs::utilities::compression::extract_archive;
 use crate::{log_debug, log_error, log_info, log_warn};
-
-// Internal module imports:
 // `ToolEntry`: Represents a single tool's configuration as defined in your `tools.yaml` file.
 //              It's a struct that contains all possible configuration fields for a tool,
 //              such as name, version, source, URL, repository, etc.
@@ -28,10 +34,8 @@ use crate::{log_debug, log_error, log_info, log_warn};
 //              persist information about installed tools in the application's `state.json` file.
 //              It helps `setup-devbox` track what's installed, its version, and where it's located.
 use crate::schemas::fonts::FontEntry;
+use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::state_file::FontState;
-// Utility functions from other parts of the crate:
-use crate::libs::utilities::assets::download_file; // For downloading files from URLs.
-use crate::libs::utilities::compression::extract_archive;
 
 /// Helper struct to hold validated font entry details, reducing redundancy.
 #[allow(dead_code)]
@@ -102,60 +106,6 @@ fn validate_font_entry(font: &FontEntry) -> Option<ValidatedFontDetails> {
     })
 }
 
-/// Determines the correct font installation directory for the current operating system.
-///
-/// For macOS, this is `~/Library/Fonts`. This function also ensures the directory exists,
-/// creating it if necessary.
-///
-/// # Returns
-/// A `Result` containing the `PathBuf` to the installation directory on success.
-/// Returns `Err(io::Error)` if the home directory cannot be found or directory creation fails,
-/// or if the operating system is not supported.
-#[cfg(target_os = "macos")]
-fn get_font_installation_dir() -> io::Result<PathBuf> {
-    log_debug!("[Font Paths] Attempting to get macOS font installation directory.");
-    let Some(home_dir) = dirs::home_dir() else {
-        log_error!(
-            "[Font Paths] Could not determine home directory. Cannot proceed with font installation."
-        );
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "Home directory not found",
-        ));
-    };
-
-    let font_dir = home_dir.join("Library").join("Fonts");
-
-    // Ensure the directory exists.
-    fs::create_dir_all(&font_dir).map_err(|e| {
-        log_error!(
-            "[Font Paths] Failed to create font installation directory '{}': {}",
-            font_dir.display(),
-            e.to_string().red()
-        );
-        e // Propagate the io::Error
-    })?;
-
-    log_debug!(
-        "[Font Paths] macOS font installation directory: {}",
-        font_dir.display()
-    );
-    Ok(font_dir)
-}
-
-// Placeholder for other operating systems.
-// This will return an error if compiled on a non-macOS system.
-#[cfg(not(target_os = "macos"))]
-fn get_font_installation_dir() -> io::Result<PathBuf> {
-    log_error!(
-        "[Font Paths] Font installation is not supported on this operating system. Currently only macOS is supported."
-    );
-    Err(io::Error::new(
-        io::ErrorKind::Other,
-        "Unsupported operating system for font installation",
-    ))
-}
-
 /// Downloads the font archive from the given URL to a temporary directory.
 ///
 /// # Arguments
@@ -216,14 +166,13 @@ fn extract_font_archive(
 
     // `extract_archive` is designed to return the path to the extracted contents.
     // This handles various archive types (zip, tar.gz, etc.)
-    let extracted_path = extract_archive(archive_path, extract_to_dir, None).map_err(|e| {
+    let extracted_path = extract_archive(archive_path, extract_to_dir, None).inspect_err(|e| {
         log_error!(
             "[Font Extraction] Failed to extract archive for '{}' from '{}': {}",
             font_name.red(),
             archive_path.display().to_string().red(),
             e.to_string().red()
         );
-        e // Propagate the io::Error
     })?;
 
     log_debug!(
@@ -330,7 +279,7 @@ fn copy_non_hidden_font_files(
             destination_path.display()
         );
 
-        fs::copy(&path, &destination_path).inspect_err(|e| {
+        fs::copy(path, &destination_path).inspect_err(|e| {
             log_error!(
                 "[Font Copy] Failed to copy font file '{}' to '{}': {}",
                 path.display().to_string().red(),
@@ -378,7 +327,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
     let font_details = validate_font_entry(font)?; // Returns None if validation fails
 
     // 2. Determine installation paths (temporary and final).
-    let font_install_dir = match get_font_installation_dir() {
+    let font_install_dir = match PathResolver::get_font_installation_dir() {
         Ok(dir) => dir,
         Err(_) => return None, // Already logged error, just abort
     };
