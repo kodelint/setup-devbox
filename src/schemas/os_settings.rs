@@ -28,11 +28,16 @@
 //! - Linux (GNOME, KDE, and other desktop environments)
 //! - Windows (Registry settings, system preferences)
 //! - Other Unix-like systems
+
+// =========================================================================== //
+//                             EXTERNAL DEPENDENCIES                           //
+// =========================================================================== //
+
 use serde::{Deserialize, Serialize};
 
-// ============================================================================
-// TOP-LEVEL SETTINGS CONFIGURATION
-// ============================================================================
+// =========================================================================== //
+//                       TOP-LEVEL SETTINGS CONFIGURATION                      //
+// =========================================================================== //
 
 /// Configuration schema for `settings.yaml`.
 ///
@@ -68,9 +73,9 @@ pub struct SettingsConfig {
     pub settings: OsSpecificSettings,
 }
 
-// ============================================================================
-// OPERATING SYSTEM SPECIFIC SETTINGS
-// ============================================================================
+// =========================================================================== //
+//                  OPERATING SYSTEM SPECIFIC SETTINGS                         //
+// =========================================================================== //
 
 /// Container for operating system-specific settings.
 ///
@@ -123,8 +128,8 @@ pub struct OsSpecificSettings {
     // /// - KDE: `kwriteconfig5` or configuration files
     // /// - System-wide: `/etc/sysctl.conf`, `sysctl` command
     // /// - Application-specific: config files in `~/.config`
-    // #[serde(default)]
-    // pub linux: Vec<SettingEntry>,
+    #[serde(default)]
+    pub linux: Vec<SettingEntry>,
     //
     // /// Windows specific settings (applied via Registry or PowerShell).
     // ///
@@ -137,9 +142,9 @@ pub struct OsSpecificSettings {
     // pub windows: Vec<SettingEntry>,
 }
 
-// ============================================================================
-// INDIVIDUAL SETTING ENTRIES
-// ============================================================================
+// =========================================================================== //
+//                       INDIVIDUAL SETTING ENTRIES                            //
+// =========================================================================== //
 
 /// Represents a single system setting to be applied (e.g., via macOS `defaults` command).
 ///

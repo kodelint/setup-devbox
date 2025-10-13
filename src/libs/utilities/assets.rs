@@ -1,26 +1,29 @@
-use crate::libs::utilities::binary::{find_executable, make_executable, move_and_rename_binary};
-use crate::libs::utilities::compression;
-use crate::libs::utilities::osx_pkg::{install_dmg, install_pkg};
-use crate::schemas::path_resolver::PathResolver;
-use crate::schemas::tools::ToolEntry;
-// Our custom logging macros to give us nicely formatted (and colored!) output
-// for debugging, general information, and errors.
-use crate::{log_debug, log_error, log_info, log_warn};
-// The 'colored' crate helps us make our console output look pretty and readab
-use colored::Colorize;
-// For creating and interacting with files.
-// `std::fs::{File, OpenOptions}` allows for fine-grained control over file opening and creation.
+// ============================================================================
+//                          STANDARD LIBRARY DEPENDENCIES
+// ============================================================================
 use std::fs::File;
-// For working with file paths, specifically to construct installation paths.
-// `std::path::Path` is a powerful type for working with file paths in a robust way.
-// `std::path::PathBuf` provides an OS-agnostic way to build and manipulate file paths.
 use std::path::{Path, PathBuf};
-// To run external commands (like 'file' or 'sudo installer').
-// `std::process::Command` allows the application to spawn and control external processes.
 use std::process::Command;
 use std::str;
 use std::{fs, io};
+
+// ============================================================================
+//                             EXTERNAL DEPENDENCIES
+// ============================================================================
+
+use colored::Colorize;
 use tempfile::Builder as TempFileBuilder;
+
+// ============================================================================
+//                              INTERNAL IMPORTS
+// ============================================================================
+use crate::libs::utilities::binary::{find_executable, make_executable, move_and_rename_binary};
+use crate::libs::utilities::compression;
+#[cfg(target_os = "macos")]
+use crate::libs::utilities::osx_pkg::{install_dmg, install_pkg};
+use crate::schemas::path_resolver::PathResolver;
+use crate::schemas::tools::ToolEntry;
+use crate::{log_debug, log_error, log_info, log_warn};
 
 /// Downloads the asset from the URL to a temporary location.
 ///
@@ -323,6 +326,7 @@ pub fn process_asset_by_type(
 
     match file_type {
         // macOS .pkg installer - uses system installer for proper integration
+        #[cfg(target_os = "macos")]
         "pkg" => {
             log_info!(
                 "[GitHub Installer] Installing .pkg for {}",
@@ -345,6 +349,7 @@ pub fn process_asset_by_type(
         }
 
         // macOS .dmg disk image - mounts and extracts application
+        #[cfg(target_os = "macos")]
         "dmg" => {
             log_info!(
                 "[GitHub Installer] Installing .dmg for {}",

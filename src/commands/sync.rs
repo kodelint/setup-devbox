@@ -45,7 +45,7 @@ use std::{
 };
 
 // ============================================================================
-// ERROR HANDLING
+//                               ERROR HANDLING
 // ============================================================================
 
 /// Comprehensive error types for sync operations
@@ -101,7 +101,7 @@ impl std::fmt::Display for SyncError {
 pub type SyncResult<T> = Result<T, SyncError>;
 
 // ============================================================================
-// STATE STRUCTURES
+//                              STATE STRUCTURES
 // ============================================================================
 
 /// Root application state structure
@@ -123,7 +123,7 @@ pub struct AppState {
 }
 
 // ============================================================================
-// CONFIGURATION STRUCTURES
+//                           CONFIGURATION STRUCTURES
 // ============================================================================
 
 /// Main configuration file structure (config.yaml)
@@ -195,7 +195,7 @@ pub struct ShellCommand {
 }
 
 // ============================================================================
-// TYPE CONVERSIONS
+//                              TYPE CONVERSIONS
 // ============================================================================
 
 impl From<&FontState> for FontEntry {
@@ -388,7 +388,7 @@ impl ToolEntry {
 }
 
 // ============================================================================
-// FILE GENERATION
+//                                FILE GENERATION
 // ============================================================================
 
 /// Responsible for writing Rust data structures to disk as formatted YAML
@@ -524,7 +524,7 @@ impl FileWriter {
 }
 
 // ============================================================================
-// CONFIGURATION GENERATION
+//                         CONFIGURATION GENERATION
 // ============================================================================
 
 /// Core engine for converting application state to configuration files
@@ -819,6 +819,7 @@ impl ConfigGenerator {
         let settings_config = SettingsConfig {
             settings: OsSpecificSettings {
                 macos: macos_settings,
+                linux: vec![],
             },
         };
 
@@ -901,7 +902,7 @@ impl ConfigGenerator {
 }
 
 // ============================================================================
-// SYNCHRONIZATION ORCHESTRATION
+//                    SYNCHRONIZATION ORCHESTRATION
 // ============================================================================
 
 /// Orchestrates the complete synchronization workflow
@@ -1032,7 +1033,7 @@ impl SyncOrchestrator {
 }
 
 // ============================================================================
-// PUBLIC API
+//                                   PUBLIC API
 // ============================================================================
 
 /// Main entry point for the sync command

@@ -1,14 +1,24 @@
-// ============================================================================
-// RESULT TYPES
-// ============================================================================
+// =========================================================================== //
+//                          STANDARD LIBRARY DEPENDENCIES                      //
+// =========================================================================== //
 
-use crate::schemas::path_resolver::PathResolver;
-use crate::{log_debug, log_info, log_warn};
-use colored::Colorize;
-use serde_yaml::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+// =========================================================================== //
+//                             EXTERNAL DEPENDENCIES                           //
+// =========================================================================== //
+
+use colored::Colorize;
+use serde_yaml::Value;
+
+// =========================================================================== //
+//                              INTERNAL IMPORTS                               //
+// =========================================================================== //
+
+use crate::schemas::path_resolver::PathResolver;
+use crate::{log_debug, log_info, log_warn};
 
 /// Represents the outcome of a single removal operation.
 ///
@@ -70,9 +80,9 @@ pub struct ItemToBeRemoved {
     pub item_path: String,
 }
 
-// ============================================================================
-//                   UNINSTALLER TRAIT & IMPLEMENTATIONS
-// ============================================================================
+// =========================================================================== //
+//                   UNINSTALLER TRAIT & IMPLEMENTATIONS                       //
+// =========================================================================== //
 
 /// Defines the contract for uninstalling tools based on their installation method.
 ///
@@ -154,11 +164,11 @@ impl ToolUninstaller for CargoUninstaller {
         let output = Command::new("cargo")
             .args(["uninstall", &uninstall_item.item_name])
             .output()
-            .map_err(|e| format!("Failed to execute cargo uninstall: {}", e))?;
+            .map_err(|e| format!("Failed to execute cargo uninstall: {e}"))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("cargo uninstall failed: {}", stderr));
+            return Err(format!("cargo uninstall failed: {stderr}"));
         }
 
         log_info!("[SDB::Remove::Tool::Cargo] Successfully uninstalled package");
@@ -182,11 +192,11 @@ impl ToolUninstaller for RustupUninstaller {
         let output = Command::new("rustup")
             .args(["toolchain", "uninstall", &uninstall_item.item_version])
             .output()
-            .map_err(|e| format!("Failed to execute rustup: {}", e))?;
+            .map_err(|e| format!("Failed to execute rustup: {e}"))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("rustup toolchain uninstall failed: {}", stderr));
+            return Err(format!("rustup toolchain uninstall failed: {stderr}"));
         }
 
         log_info!("[SDB::Remove::Tool::Rustup] Successfully uninstalled toolchain");
@@ -204,7 +214,7 @@ impl ToolUninstaller for GoUninstaller {
     fn uninstall(&self, uninstall_item: &ItemToBeRemoved) -> Result<(), String> {
         // Determine GOPATH, falling back to $HOME/go if not set
         let gopath = std::env::var("GOPATH")
-            .or_else(|_| std::env::var("HOME").map(|h| format!("{}/go", h)))
+            .or_else(|_| std::env::var("HOME").map(|h| format!("{h}/go")))
             .map_err(|_| "Failed to determine GOPATH".to_string())?;
 
         // Use the renamed name if available, otherwise use original name
@@ -257,11 +267,11 @@ impl ToolUninstaller for PipUninstaller {
         let output = Command::new("pip3")
             .args(["uninstall", "-y", &uninstall_item.item_name])
             .output()
-            .map_err(|e| format!("Failed to execute pip3 uninstall: {}", e))?;
+            .map_err(|e| format!("Failed to execute pip3 uninstall: {e}"))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("pip3 uninstall failed: {}", stderr));
+            return Err(format!("pip3 uninstall failed: {stderr}"));
         }
 
         log_info!("[SDB::Remove::Tool::Pip] Successfully uninstalled package");
@@ -285,11 +295,11 @@ impl ToolUninstaller for UvUninstaller {
         let output = Command::new("uv")
             .args(["tool", "uninstall", &uninstall_item.item_name])
             .output()
-            .map_err(|e| format!("Failed to execute uv tool uninstall: {}", e))?;
+            .map_err(|e| format!("Failed to execute uv tool uninstall: {e}"))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("uv tool uninstall failed: {}", stderr));
+            return Err(format!("uv tool uninstall failed: {stderr}"));
         }
 
         log_info!("[SDB::Remove::Tool::UV] Successfully uninstalled tool");
@@ -313,14 +323,14 @@ impl ToolUninstaller for BrewUninstaller {
         let output = Command::new("brew")
             .args(["uninstall", &uninstall_item.item_name])
             .output()
-            .map_err(|e| format!("Failed to execute brew uninstall: {}", e))?;
+            .map_err(|e| format!("Failed to execute brew uninstall: {e}"))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             // Homebrew returns an error if the formula isn't installed
             // We treat "No such keg" as a non-fatal condition
             if !stderr.contains("No such keg") {
-                return Err(format!("brew uninstall failed: {}", stderr));
+                return Err(format!("brew uninstall failed: {stderr}"));
             }
         }
 
@@ -329,9 +339,9 @@ impl ToolUninstaller for BrewUninstaller {
     }
 }
 
-// ============================================================================
-//                         CONFIGURATION CLEANER
-// ============================================================================
+// =========================================================================== //
+//                         CONFIGURATION CLEANER                               //
+// =========================================================================== //
 
 /// Manages removal of items from YAML configuration files.
 ///
@@ -433,10 +443,10 @@ impl ConfigurationCleaner {
         }
 
         let content = fs::read_to_string(&config_path)
-            .map_err(|e| format!("Failed to read {}: {}", filename, e))?;
+            .map_err(|e| format!("Failed to read {filename}: {e}"))?;
 
         let doc: Value = serde_yaml::from_str(&content)
-            .map_err(|e| format!("Failed to parse {}: {}", filename, e))?;
+            .map_err(|e| format!("Failed to parse {filename}: {e}"))?;
 
         Ok((config_path, content, doc))
     }
@@ -463,7 +473,7 @@ impl ConfigurationCleaner {
         match self.read_yaml_file(filename) {
             Ok(v) => Ok(Some(v)),
             Err(e) if e == "File not found" => {
-                log_warn!("[SDB::Remove::Config] File not found: {}", filename);
+                log_warn!("[SDB::Remove::Config] File not found: {filename}");
                 Ok(None)
             }
             Err(e) => Err(e),
@@ -489,12 +499,11 @@ impl ConfigurationCleaner {
         filename: &str,
     ) -> Result<(), String> {
         let output = serde_yaml::to_string(&doc)
-            .map_err(|e| format!("Failed to serialize {}: {}", filename, e))?;
+            .map_err(|e| format!("Failed to serialize {filename}: {e}"))?;
 
-        fs::write(config_path, output)
-            .map_err(|e| format!("Failed to write {}: {}", filename, e))?;
+        fs::write(config_path, output).map_err(|e| format!("Failed to write {filename}: {e}"))?;
 
-        log_debug!("[SDB::Remove::Config] Wrote updated file: {}", filename);
+        log_debug!("[SDB::Remove::Config] Wrote updated file: {filename}");
         Ok(())
     }
 
@@ -541,10 +550,7 @@ impl ConfigurationCleaner {
             .get_mut(section_name)
             .and_then(|v| v.as_sequence_mut())
             .ok_or_else(|| {
-                format!(
-                    "Section '{}' not found or invalid in {}",
-                    section_name, filename
-                )
+                format!("Section '{section_name}' not found or invalid in {filename}")
             })?;
 
         // Find the item by matching the specified key

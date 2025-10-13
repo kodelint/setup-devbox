@@ -1,6 +1,19 @@
-use colored::Colorize;
+// =========================================================================== //
+//                          STANDARD LIBRARY DEPENDENCIES                      //
+// =========================================================================== //
+
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};
+
+// =========================================================================== //
+//                             EXTERNAL DEPENDENCIES                           //
+// =========================================================================== //
+
+use colored::Colorize;
+
+// =========================================================================== //
+//                              INTERNAL IMPORTS                               //
+// =========================================================================== //
 
 use crate::{log_debug, log_error, log_info, log_warn};
 
@@ -389,6 +402,46 @@ impl PathResolver {
             font_dir.display()
         );
         Ok(font_dir)
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn get_font_installation_dir() -> io::Result<PathBuf> {
+        log_debug!("[Font Paths] Attempting to get Linux font installation directory.");
+        let Some(home_dir) = dirs::home_dir() else {
+            log_error!(
+                "[Font Paths] Could not determine home directory. Cannot proceed with font installation."
+            );
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "Home directory not found",
+            ));
+        };
+
+        let font_dir = home_dir.join(".local").join("share").join("fonts");
+
+        // Ensure the directory exists.
+        fs::create_dir_all(&font_dir).map_err(|e| {
+            log_error!(
+                "[Font Paths] Failed to create font installation directory '{}': {}",
+                font_dir.display(),
+                e.to_string().red()
+            );
+            e
+        })?;
+
+        log_debug!(
+            "[Font Paths] Linux font installation directory: {}",
+            font_dir.display()
+        );
+        Ok(font_dir)
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    pub fn get_font_installation_dir() -> io::Result<PathBuf> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Font installation not supported on this operating system",
+        ))
     }
 
     /// Determines the working directory for post-installation hooks.

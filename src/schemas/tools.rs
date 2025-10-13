@@ -24,11 +24,25 @@
 //!       tools_configuration_path: $HOME/.config/starship.toml"
 //! ```
 
-use crate::libs::configuration_manager::{ConfigurationManager, ConfigurationManagerProcessor};
-use crate::schemas::state_file::DevBoxState;
+// =========================================================================== //
+//                          STANDARD LIBRARY DEPENDENCIES                      //
+// =========================================================================== //
+
+use std::fmt;
+
+// =========================================================================== //
+//                             EXTERNAL DEPENDENCIES                           //
+// =========================================================================== //
+
 use chrono::Duration;
 use serde::{Deserialize, Serialize};
-use std::fmt;
+
+// =========================================================================== //
+//                              INTERNAL IMPORTS                               //
+// =========================================================================== //
+
+use crate::libs::configuration_manager::{ConfigurationManager, ConfigurationManagerProcessor};
+use crate::schemas::state_file::DevBoxState;
 
 // ============================================================================
 // ERROR TYPES
@@ -87,83 +101,9 @@ pub enum ToolEntryError {
     ConflictingFields(String),
 }
 
-// ============================================================================
-// CORE ENUMS
-// ============================================================================
-
-/// Supported installation methods for software tools.
-///
-/// Each variant represents a different package manager, language toolchain,
-/// or distribution method. The system routes tool installation requests
-/// to the appropriate installer based on this enum value.
-///
-/// ## Installation Method Details
-///
-/// - **Package Managers**: Brew (macOS), system package managers
-/// - **Language Toolchains**: Cargo (Rust), Go modules, Pip (Python), Rustup
-/// - **Direct Sources**: GitHub releases, direct URL downloads
-/// - **Special Cases**: System-managed tools (external to this system)
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
-pub enum ToolInstallMethod {
-    /// Homebrew package manager (primarily macOS, also Linux)
-    ///
-    /// Uses `brew install <tool_name>` command. Supports version constraints
-    /// and additional installation options through the `options` field.
-    Brew,
-
-    /// Rust package manager and build system
-    ///
-    /// Installs Rust crates using `cargo install <crate_name>`. Automatically
-    /// handles compilation from source and dependency management.
-    Cargo,
-
-    /// Go language module system
-    ///
-    /// Uses `go install <module_path>@<version>` to install Go-based tools.
-    /// Supports version pinning and automatic dependency resolution.
-    Go,
-
-    /// GitHub release downloads
-    ///
-    /// Downloads pre-built binaries or source archives from GitHub releases.
-    /// Supports asset filtering, extraction, and binary renaming.
-    GitHub,
-
-    /// Direct URL downloads
-    ///
-    /// Downloads files directly from specified URLs. Supports archives,
-    /// single binaries, and custom extraction paths.
-    Url,
-
-    /// Rust toolchain installer
-    ///
-    /// Manages Rust compiler versions and components using the official
-    /// rustup tool. Handles toolchain installation and updates.
-    Rustup,
-
-    /// Python package installer
-    ///
-    /// Installs Python packages using `pip install <package_name>`.
-    /// Supports version constraints and additional pip options.
-    Pip,
-
-    /// UV Python package manager
-    ///
-    /// Modern, fast Python package installer that's compatible with pip
-    /// but offers improved performance and dependency resolution.
-    Uv,
-
-    /// System-managed tools (external management)
-    ///
-    /// Placeholder for tools that are managed outside this system.
-    /// Used for documentation purposes or dependency tracking without
-    /// actual installation logic.
-    System,
-}
-
-// ============================================================================
-// CONFIGURATION SCHEMAS
-// ============================================================================
+// =========================================================================== //
+//                             CONFIGURATION SCHEMAS                           //
+// =========================================================================== //
 
 /// Top-level configuration schema for the tool installation system.
 ///
@@ -556,9 +496,9 @@ pub struct ToolEntry {
     pub configuration_manager: ConfigurationManager,
 }
 
-// ============================================================================
-// PROCESSING RESULT TYPES
-// ============================================================================
+// =========================================================================== //
+//                           PROCESSING RESULT TYPES                           //
+// =========================================================================== //
 
 /// Represents the outcome after processing a single tool installation.
 ///
@@ -683,9 +623,9 @@ pub enum ConfigurationAction {
     Skip(String),
 }
 
-// ============================================================================
-// ORCHESTRATOR AND CONFIGURATION TYPES
-// ============================================================================
+// =========================================================================== //
+//                    ORCHESTRATOR AND CONFIGURATION TYPES                     //
+// =========================================================================== //
 
 /// Main orchestrator responsible for coordinating the tool installation pipeline.
 ///
@@ -818,9 +758,9 @@ pub struct InstallationSummary {
     pub(crate) failed_tools: Vec<(String, String)>,
 }
 
-// ============================================================================
-// IMPLEMENTATION BLOCKS
-// ============================================================================
+// =========================================================================== //
+//                           IMPLEMENTATION BLOCKS                             //
+// =========================================================================== //
 
 /// Validation methods for individual tool entries.
 ///
@@ -984,9 +924,9 @@ impl ToolEntry {
     }
 }
 
-// ============================================================================
-// ERROR TYPE IMPLEMENTATIONS
-// ============================================================================
+// =========================================================================== //
+//                         ERROR TYPE IMPLEMENTATIONS                          //
+// =========================================================================== //
 
 /// User-friendly display implementation for tool entry validation errors.
 ///

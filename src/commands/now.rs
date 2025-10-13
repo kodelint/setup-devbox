@@ -69,8 +69,6 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
 
     // Apply configurations and update state for each section.
     // State is saved immediately after each major block if changes occur.
-
-    // Install Tools.
     if let Some(tools_cfg) = parsed_configs.tools {
         install_tools(
             tools_cfg,

@@ -76,7 +76,7 @@ fn initialize_removal_components() -> Result<(PathResolver, PathBuf, DevBoxState
 
     // Initialize path resolver to locate system directories
     let paths = PathResolver::new(None, None)
-        .map_err(|e| format!("Failed to initialize path resolver: {}", e))?;
+        .map_err(|e| format!("Failed to initialize path resolver: {e}"))?;
 
     // Get the state file path and convert to owned PathBuf
     let state_file_path: PathBuf = paths.state_file().to_path_buf();
@@ -107,13 +107,6 @@ fn initialize_removal_components() -> Result<(PathResolver, PathBuf, DevBoxState
 /// * `item_name` - Name of the item to remove
 /// * `item_type` - Type description for logging ("tool" or "font")
 /// * `remove_action` - Closure that executes the removal
-///
-/// # Design Benefits
-///
-/// This function eliminates code duplication between tool and font removal,
-/// following the DRY (Don't Repeat Yourself) principle. All common logic
-/// is centralized here while allowing the specific removal logic to be
-/// injected as a closure.
 fn handle_state_based_removal<F>(item_name: String, item_type: &str, remove_action: F)
 where
     F: FnOnce(&mut RemovalOrchestrator, &str) -> RemovalResult,
@@ -206,12 +199,6 @@ where
 /// * `item_name` - Name of the item to remove
 /// * `item_type` - Type description for logging ("alias" or "setting")
 /// * `removal_action` - Closure that executes the removal
-///
-/// # Design Benefits
-///
-/// Similar to `handle_state_based_removal`, this function eliminates duplication
-/// between alias and setting removal operations. The simpler structure reflects
-/// the fact that these operations don't involve state management or uninstallers.
 fn handle_config_removal<F>(item_name: String, item_type: &str, removal_action: F)
 where
     F: FnOnce(&ConfigurationCleaner) -> Result<bool, String>,
@@ -275,7 +262,7 @@ where
 }
 
 // ============================================================================
-//                                    PUBLIC API
+//                                 PUBLIC API
 // ============================================================================
 
 /// Removes a tool from the system.
@@ -376,7 +363,7 @@ pub fn remove_alias(alias_name: String) {
 /// remove_setting("com.apple.dock".to_string(), "autohide".to_string());
 /// ```
 pub fn remove_setting(domain: String, key: String) {
-    let setting_name = format!("{}.{}", domain, key);
+    let setting_name = format!("{domain}.{key}");
     handle_config_removal(setting_name, "setting", |cleaner| {
         cleaner.remove_setting(&domain, &key)
     });
