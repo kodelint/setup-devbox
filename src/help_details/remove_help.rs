@@ -100,7 +100,13 @@ fn add_remove_basic_info(output: &mut String) {
     .unwrap();
     writeln!(output).unwrap();
 
-    writeln!(output, "  {} {} Remove an alias:", "•".bold(), "[WIP]".yellow()).unwrap();
+    writeln!(
+        output,
+        "  {} {} Remove an alias:",
+        "•".bold(),
+        "[WIP]".yellow()
+    )
+    .unwrap();
     writeln!(
         output,
         "  {}",
@@ -109,7 +115,13 @@ fn add_remove_basic_info(output: &mut String) {
     .unwrap();
     writeln!(output).unwrap();
 
-    writeln!(output, "  {} {} Remove a setting:", "•".bold(), "[WIP]".yellow()).unwrap();
+    writeln!(
+        output,
+        "  {} {} Remove a setting:",
+        "•".bold(),
+        "[WIP]".yellow()
+    )
+    .unwrap();
     writeln!(
         output,
         "  {}",
@@ -294,7 +306,13 @@ fn add_remove_detailed_info(output: &mut String) {
 
     // Remove Alias
     writeln!(output, "{}", "─".repeat(80).bright_black()).unwrap();
-    writeln!(output, "{} {}", "[WIP]".yellow(), "REMOVE ALIAS".bold().green()).unwrap();
+    writeln!(
+        output,
+        "{} {}",
+        "[WIP]".yellow(),
+        "REMOVE ALIAS".bold().green()
+    )
+    .unwrap();
     writeln!(output, "{}", "─".repeat(80).bright_black()).unwrap();
     writeln!(
         output,
@@ -349,7 +367,13 @@ fn add_remove_detailed_info(output: &mut String) {
 
     // Remove Setting
     writeln!(output, "{}", "─".repeat(80).bright_black()).unwrap();
-    writeln!(output, "{} {}", "[WIP]".yellow(), "REMOVE SETTING".bold().green()).unwrap();
+    writeln!(
+        output,
+        "{} {}",
+        "[WIP]".yellow(),
+        "REMOVE SETTING".bold().green()
+    )
+    .unwrap();
     writeln!(output, "{}", "─".repeat(80).bright_black()).unwrap();
     writeln!(
         output,
