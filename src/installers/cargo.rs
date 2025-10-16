@@ -140,35 +140,38 @@ use colored::Colorize;
 /// ```
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_info!(
-        "[Cargo Installer] Attempting to install Tool: {}",
+        "[SDB::Tools::CargoInstaller] Attempting to install Tool: {}",
         tool_entry.name.green().bold()
     );
-    log_debug!("[Cargo Installer] ToolEntry details: {:#?}", tool_entry);
+    log_debug!(
+        "[SDB::Tools::CargoInstaller] ToolEntry details: {:#?}",
+        tool_entry
+    );
 
     // 1. Check if crate is already installed (optimization)
     // There might be possibility that tool was already installed outside SDB
     log_debug!(
-        "[Cargo Installer] Checking if {} is already installed",
+        "[SDB::Tools::CargoInstaller] Checking if {} is already installed",
         tool_entry.name.bold()
     );
     if check_if_installed(&tool_entry.name) {
         log_warn!(
-            "[Cargo Installer] Tool '{}' appears to be already installed, outside SDB",
+            "[SDB::Tools::CargoInstaller] Tool '{}' appears to be already installed, outside SDB",
             tool_entry.name.green()
         );
         log_info!(
-            "[Cargo Installer] Updating SDB inventory for {}",
+            "[SDB::Tools::CargoInstaller] Updating SDB inventory for {}",
             tool_entry.name.green()
         );
         log_debug!(
-            "[Cargo Installer] Proceeding with installation to ensure correct version/options"
+            "[SDB::Tools::CargoInstaller] Proceeding with installation to ensure correct version/options"
         );
     }
 
     // 2. Detect if cargo needs to install it using git url
     let is_it_git_based_install = detect_install_source(tool_entry);
     log_debug!(
-        "[Cargo Installer] Installation type: {}",
+        "[SDB::Tools::CargoInstaller] Installation type: {}",
         if is_it_git_based_install {
             "Git Based".cyan()
         } else {
@@ -178,7 +181,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     // 3. Prepare and execute cargo install command
     log_debug!(
-        "[Cargo Installer] Prepare the command to install: {}",
+        "[SDB::Tools::CargoInstaller] Prepare the command to install: {}",
         tool_entry.name.bold()
     );
     let command_args = prepare_cargo_install_command(tool_entry, is_it_git_based_install);
@@ -188,7 +191,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     // 4. Verify the installation was successful - ensure the binary is actually available
     log_debug!(
-        "[Cargo Installer] Verify if the {} actually installed",
+        "[SDB::Tools::CargoInstaller] Verify if the {} actually installed",
         tool_entry.name.bold()
     );
     if !check_if_installed(&tool_entry.name) {
@@ -198,23 +201,23 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // 5. Determine accurate installation path - where the binary was actually installed
     let install_path = determine_cargo_installation_path(&tool_entry.name);
     log_debug!(
-        "[Cargo Installer] Determined installation path: {}",
+        "[SDB::Tools::CargoInstaller] Determined installation path: {}",
         install_path.display().to_string().cyan()
     );
 
     // 6. Execute post-installation hooks - run any additional setup commands
     log_debug!(
-        "[Cargo Installer] Executing post installation hooks, post installing {}",
+        "[SDB::Tools::CargoInstaller] Executing post installation hooks, post installing {}",
         tool_entry.name.bold()
     );
     let executed_post_installation_hooks =
-        execute_post_installation_hooks("[Cargo Installer]", tool_entry, &install_path);
+        execute_post_installation_hooks("[SDB::Tools::CargoInstaller]", tool_entry, &install_path);
 
     // 7. Get actual installed version for accurate tracking - important for state management
     let actual_version = determine_installed_version(tool_entry, is_it_git_based_install);
 
     log_info!(
-        "[Cargo Installer] Successfully installed tool: {} (version: {})",
+        "[SDB::Tools::CargoInstaller] Successfully installed tool: {} (version: {})",
         tool_entry.name.bold().green(),
         actual_version.green()
     );
@@ -358,7 +361,7 @@ fn prepare_cargo_install_command(
     command_args.push("--quiet".to_string());
 
     log_debug!(
-        "[Cargo Installer] Prepared command arguments: {} {}",
+        "[SDB::Tools::CargoInstaller] Prepared command arguments: {} {}",
         "cargo".cyan().bold(),
         command_args.join(" ").cyan()
     );
@@ -397,7 +400,10 @@ fn prepare_cargo_based_install_command(command_args: &mut Vec<String>, tool_entr
 
     // Add any additional options
     if let Some(options) = &tool_entry.options {
-        log_debug!("[Cargo Installer] Adding custom options: {:#?}", options);
+        log_debug!(
+            "[SDB::Tools::CargoInstaller] Adding custom options: {:#?}",
+            options
+        );
         for opt in options {
             // Skip git options for crate installations
             if !opt.starts_with("--git")
@@ -493,7 +499,7 @@ fn prepare_git_based_install_command(command_args: &mut Vec<String>, tool_entry:
 /// - Handles both command execution failures and non-zero exit codes
 fn execute_cargo_install_command(command_args: &[String], tool_entry: &ToolEntry) -> bool {
     log_debug!(
-        "[Cargo Installer] Executing: {} {}",
+        "[SDB::Tools::CargoInstaller] Executing: {} {}",
         "cargo".cyan().bold(),
         command_args.join(" ").cyan()
     );
@@ -501,20 +507,20 @@ fn execute_cargo_install_command(command_args: &[String], tool_entry: &ToolEntry
     match Command::new("cargo").args(command_args).output() {
         Ok(output) if output.status.success() => {
             log_info!(
-                "[Cargo Installer] Successfully installed tool: {}",
+                "[SDB::Tools::CargoInstaller] Successfully installed tool: {}",
                 tool_entry.name.bold().green()
             );
 
             // Log output for debugging
             if !output.stdout.is_empty() {
                 log_debug!(
-                    "[Cargo Installer] Stdout: {}",
+                    "[SDB::Tools::CargoInstaller] Stdout: {}",
                     String::from_utf8_lossy(&output.stdout)
                 );
             }
             if !output.stderr.is_empty() {
                 log_warn!(
-                    "[Cargo Installer] Stderr (may contain warnings): {}",
+                    "[SDB::Tools::CargoInstaller] Stderr (may contain warnings): {}",
                     String::from_utf8_lossy(&output.stderr)
                 );
             }
@@ -538,7 +544,7 @@ fn execute_cargo_install_command(command_args: &[String], tool_entry: &ToolEntry
         }
         Err(e) => {
             log_error!(
-                "[Cargo Installer] Failed to execute 'cargo install' for '{}': {}",
+                "[SDB::Tools::CargoInstaller] Failed to execute 'cargo install' for '{}': {}",
                 tool_entry.name.bold().red(),
                 e.to_string().red()
             );
@@ -570,7 +576,7 @@ fn determine_cargo_installation_path(tool_name: &str) -> PathBuf {
     }
 
     // Final fallback to system default PATH
-    log_warn!("[Cargo Installer] Could not determine cargo home, using system fallback");
+    log_warn!("[SDB::Tools::CargoInstaller] Could not determine cargo home, using system fallback");
     PathBuf::from("/usr/local/bin").join(tool_name)
 }
 
@@ -596,7 +602,7 @@ fn get_cargo_install_path(tool_name: &str) -> Option<PathBuf> {
     if let Ok(root) = env::var("CARGO_INSTALL_ROOT") {
         let path = PathBuf::from(root).join("bin").join(tool_name);
         log_debug!(
-            "[Cargo Installer] Using CARGO_INSTALL_ROOT path: {}",
+            "[SDB::Tools::CargoInstaller] Using CARGO_INSTALL_ROOT path: {}",
             path.display()
         );
         return Some(path);
@@ -606,7 +612,7 @@ fn get_cargo_install_path(tool_name: &str) -> Option<PathBuf> {
     if let Ok(cargo_home) = env::var("CARGO_HOME") {
         let path = PathBuf::from(cargo_home).join("bin").join(tool_name);
         log_debug!(
-            "[Cargo Installer] Using CARGO_HOME path: {}",
+            "[SDB::Tools::CargoInstaller] Using CARGO_HOME path: {}",
             path.display()
         );
         return Some(path);
@@ -619,7 +625,7 @@ fn get_cargo_install_path(tool_name: &str) -> Option<PathBuf> {
             .join("bin")
             .join(tool_name);
         log_debug!(
-            "[Cargo Installer] Using HOME-based cargo path: {}",
+            "[SDB::Tools::CargoInstaller] Using HOME-based cargo path: {}",
             path.display()
         );
         return Some(path);
@@ -675,7 +681,7 @@ fn determine_installed_version(tool_entry: &ToolEntry, is_it_already_installed: 
 
     // Priority 2: For git installations, extract version from git options
     log_debug!(
-        "[Cargo Installer] Checking if other indexes were used to install {}",
+        "[SDB::Tools::CargoInstaller] Checking if other indexes were used to install {}",
         tool_entry.name.bold()
     );
     if is_it_already_installed {

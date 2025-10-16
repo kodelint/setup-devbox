@@ -146,21 +146,24 @@ use colored::Colorize;
 /// ```
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_info!(
-        "[Go Installer] Attempting to install Go tool: {}",
+        "[SDB::Tools::GoInstaller] Attempting to install Go tool: {}",
         tool_entry.name.bold()
     );
-    log_debug!("[Go Installer] ToolEntry details: {:#?}", tool_entry);
+    log_debug!(
+        "[SDB::Tools::GoInstaller] ToolEntry details: {:#?}",
+        tool_entry
+    );
 
     // 1. Determine installation source - choose between URL and module name
     let installation_source = determine_installation_source(tool_entry);
     log_debug!(
-        "[Go Installer] Installation source: {}",
+        "[SDB::Tools::GoInstaller] Installation source: {}",
         installation_source.cyan()
     );
 
     // 2. Prepare and execute go install command
     log_debug!(
-        "[Go Installer] Prepare the command to install: {}",
+        "[SDB::Tools::GoInstaller] Prepare the command to install: {}",
         tool_entry.name.bold()
     );
     let command_args = prepare_go_install_command(tool_entry, &installation_source);
@@ -170,7 +173,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     // 3. Verify the installation was successful - ensure the binary is actually available
     log_debug!(
-        "[Go Installer] Verify if {} was actually installed",
+        "[SDB::Tools::GoInstaller] Verify if {} was actually installed",
         tool_entry.name.bold()
     );
     if !verify_go_installation(tool_entry) {
@@ -193,10 +196,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     // 6. Execute post-installation hooks - run any additional setup commands
     let executed_post_installation_hooks =
-        execute_post_installation_hooks("[Go Installer]", tool_entry, &install_path);
+        execute_post_installation_hooks("[SDB::Tools::GoInstaller]", tool_entry, &install_path);
 
     log_info!(
-        "[Go Installer] Successfully installed Go tool: {} (version: {}) as {}",
+        "[SDB::Tools::GoInstaller] Successfully installed Go tool: {} (version: {}) as {}",
         tool_entry.name.bold().green(),
         tool_entry
             .version
@@ -316,14 +319,17 @@ fn prepare_go_install_command(tool_entry: &ToolEntry, installation_source: &str)
 
     // Add any additional options
     if let Some(options) = &tool_entry.options {
-        log_debug!("[Go Installer] Adding custom options: {:#?}", options);
+        log_debug!(
+            "[SDB::Tools::GoInstaller] Adding custom options: {:#?}",
+            options
+        );
         for opt in options {
             command_args.push(opt.clone());
         }
     }
 
     log_debug!(
-        "[Go Installer] Prepared command arguments: {} {}",
+        "[SDB::Tools::GoInstaller] Prepared command arguments: {} {}",
         "go".cyan().bold(),
         command_args.join(" ").cyan()
     );
@@ -350,7 +356,7 @@ fn prepare_go_install_command(tool_entry: &ToolEntry, installation_source: &str)
 /// - Handles both command execution failures and non-zero exit codes
 fn execute_go_install_command(command_args: &[String], tool_entry: &ToolEntry) -> bool {
     log_debug!(
-        "[Go Installer] Executing: {} {}",
+        "[SDB::Tools::GoInstaller] Executing: {} {}",
         "go".cyan().bold(),
         command_args.join(" ").cyan()
     );
@@ -358,20 +364,20 @@ fn execute_go_install_command(command_args: &[String], tool_entry: &ToolEntry) -
     match Command::new("go").args(command_args).output() {
         Ok(output) if output.status.success() => {
             log_info!(
-                "[Go Installer] Successfully installed tool: {}",
+                "[SDB::Tools::GoInstaller] Successfully installed tool: {}",
                 tool_entry.name.bold().green()
             );
 
             // Log output for debugging
             if !output.stdout.is_empty() {
                 log_debug!(
-                    "[Go Installer] Stdout: {}",
+                    "[SDB::Tools::GoInstaller] Stdout: {}",
                     String::from_utf8_lossy(&output.stdout)
                 );
             }
             if !output.stderr.is_empty() {
                 log_warn!(
-                    "[Go Installer] Stderr (may contain warnings): {}",
+                    "[SDB::Tools::GoInstaller] Stderr (may contain warnings): {}",
                     String::from_utf8_lossy(&output.stderr)
                 );
             }
@@ -379,7 +385,7 @@ fn execute_go_install_command(command_args: &[String], tool_entry: &ToolEntry) -
         }
         Ok(output) => {
             log_error!(
-                "[Go Installer] Failed to install tool '{}'. Exit code: {}. Error: {}",
+                "[SDB::Tools::GoInstaller] Failed to install tool '{}'. Exit code: {}. Error: {}",
                 tool_entry.name.bold().red(),
                 output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr).red()
@@ -387,7 +393,7 @@ fn execute_go_install_command(command_args: &[String], tool_entry: &ToolEntry) -
 
             if !output.stdout.is_empty() {
                 log_debug!(
-                    "[Go Installer] Stdout (on failure): {}",
+                    "[SDB::Tools::GoInstaller] Stdout (on failure): {}",
                     String::from_utf8_lossy(&output.stdout)
                 );
             }
@@ -395,7 +401,7 @@ fn execute_go_install_command(command_args: &[String], tool_entry: &ToolEntry) -
         }
         Err(e) => {
             log_error!(
-                "[Go Installer] Failed to execute 'go install' for '{}': {}",
+                "[SDB::Tools::GoInstaller] Failed to execute 'go install' for '{}': {}",
                 tool_entry.name.bold().red(),
                 e.to_string().red()
             );
@@ -426,7 +432,7 @@ fn verify_go_installation(tool_entry: &ToolEntry) -> bool {
 
     if install_path.exists() {
         log_debug!(
-            "[Go Installer] Verified installation: {} exists at {}",
+            "[SDB::Tools::GoInstaller] Verified installation: {} exists at {}",
             binary_name.bold(),
             install_path.display()
         );
@@ -434,20 +440,20 @@ fn verify_go_installation(tool_entry: &ToolEntry) -> bool {
         // Additional check: verify the binary is executable
         if is_executable(&install_path) {
             log_debug!(
-                "[Go Installer] Binary is executable: {}",
+                "[SDB::Tools::GoInstaller] Binary is executable: {}",
                 install_path.display()
             );
             true
         } else {
             log_warn!(
-                "[Go Installer] Binary exists but may not be executable: {}",
+                "[SDB::Tools::GoInstaller] Binary exists but may not be executable: {}",
                 install_path.display()
             );
             true // Still consider it installed, but warn about permissions
         }
     } else {
         log_error!(
-            "[Go Installer] Installation verification failed: {} not found at {}",
+            "[SDB::Tools::GoInstaller] Installation verification failed: {} not found at {}",
             binary_name.bold().red(),
             install_path.display()
         );
@@ -474,7 +480,7 @@ fn determine_actual_binary_name(tool_entry: &ToolEntry) -> String {
     // Priority 1: rename_to option (explicit user preference)
     if let Some(rename_to) = &tool_entry.rename_to {
         log_debug!(
-            "[Go Installer] Using rename_to option for binary name: {}",
+            "[SDB::Tools::GoInstaller] Using rename_to option for binary name: {}",
             rename_to
         );
         return rename_to.clone();
@@ -486,7 +492,7 @@ fn determine_actual_binary_name(tool_entry: &ToolEntry) -> String {
             // Only use URL binary name if it's different from the tool name
             if url_binary_name != tool_entry.name {
                 log_debug!(
-                    "[Go Installer] Using binary name from URL: {} (tool name: {})",
+                    "[SDB::Tools::GoInstaller] Using binary name from URL: {} (tool name: {})",
                     url_binary_name,
                     tool_entry.name
                 );
@@ -497,7 +503,7 @@ fn determine_actual_binary_name(tool_entry: &ToolEntry) -> String {
 
     // Priority 3: Use tool name as fallback
     log_debug!(
-        "[Go Installer] Using tool name as binary name: {}",
+        "[SDB::Tools::GoInstaller] Using tool name as binary name: {}",
         tool_entry.name
     );
     tool_entry.name.clone()
@@ -542,12 +548,12 @@ fn try_alternative_names(tool_entry: &ToolEntry, expected_path: &std::path::Path
         let alt_path = determine_go_installation_path(&alt_name);
         if alt_path.exists() {
             log_warn!(
-                "[Go Installer] Found binary with different name: {} at {}",
+                "[SDB::Tools::GoInstaller] Found binary with different name: {} at {}",
                 alt_name.bold().yellow(),
                 alt_path.display()
             );
             log_info!(
-                "[Go Installer] Consider using rename_to: '{}' in your configuration",
+                "[SDB::Tools::GoInstaller] Consider using rename_to: '{}' in your configuration",
                 alt_name
             );
             return;
@@ -571,7 +577,7 @@ fn try_alternative_names(tool_entry: &ToolEntry, expected_path: &std::path::Path
 
             if !installed_binaries.is_empty() {
                 log_info!(
-                    "[Go Installer] Installed binaries in {}: {}",
+                    "[SDB::Tools::GoInstaller] Installed binaries in {}: {}",
                     bin_dir.display(),
                     installed_binaries.join(", ").cyan()
                 );
@@ -635,7 +641,9 @@ fn determine_go_installation_path(binary_name: &str) -> PathBuf {
     }
 
     // Final fallback to system default PATH
-    log_warn!("[Go Installer] Could not determine Go installation path, using system fallback");
+    log_warn!(
+        "[SDB::Tools::GoInstaller] Could not determine Go installation path, using system fallback"
+    );
     PathBuf::from("/usr/local/bin").join(binary_name)
 }
 
@@ -659,14 +667,20 @@ fn determine_go_installation_path(binary_name: &str) -> PathBuf {
 fn get_go_install_path(binary_name: &str) -> Option<PathBuf> {
     // 1. Check GOBIN (highest priority)
     if let Some(path) = get_go_env_path("GOBIN", binary_name) {
-        log_debug!("[Go Installer] Using GOBIN path: {}", path.display());
+        log_debug!(
+            "[SDB::Tools::GoInstaller] Using GOBIN path: {}",
+            path.display()
+        );
         return Some(path);
     }
 
     // 2. Check GOPATH (medium priority)
     if let Some(go_path) = get_go_env_path("GOPATH", "") {
         let path = go_path.join("bin").join(binary_name);
-        log_debug!("[Go Installer] Using GOPATH path: {}", path.display());
+        log_debug!(
+            "[SDB::Tools::GoInstaller] Using GOPATH path: {}",
+            path.display()
+        );
         return Some(path);
     }
 
@@ -674,7 +688,7 @@ fn get_go_install_path(binary_name: &str) -> Option<PathBuf> {
     if let Ok(home) = std::env::var("HOME") {
         let path = PathBuf::from(home).join("go").join("bin").join(binary_name);
         log_debug!(
-            "[Go Installer] Using HOME-based Go path: {}",
+            "[SDB::Tools::GoInstaller] Using HOME-based Go path: {}",
             path.display()
         );
         return Some(path);

@@ -60,11 +60,14 @@ struct ValidatedFontDetails {
 /// * `None` if validation fails (e.g., missing required fields, unsupported source),
 ///   with an error message logged.
 fn validate_font_entry(font: &FontEntry) -> Option<ValidatedFontDetails> {
-    log_debug!("[Font Validation] Validating font entry: {}", font.name);
+    log_debug!(
+        "[SDB::Fonts::Validator] Validating font entry: {}",
+        font.name
+    );
 
     if font.source.to_lowercase() != "github" {
         log_error!(
-            "[Font Validation] Tool '{}' has unsupported font source: '{}'. Only 'github' is supported for now. Skipping.",
+            "[SDB::Fonts::Validator] Tool '{}' has unsupported font source: '{}'. Only 'github' is supported for now. Skipping.",
             font.name.bold().red(),
             font.source
         );
@@ -73,7 +76,7 @@ fn validate_font_entry(font: &FontEntry) -> Option<ValidatedFontDetails> {
 
     let Some(repo) = &font.repo else {
         log_error!(
-            "[Font Validation] Font '{}' with 'github' source is missing 'repo' field. Skipping.",
+            "[SDB::Fonts::Validator] Font '{}' with 'github' source is missing 'repo' field. Skipping.",
             font.name.bold().red()
         );
         return None;
@@ -81,7 +84,7 @@ fn validate_font_entry(font: &FontEntry) -> Option<ValidatedFontDetails> {
 
     let Some(tag) = &font.tag else {
         log_error!(
-            "[Font Validation] Font '{}' with 'github' source is missing 'tag' field. Skipping.",
+            "[SDB::Fonts::Validator] Font '{}' with 'github' source is missing 'tag' field. Skipping.",
             font.name.bold().red()
         );
         return None;
@@ -96,7 +99,10 @@ fn validate_font_entry(font: &FontEntry) -> Option<ValidatedFontDetails> {
     // Example: https://github.com/ryanoasis/nerd-fonts/releases/download/v3.0.2/FiraCode.zip
     let url = format!("https://github.com/{repo}/releases/download/{tag}/{asset_name}");
 
-    log_debug!("[Font Validation] Constructed download URL: {}", url.cyan());
+    log_debug!(
+        "[SDB::Fonts::Validator] Constructed download URL: {}",
+        url.cyan()
+    );
 
     Some(ValidatedFontDetails {
         repo: repo.clone(),
@@ -127,7 +133,7 @@ fn download_font_archive(
     let temp_download_path = temp_dir.join(filename);
 
     log_info!(
-        "[Font Download] Downloading '{}' from {} to {}...",
+        "[SDB::Fonts] Downloading '{}' from {} to {}...",
         font_name.bold(),
         url.cyan(),
         temp_download_path.display()
@@ -137,7 +143,7 @@ fn download_font_archive(
     download_file(url, &temp_download_path)?; // `?` propagates the Box<dyn Error>
 
     log_debug!(
-        "[Font Download] Download complete for '{}'.",
+        "[SDB::Fonts::Downloader] Download complete for '{}'.",
         font_name.bold()
     );
     Ok(temp_download_path)
@@ -159,24 +165,25 @@ fn extract_font_archive(
     extract_to_dir: &Path,
 ) -> io::Result<PathBuf> {
     log_info!(
-        "[Font Extraction] Extracting archive for '{}' from {}...",
+        "[SDB::Fonts] Extracting archive for '{}' from {}...",
         font_name.bold(),
         archive_path.display()
     );
 
     // `extract_archive` is designed to return the path to the extracted contents.
     // This handles various archive types (zip, tar.gz, etc.)
-    let extracted_path = extract_archive(archive_path, extract_to_dir, None).inspect_err(|e| {
-        log_error!(
-            "[Font Extraction] Failed to extract archive for '{}' from '{}': {}",
-            font_name.red(),
-            archive_path.display().to_string().red(),
-            e.to_string().red()
-        );
-    })?;
+    let extracted_path =
+        extract_archive(archive_path, extract_to_dir, None, "Fonts").inspect_err(|e| {
+            log_error!(
+                "[SDB::Fonts::Extractor] Failed to extract archive for '{}' from '{}': {}",
+                font_name.red(),
+                archive_path.display().to_string().red(),
+                e.to_string().red()
+            );
+        })?;
 
     log_debug!(
-        "[Font Extraction] Archive extracted to: {}",
+        "[SDB::Fonts::Extractor] Archive extracted to: {}",
         extracted_path.display()
     );
 
@@ -184,13 +191,13 @@ fn extract_font_archive(
     if archive_path.is_file() {
         if let Err(e) = fs::remove_file(archive_path) {
             log_warn!(
-                "[Font Cleanup] Failed to remove temporary font archive '{}': {}",
+                "[SDB::Fonts::TempCleaner] Failed to remove temporary font archive '{}': {}",
                 archive_path.display().to_string().yellow(),
                 e.to_string().yellow()
             );
         } else {
             log_debug!(
-                "[Font Cleanup] Removed temporary font archive '{}'.",
+                "[SDB::Fonts::TempCleaner] Removed temporary font archive '{}'.",
                 archive_path.display()
             );
         }
@@ -219,7 +226,7 @@ fn copy_non_hidden_font_files(
 ) -> io::Result<Vec<String>> {
     let _ = font_name;
     log_debug!(
-        "[Font Copy] Copying font files from '{}' to '{}'.",
+        "[SDB::Fonts::Installer] Copying font files from '{}' to '{}'.",
         extracted_dir.display(),
         install_dir.display()
     );
@@ -236,7 +243,7 @@ fn copy_non_hidden_font_files(
         // Skip hidden files/directories (starting with '.') and non-files.
         if filename.starts_with('.') || (!path.is_file()) {
             log_debug!(
-                "[Font Copy] Skipping hidden or non-file entry: {}",
+                "[SDB::Fonts::Installer] Skipping hidden or non-file entry: {}",
                 filename.blue()
             );
             continue;
@@ -247,7 +254,7 @@ fn copy_non_hidden_font_files(
 
         if !is_font_file {
             log_debug!(
-                "[Font Copy] Skipping non-font file (unsupported extension '{}'): {}",
+                "[SDB::Fonts::Installer] Skipping non-font file (unsupported extension '{}'): {}",
                 extension.blue(),
                 filename.blue()
             );
@@ -264,7 +271,7 @@ fn copy_non_hidden_font_files(
             {
                 // Compare against lowercase filter
                 log_debug!(
-                    "[Font Copy] Skipping font file '{}' as it does not match 'install_only' filters ({:#?}).",
+                    "[SDB::Fonts::Installer] Skipping font file '{}' as it does not match 'install_only' filters ({:#?}).",
                     filename.blue(),
                     filters
                 );
@@ -274,14 +281,14 @@ fn copy_non_hidden_font_files(
 
         let destination_path = install_dir.join(filename);
         log_info!(
-            "[Font Copy] Copying font '{}' to '{}'.",
+            "[SDB::Fonts] Copying font '{}' to '{}'.",
             filename.bold(),
             destination_path.display()
         );
 
         fs::copy(path, &destination_path).inspect_err(|e| {
             log_error!(
-                "[Font Copy] Failed to copy font file '{}' to '{}': {}",
+                "[SDB::Fonts::Installer] Failed to copy font file '{}' to '{}': {}",
                 path.display().to_string().red(),
                 destination_path.display().to_string().red(),
                 e.to_string().red()
@@ -319,7 +326,7 @@ fn determine_font_version(font: &FontEntry) -> String {
 ///   download failure, no font files found/copied). Error details are logged internally.
 pub fn install(font: &FontEntry) -> Option<FontState> {
     log_info!(
-        "[Font Installer] Starting installation for font: {}",
+        "[SDB::Fonts] Starting installation for font: {}",
         font.name.bold()
     );
 
@@ -339,7 +346,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
     // Ensure the temporary directory exists.
     if let Err(e) = fs::create_dir_all(&temp_dir) {
         log_error!(
-            "[Font Installer] Failed to create temporary directory '{}': {}",
+            "[SDB::Fonts::Installer] Failed to create temporary directory '{}': {}",
             temp_dir.display().to_string().red(),
             e.to_string().red()
         );
@@ -357,7 +364,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
         Ok(path) => path,
         Err(e) => {
             log_error!(
-                "[Font Installer] Failed to download font archive for '{}': {}",
+                "[SDB::Fonts::Installer] Failed to download font archive for '{}': {}",
                 font.name.bold().red(),
                 e.to_string().red()
             );
@@ -375,7 +382,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
         Ok(path) => path,
         Err(e) => {
             log_error!(
-                "[Font Installer] Failed to extract font archive for '{}': {}",
+                "[SDB::Fonts::Installer] Failed to extract font archive for '{}': {}",
                 font.name.bold().red(),
                 e.to_string().red()
             );
@@ -394,7 +401,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
         Ok(files) => files,
         Err(e) => {
             log_error!(
-                "[Font Installer] Failed to copy font files for '{}': {}",
+                "[SDB::Fonts::Installer] Failed to copy font files for '{}': {}",
                 font.name.bold().red(),
                 e.to_string().red()
             );
@@ -410,7 +417,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
     // Only record the font's state if at least one file was successfully installed.
     if !installed_font_files.is_empty() {
         log_debug!(
-            "[Font Installer] Constructing FontState for '{}'.",
+            "[SDB::Fonts::Installer] Constructing FontState for '{}'.",
             font.name.bold()
         );
         Some(FontState {
@@ -427,7 +434,7 @@ pub fn install(font: &FontEntry) -> Option<FontState> {
         // If no files were installed, return `None` to indicate no state should be recorded,
         // but the process itself wasn't a critical failure. Log a warning.
         log_warn!(
-            "[Font Installer] No .ttf or .otf font files were found or successfully copied from the archive for '{}'. \\\
+            "[SDB::Fonts::Installer] No .ttf or .otf font files were found or successfully copied from the archive for '{}'. \\\
              The font might not be correctly installed, the archive format is unexpected, or no files matched the 'install_only' filter.",
             font.name.yellow()
         );
@@ -446,13 +453,13 @@ fn cleanup_temp_dir(temp_dir: &Path) {
     if temp_dir.exists() {
         if let Err(e) = fs::remove_dir_all(temp_dir) {
             log_warn!(
-                "[Font Cleanup] Failed to remove temporary directory '{}': {}",
+                "[SDB::Fonts::Installer] Failed to remove temporary directory '{}': {}",
                 temp_dir.display().to_string().yellow(),
                 e.to_string().yellow()
             );
         } else {
             log_debug!(
-                "[Font Cleanup] Removed temporary directory '{}'.",
+                "[SDB::Fonts::Installer] Removed temporary directory '{}'.",
                 temp_dir.display()
             );
         }

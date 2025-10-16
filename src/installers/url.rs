@@ -158,17 +158,20 @@ use crate::libs::utilities::{assets, assets::detect_file_type};
 /// ```
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_info!(
-        "[URL Installer] Attempting to install tool from direct URL: {}",
+        "[SDB::Tools::UrlInstaller] Attempting to install tool from direct URL: {}",
         tool_entry.name.bold()
     );
-    log_debug!("[URL Installer] ToolEntry details: {:#?}", tool_entry);
+    log_debug!(
+        "[SDB::Tools::UrlInstaller] ToolEntry details: {:#?}",
+        tool_entry
+    );
 
     // Step 1: Validate URL configuration - ensure required fields are present
     let download_url = validate_url_configuration(tool_entry)?;
 
     // Step 2: Download asset to temporary location
     log_debug!(
-        "[URL Installer] Downloading asset from: {}",
+        "[SDB::Tools::UrlInstaller] Downloading asset from: {}",
         download_url.blue()
     );
     let (temp_dir, downloaded_path) = assets::download_url_asset(tool_entry, &download_url)?;
@@ -176,7 +179,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Step 3: Detect file type and determine installation strategy
     let file_type = detect_file_type(&downloaded_path);
     log_debug!(
-        "[URL Installer] Detected file type: {}",
+        "[SDB::Tools::UrlInstaller] Detected file type: {}",
         file_type.to_string().magenta()
     );
 
@@ -195,14 +198,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     // Step 7: Execute any post-installation hooks defined in tool configuration
     log_debug!(
-        "[URL Installer] Executing post-installation hooks for {}",
+        "[SDB::Tools::UrlInstaller] Executing post-installation hooks for {}",
         tool_entry.name.bold()
     );
     let executed_post_installation_hooks =
         execute_post_installation_hooks("[URL Installer]", tool_entry, &working_dir);
 
     log_info!(
-        "[URL Installer] Successfully installed tool: {}",
+        "[SDB::Tools::UrlInstaller] Successfully installed tool: {}",
         tool_entry.name.bold().green()
     );
 
@@ -248,18 +251,22 @@ fn validate_url_configuration(tool_entry: &ToolEntry) -> Option<String> {
         Some(url) if !url.trim().is_empty() => url.trim().to_string(),
         Some(_) => {
             log_error!(
-                "[URL Installer] Configuration error: 'url' field is empty for tool {}",
+                "[SDB::Tools::UrlInstaller] Configuration error: 'url' field is empty for tool {}",
                 tool_entry.name.red()
             );
-            log_error!("[URL Installer] Expected format: 'url: https://example.com/path/to/file'");
+            log_error!(
+                "[SDB::Tools::UrlInstaller] Expected format: 'url: https://example.com/path/to/file'"
+            );
             return None;
         }
         None => {
             log_error!(
-                "[URL Installer] Configuration error: 'url' field is missing for tool {}",
+                "[SDB::Tools::UrlInstaller] Configuration error: 'url' field is missing for tool {}",
                 tool_entry.name.red()
             );
-            log_error!("[URL Installer] Expected format: 'url: https://example.com/path/to/file'");
+            log_error!(
+                "[SDB::Tools::UrlInstaller] Expected format: 'url: https://example.com/path/to/file'"
+            );
             return None;
         }
     };
@@ -267,7 +274,7 @@ fn validate_url_configuration(tool_entry: &ToolEntry) -> Option<String> {
     // Basic URL validation
     if !url.starts_with("http://") && !url.starts_with("https://") {
         log_error!(
-            "[URL Installer] Invalid URL scheme for tool '{}'. URL must start with http:// or https://: {}",
+            "[SDB::Tools::UrlInstaller] Invalid URL scheme for tool '{}'. URL must start with http:// or https://: {}",
             tool_entry.name.red(),
             url.red()
         );
@@ -277,14 +284,14 @@ fn validate_url_configuration(tool_entry: &ToolEntry) -> Option<String> {
     // Check for obviously malformed URLs
     if url.contains(' ') {
         log_error!(
-            "[URL Installer] URL contains spaces for tool '{}': {}",
+            "[SDB::Tools::UrlInstaller] URL contains spaces for tool '{}': {}",
             tool_entry.name.red(),
             url.red()
         );
         return None;
     }
 
-    log_debug!("[URL Installer] Validated URL: {}", url.blue());
+    log_debug!("[SDB::Tools::UrlInstaller] Validated URL: {}", url.blue());
     Some(url)
 }
 
@@ -313,7 +320,7 @@ fn verify_installation(install_path: &PathBuf, package_type: &str, tool_entry: &
         "macos-pkg-installer" | "macos-dmg-installer" => {
             // For installers, we trust their success status
             log_debug!(
-                "[URL Installer] Installation verification completed for {} (installer type)",
+                "[SDB::Tools::UrlInstaller] Installation verification completed for {} (installer type)",
                 tool_entry.name
             );
             true
@@ -322,7 +329,7 @@ fn verify_installation(install_path: &PathBuf, package_type: &str, tool_entry: &
             // Verify binary exists and is accessible
             if !install_path.exists() {
                 log_error!(
-                    "[URL Installer] Installed binary does not exist at {} for tool '{}'",
+                    "[SDB::Tools::UrlInstaller] Installed binary does not exist at {} for tool '{}'",
                     install_path.display().to_string().red(),
                     tool_entry.name.red()
                 );
@@ -334,7 +341,7 @@ fn verify_installation(install_path: &PathBuf, package_type: &str, tool_entry: &
                 Ok(metadata) => {
                     if !metadata.is_file() {
                         log_error!(
-                            "[URL Installer] Install path is not a file for tool '{}'",
+                            "[SDB::Tools::UrlInstaller] Install path is not a file for tool '{}'",
                             tool_entry.name.red()
                         );
                         return false;
@@ -346,14 +353,14 @@ fn verify_installation(install_path: &PathBuf, package_type: &str, tool_entry: &
                         let permissions = metadata.permissions();
                         if permissions.mode() & 0o111 == 0 {
                             log_warn!(
-                                "[URL Installer] Installed file is not executable for tool '{}'",
+                                "[SDB::Tools::UrlInstaller] Installed file is not executable for tool '{}'",
                                 tool_entry.name.yellow()
                             );
                         }
                     }
 
                     log_debug!(
-                        "[URL Installer] Binary installation verified for '{}' at {}",
+                        "[SDB::Tools::UrlInstaller] Binary installation verified for '{}' at {}",
                         tool_entry.name.green(),
                         install_path.display().to_string().cyan()
                     );
@@ -361,7 +368,7 @@ fn verify_installation(install_path: &PathBuf, package_type: &str, tool_entry: &
                 }
                 Err(e) => {
                     log_error!(
-                        "[URL Installer] Failed to verify installed binary metadata for '{}': {}",
+                        "[SDB::Tools::UrlInstaller] Failed to verify installed binary metadata for '{}': {}",
                         tool_entry.name.red(),
                         e
                     );
@@ -373,14 +380,14 @@ fn verify_installation(install_path: &PathBuf, package_type: &str, tool_entry: &
             // For archive extractions, verify directory exists
             if !install_path.exists() {
                 log_error!(
-                    "[URL Installer] Installation path does not exist for tool '{}'",
+                    "[SDB::Tools::UrlInstaller] Installation path does not exist for tool '{}'",
                     tool_entry.name.red()
                 );
                 return false;
             }
 
             log_debug!(
-                "[URL Installer] Installation verification completed for '{}'",
+                "[SDB::Tools::UrlInstaller] Installation verification completed for '{}'",
                 tool_entry.name.green()
             );
             true
@@ -407,13 +414,13 @@ fn cleanup_temp_file(temp_path: &PathBuf) {
         match fs::remove_file(temp_path) {
             Ok(_) => {
                 log_debug!(
-                    "[URL Installer] Removed temporary download file: {}",
+                    "[SDB::Tools::UrlInstaller] Removed temporary download file: {}",
                     temp_path.display()
                 );
             }
             Err(e) => {
                 log_warn!(
-                    "[URL Installer] Failed to remove temporary download file {}: {}",
+                    "[SDB::Tools::UrlInstaller] Failed to remove temporary download file {}: {}",
                     temp_path.display(),
                     e
                 );

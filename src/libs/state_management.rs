@@ -52,12 +52,12 @@ use crate::{log_debug, log_error, log_info, log_warn};
 ///   The function will `std::process::exit(1)` if a critical error
 ///   (like an unreadable or unparsable state file) occurs.
 pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
-    log_debug!("Entering load_or_initialize_state() function."); // Debug log for function entry.
+    log_debug!("[SDB::StateLoader] Entering load_or_initialize_state() function."); // Debug log for function entry.
 
     let state: DevBoxState = if state_path_resolved.exists() {
         // If the state file exists, attempt to load it.
         log_debug!(
-            "State file found at {:?}. Attempting to load...",
+            "[SDB::StateLoader] State file found at {:?}. Attempting to load...",
             state_path_resolved
         );
         match fs::read_to_string(state_path_resolved) {
@@ -70,21 +70,24 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
                             state_path_resolved.display().to_string().cyan()
                         ); // Informative log about using existing state file.
                         log_debug!(
-                            "Existing state file: {}",
+                            "[SDB::StateLoader] Existing state file: {}",
                             state_path_resolved.display().to_string().yellow()
                         ); // Debug log for path.
                         // Attempt to pretty-print the loaded state for detailed debugging.
                         match serde_json::to_string_pretty(&parsed_state) {
                             Ok(pretty_json) => {
-                                log_debug!("Loaded DevBoxState:\n{}", pretty_json);
+                                log_debug!(
+                                    "[SDB::StateLoader] Loaded DevBoxState:\n{}",
+                                    pretty_json
+                                );
                             }
                             Err(e) => {
                                 log_warn!(
-                                    "Failed to re-serialize loaded DevBoxState for pretty printing: {}",
+                                    "[SDB] Failed to re-serialize loaded DevBoxState for pretty printing: {}",
                                     e
                                 );
                                 log_debug!(
-                                    "Loaded DevBoxState (raw debug format): {:?}",
+                                    "[SDB::StateLoader] Loaded DevBoxState (raw debug format): {:?}",
                                     parsed_state
                                 );
                             }
@@ -94,7 +97,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
                     Err(err) => {
                         // If JSON deserialization fails (e.g., corrupted file, schema mismatch).
                         log_error!(
-                            "Invalid state.json format at {}: {}. Please check the file's content or delete it to start fresh.",
+                            "[SDB::StateLoader] Invalid state.json format at {}: {}. Please check the file's content or delete it to start fresh.",
                             state_path_resolved.display().to_string().red(),
                             err
                         );
@@ -105,7 +108,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
             Err(err) => {
                 // If the file cannot be read (e.g., permissions error).
                 log_error!(
-                    "Failed to read state file {}: {}. Please verify file permissions.",
+                    "[SDB::StateLoader] Failed to read state file {}: {}. Please verify file permissions.",
                     state_path_resolved.display().to_string().red(),
                     err
                 );
@@ -115,7 +118,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
     } else {
         // If the state file does not exist, initialize a new, empty state.
         log_info!(
-            "State file not found at {:?}. Creating a brand new state file.",
+            "[SDB] State file not found at {:?}. Creating a brand new state file.",
             state_path_resolved.display().to_string().yellow()
         );
         let initial_state = DevBoxState {
@@ -127,13 +130,13 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
         // Ensure the parent directory for the state file exists before attempting to write.
         if let Some(parent_dir) = state_path_resolved.parent() {
             log_debug!(
-                "Checking/creating parent directory for state file: {:?}",
+                "[SDB::StateLoader] Checking/creating parent directory for state file: {:?}",
                 parent_dir
             );
             if let Err(e) = fs::create_dir_all(parent_dir) {
                 // If directory creation fails, log error and exit.
                 log_error!(
-                    "Failed to create directory for state file at {:?}: {}. Cannot save state.",
+                    "[SDB::StateLoader] Failed to create directory for state file at {:?}: {}. Cannot save state.",
                     parent_dir.display().to_string().red(),
                     e
                 );
@@ -147,13 +150,13 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
                 if let Err(err) = fs::write(state_path_resolved, serialized_state) {
                     // If writing fails, log a non-critical error (app can still run but won't save state).
                     log_error!(
-                        "Failed to write initial state file to {:?}: {}. This might prevent future state tracking.",
+                        "[SDB::StateWriter] Failed to write initial state file to {:?}: {}. This might prevent future state tracking.",
                         state_path_resolved.display().to_string().red(),
                         err
                     );
                 } else {
                     log_info!(
-                        "Initial state file successfully created at {:?}",
+                        "[SDB] Initial state file successfully created at {:?}",
                         state_path_resolved.display().to_string().green()
                     ); // Success log for initial state creation.
                 }
@@ -161,7 +164,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
             Err(err) => {
                 // If serialization fails, it's an internal application error.
                 log_error!(
-                    "Failed to serialize initial state: {}. This is an internal application error.",
+                    "[SDB::StateWriter] Failed to serialize initial state: {}. This is an internal application error.",
                     err
                 );
                 std::process::exit(1); // Exit due to critical error.
@@ -169,7 +172,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
         }
         initial_state // Return the newly initialized state.
     };
-    log_debug!("Exiting load_or_initialize_state() function."); // Debug log for function exit.
+    log_debug!("[SDB::StateLoader] Exiting load state file function."); // Debug log for function exit.
     state // Return the final loaded or initialized state.
 }
 
@@ -191,7 +194,7 @@ pub fn load_or_initialize_state(state_path_resolved: &PathBuf) -> DevBoxState {
 ///   - `false` otherwise (e.g., failed to create directories, failed to serialize, failed to write).
 pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
     log_debug!(
-        "[StateSave] Attempting to save DevBoxState to: {:?}",
+        "[SDB::StateSave] Attempting to save DevBoxState to: {:?}",
         state_path.display()
     ); // Debug log for save attempt.
 
@@ -201,14 +204,14 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
         // Check if the parent directory already exists.
         if !parent_dir.exists() {
             log_info!(
-                "[StateSave] Parent directory {:?} does not exist. Creating it now.",
+                "[SDB::StateSave] Parent directory {:?} does not exist. Creating it now.",
                 parent_dir.display()
             ); // Informative log about directory creation.
             // Attempt to create all necessary parent directories.
             // If `fs::create_dir_all` fails, log an error and return `false` because saving cannot proceed.
             if let Err(e) = fs::create_dir_all(parent_dir) {
                 log_error!(
-                    "[StateSave] Failed to create directory for state file at {:?}: {}. Cannot save state.",
+                    "[SDB::StateSave] Failed to create directory for state file at {:?}: {}. Cannot save state.",
                     parent_dir.display().to_string().red(),
                     e
                 );
@@ -228,16 +231,16 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
                     // Print an empty line to ensure clean terminal output, separating logs from other output.
                     eprintln!("\n");
                     log_info!(
-                        "[StateSave] DevBox state saved successfully to {}",
+                        "[SDB::StateSave] DevBox state saved successfully to {}",
                         state_path.display().to_string().cyan()
                     ); // Success log for state saving.
-                    log_debug!("[StateSave] State content written to disk."); // Debug log confirmation.
+                    log_debug!("[SDB:sStateSave] State content written to disk."); // Debug log confirmation.
                     true // Indicate successful saving.
                 }
                 Err(err) => {
                     // If writing to the file fails (e.g., disk full, permission denied).
                     log_error!(
-                        "[StateSave] Failed to write updated state file to {:?}: {}. Your `setup-devbox` memory might not be saved correctly.",
+                        "[SDB::StateSave] Failed to write updated state file to {:?}: {}. Your `setup-devbox` memory might not be saved correctly.",
                         state_path.display().to_string().red(),
                         err
                     );
@@ -249,7 +252,7 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
             // If serialization itself fails, it indicates an internal application error
             // (e.g., `DevBoxState` struct cannot be serialized, or data is invalid).
             log_error!(
-                "[StateSave] Failed to serialize DevBox state for saving: {}. This is an internal application error.",
+                "[SDB::StateSave] Failed to serialize DevBox state for saving: {}. This is an internal application error.",
                 err
             );
             false // Indicate failure to serialize.
@@ -259,12 +262,12 @@ pub fn save_devbox_state(state: &DevBoxState, state_path: &PathBuf) -> bool {
 
 /// Saves the current state to file if changes were made
 pub fn save_state_to_file(state: &DevBoxState, state_file_path: &PathBuf) {
-    log_info!("[Tools] Saving updated state...");
+    log_info!("[SDB] Saving updated state...");
 
     if save_devbox_state(state, state_file_path) {
-        log_info!("[StateSave] State saved successfully.");
+        log_info!("[SDB::StateSave] State saved successfully.");
     } else {
-        log_error!("[StateSave] Failed to save state - data loss risk!");
+        log_error!("[SDB::StateSave] Failed to save state - data loss risk!");
     }
 }
 

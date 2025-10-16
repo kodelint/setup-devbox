@@ -49,7 +49,7 @@ pub fn install_fonts(
     for font in &fonts_cfg.fonts {
         // Log at debug level the name of the current font being considered for installation.
         // `font.name.bold()` makes the font name bold in the debug output for better readability.
-        log_debug!("[Fonts] Considering font: {}", font.name.bold());
+        log_debug!("[SDB::Fonts] Considering font: {}", font.name.bold());
         // Check if the font is already present in the `DevBoxState`.
         // `!state.fonts.contains_key(&font.name)` evaluates to `true` if the font's name
         // is NOT found as a key in the `state.fonts` HashMap, indicating that it needs to be installed.
@@ -62,7 +62,7 @@ pub fn install_fonts(
             eprintln!("{}", "==============================================================================================".bright_blue());
             // Log an informative message to the user about the specific font being installed.
             // The font's name is displayed in bold cyan for emphasis.
-            log_info!("[Fonts] Installing {}...", font.name.bold().cyan());
+            log_info!("[SDB::Fonts] Installing {}...", font.name.bold().cyan());
             // Call the actual font installation logic from the `fonts` installer module.
             // `fonts::install(font)` is expected to perform the system-level font installation.
             // It returns an `Option<FontState>`: `Some(font_state)` on success with the installed font's state, or `None` on failure.
@@ -76,7 +76,7 @@ pub fn install_fonts(
                 fonts_updated = true;
                 // Log a success message for the font installation, displaying the font's name in bold green.
                 log_info!(
-                    "[Fonts] Successfully installed {}.",
+                    "[SDB::Fonts] Successfully installed {}.",
                     font.name.bold().green()
                 );
                 // Print another separator line to the standard error output, in bright blue,
@@ -88,7 +88,7 @@ pub fn install_fonts(
                 // Log an error message, prompting the user to review earlier logs for more specific
                 // details about why the installation might have failed.
                 log_error!(
-                    "Failed to install font: {}. Please review previous logs for specific errors during installation.",
+                    "[SDB::Fonts] Failed to install font: {}. Please review previous logs for specific errors during installation.",
                     font.name.bold().red() // Display the failed font's name in bold red.
                 );
             }
@@ -100,7 +100,7 @@ pub fn install_fonts(
             // Log a debug message indicating that the font was skipped because it was already found
             // in the state, displaying its name in blue.
             log_debug!(
-                "[Fonts] Font '{}' is already recorded as installed. Added to skipped list.",
+                "[SDB::Fonts::Installer] Font '{}' is already recorded as installed. Added to skipped list.",
                 font.name.blue()
             );
         }
@@ -114,39 +114,43 @@ pub fn install_fonts(
         let skipped_fonts_str = skipped_fonts.join(", ");
         // Log an informative message to the user, listing all the fonts that were skipped.
         log_info!(
-            "[Fonts] The following fonts were already recorded as installed and were skipped: {}",
+            "[SDB::Fonts] The following fonts were already recorded as installed and were skipped: {}",
             skipped_fonts_str.blue() // Display the list of skipped fonts in blue.
         );
     } else {
         // If the `skipped_fonts` vector is empty, it means all fonts were either installed/updated
         // or an attempt was made. Log a debug message to this effect.
-        log_debug!("[Fonts] No fonts were skipped as they were not found in the state.");
+        log_debug!(
+            "[SDB::Fonts::Installer] No fonts were skipped as they were not found in the state."
+        );
     }
 
     // If any fonts were installed or updated during this function call (`fonts_updated` is `true`),
     // then the application state needs to be saved to persist these changes.
     if fonts_updated {
         // Informative log before initiating the state saving process.
-        log_info!("[Fonts] Font state updated. Saving current DevBox state...");
+        log_info!("[SDB::Fonts] Font state updated. Saving current DevBox state...");
         // Call the `save_devbox_state` function from the `state_management` module.
         // This function serializes the `state` (which now includes the new/updated fonts)
         // to the `state_path_resolved` file. It returns `false` if the save operation fails.
         if !save_devbox_state(state, state_path_resolved) {
             // If `save_devbox_state` returns `false`, log a critical error,
             // as failure to save the state can lead to loss of installed font information.
-            log_error!("Failed to save state after font installations. Data loss risk!");
+            log_error!(
+                "[SDB::StateSave] Failed to save state after font installations. Data loss risk!"
+            );
         } else {
             // If `save_devbox_state` returns `true`, log a success message for the state saving.
-            log_info!("[StateSave] State saved successfully after font updates.");
+            log_info!("[SDB::StateSave] State saved successfully after font updates.");
         }
     } else {
         // If `fonts_updated` is `false`, no new fonts were installed or existing ones updated.
         // Log an informative message that no state changes related to fonts were detected,
         // so no saving action was necessary.
-        log_info!("[Fonts] No new fonts installed or state changes detected for fonts.");
+        log_info!("[SDB::Fonts] No new fonts installed or state changes detected for fonts.");
     }
     // Print a final newline for consistent console output spacing.
     eprintln!();
     // Debug log to indicate successful exit from the `install_fonts` function.
-    log_debug!("Exiting install_fonts() function.");
+    log_debug!("[SDB::Fonts] Exiting install_fonts() function.");
 }

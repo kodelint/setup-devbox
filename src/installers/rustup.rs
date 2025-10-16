@@ -127,16 +127,19 @@ use std::process::Command;
 /// ```
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_info!(
-        "[Rustup Installer] Attempting to install Rust toolchain: {}",
+        "[SDB::Tools::RustUpInstaller] Attempting to install Rust toolchain: {}",
         tool_entry.name.bold()
     );
-    log_debug!("[Rustup Installer] ToolEntry details: {:#?}", tool_entry);
+    log_debug!(
+        "[SDB::Tools::RustUpInstaller] ToolEntry details: {:#?}",
+        tool_entry
+    );
 
     // 1. Validate and extract toolchain name - ensure version is specified and valid
     let toolchain_name = validate_toolchain_version(tool_entry)?;
 
     log_debug!(
-        "[Rustup Installer] Installing toolchain: {}",
+        "[SDB::Tools::RustUpInstaller] Installing toolchain: {}",
         toolchain_name.cyan()
     );
 
@@ -146,7 +149,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     match toolchain_status {
         ToolchainStatus::AlreadyInstalled => {
             log_info!(
-                "[Rustup Installer] Toolchain '{}' is already installed",
+                "[SDB::Tools::RustUpInstaller] Toolchain '{}' is already installed",
                 toolchain_name.green()
             );
         }
@@ -158,7 +161,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         }
         ToolchainStatus::CheckFailed => {
             log_warn!(
-                "[Rustup Installer] Could not verify toolchain status, proceeding with installation attempt"
+                "[SDB::Tools::RustUpInstaller] Could not verify toolchain status, proceeding with installation attempt"
             );
             if !install_toolchain(&toolchain_name) {
                 return None;
@@ -167,22 +170,22 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     }
 
     log_debug!(
-        "[Rustup Installer] Checking if component: {} is already installed",
+        "[SDB::Tools::RustUpInstaller] Checking if component: {} is already installed",
         tool_entry.name.bold()
     );
 
     // 3. Check if component is already Installed
     if check_if_installed(&tool_entry.name) {
         log_warn!(
-            "[Rustup Installer] Component '{}' appears to be already installed, outside SDB",
+            "[SDB::Tools::RustUpInstaller] Component '{}' appears to be already installed, outside SDB",
             tool_entry.name.green()
         );
         log_info!(
-            "[Rustup Installer] Updating SDB inventory for {}",
+            "[SDB::Tools::RustUpInstaller] Updating SDB inventory for {}",
             tool_entry.name.green()
         );
         log_debug!(
-            "[Rustup Installer] Proceeding with installation to ensure correct version/options"
+            "[SDB::Tools::RustUpInstaller] Proceeding with installation to ensure correct version/options"
         );
     }
 
@@ -201,7 +204,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // 6. Determine accurate installation path - where the toolchain binaries are located
     let install_path = determine_rustup_installation_path(&toolchain_name);
     log_debug!(
-        "[Rustup Installer] Determined installation path: {}",
+        "[SDB::Tools::RustUpInstaller] Determined installation path: {}",
         install_path.display().to_string().cyan()
     );
 
@@ -210,18 +213,18 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         get_actual_toolchain_version(&toolchain_name).unwrap_or_else(|| toolchain_name.clone());
 
     log_info!(
-        "[Rustup Installer] Successfully installed Rust toolchain: {} (version: {})",
+        "[SDB::Tools::RustUpInstaller] Successfully installed Rust toolchain: {} (version: {})",
         tool_entry.name.bold().green(),
         actual_version.green()
     );
 
     // 8. Execute post-installation hooks - run any additional setup commands
     log_debug!(
-        "[Rustup Installer] Executing post installation hooks, post installing {}",
+        "[SDB::Tools::RustUpInstaller] Executing post installation hooks, post installing {}",
         tool_entry.name.bold()
     );
     let executed_post_installation_hooks =
-        execute_post_installation_hooks("[Rustup Installer]", tool_entry, &install_path);
+        execute_post_installation_hooks("[SDB::Tools::RustUpInstaller]", tool_entry, &install_path);
 
     // 9. Return comprehensive ToolState for tracking
     //
@@ -273,19 +276,22 @@ enum ToolchainStatus {
 fn validate_toolchain_version(tool_entry: &ToolEntry) -> Option<String> {
     match &tool_entry.version {
         Some(version) if !version.trim().is_empty() => {
-            log_debug!("[Rustup Installer] Using toolchain version: {}", version);
+            log_debug!(
+                "[SDB::Tools::RustUpInstaller] Using toolchain version: {}",
+                version
+            );
             Some(version.clone())
         }
         Some(_) => {
             log_error!(
-                "[Rustup Installer] Empty toolchain version provided for tool '{}'",
+                "[SDB::Tools::RustUpInstaller] Empty toolchain version provided for tool '{}'",
                 tool_entry.name.bold().red()
             );
             None
         }
         None => {
             log_error!(
-                "[Rustup Installer] Toolchain version (e.g., 'stable', 'nightly', '1.70.0') is required for rustup tool '{}'",
+                "[SDB::Tools::RustUpInstaller] Toolchain version (e.g., 'stable', 'nightly', '1.70.0') is required for rustup tool '{}'",
                 tool_entry.name.bold().red()
             );
             None
@@ -326,7 +332,7 @@ fn check_toolchain_status(toolchain_name: &str) -> ToolchainStatus {
         }
         Ok(output) => {
             log_warn!(
-                "[Rustup Installer] Failed to check installed toolchains. Exit code: {}. Error: {}",
+                "[SDB::Tools::RustUpInstaller] Failed to check installed toolchains. Exit code: {}. Error: {}",
                 output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr)
             );
@@ -334,7 +340,7 @@ fn check_toolchain_status(toolchain_name: &str) -> ToolchainStatus {
         }
         Err(e) => {
             log_warn!(
-                "[Rustup Installer] Failed to execute 'rustup toolchain list': {}",
+                "[SDB::Tools::RustUpInstaller] Failed to execute 'rustup toolchain list': {}",
                 e
             );
             ToolchainStatus::CheckFailed
@@ -360,7 +366,7 @@ fn install_toolchain(toolchain_name: &str) -> bool {
     let args = vec!["toolchain", "install", toolchain_name];
 
     log_debug!(
-        "[Rustup Installer] Executing: {} {}",
+        "[SDB::Tools::RustUpInstaller] Executing: {} {}",
         "rustup".cyan().bold(),
         args.join(" ").cyan()
     );
@@ -368,20 +374,20 @@ fn install_toolchain(toolchain_name: &str) -> bool {
     match Command::new("rustup").args(&args).output() {
         Ok(output) if output.status.success() => {
             log_info!(
-                "[Rustup Installer] Successfully installed toolchain: {}",
+                "[SDB::Tools::RustUpInstaller] Successfully installed toolchain: {}",
                 toolchain_name.bold().green()
             );
 
             // Log output for debugging
             if !output.stdout.is_empty() {
                 log_debug!(
-                    "[Rustup Installer] Stdout: {}",
+                    "[SDB::Tools::RustUpInstaller] Stdout: {}",
                     String::from_utf8_lossy(&output.stdout)
                 );
             }
             if !output.stderr.is_empty() {
                 log_warn!(
-                    "[Rustup Installer] Stderr (may contain warnings): {}",
+                    "[SDB::Tools::RustUpInstaller] Stderr (may contain warnings): {}",
                     String::from_utf8_lossy(&output.stderr)
                 );
             }
@@ -389,7 +395,7 @@ fn install_toolchain(toolchain_name: &str) -> bool {
         }
         Ok(output) => {
             log_error!(
-                "[Rustup Installer] Failed to install toolchain '{}'. Exit code: {}. Error: {}",
+                "[SDB::Tools::RustUpInstaller] Failed to install toolchain '{}'. Exit code: {}. Error: {}",
                 toolchain_name.bold().red(),
                 output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr).red()
@@ -397,7 +403,7 @@ fn install_toolchain(toolchain_name: &str) -> bool {
 
             if !output.stdout.is_empty() {
                 log_debug!(
-                    "[Rustup Installer] Stdout (on failure): {}",
+                    "[SDB::Tools::RustUpInstaller] Stdout (on failure): {}",
                     String::from_utf8_lossy(&output.stdout)
                 );
             }
@@ -405,7 +411,7 @@ fn install_toolchain(toolchain_name: &str) -> bool {
         }
         Err(e) => {
             log_error!(
-                "[Rustup Installer] Failed to execute 'rustup toolchain install' for '{}': {}",
+                "[SDB::Tools::RustUpInstaller] Failed to execute 'rustup toolchain install' for '{}': {}",
                 toolchain_name.bold().red(),
                 e.to_string().red()
             );
@@ -473,11 +479,11 @@ fn install_components(components: &[String], toolchain_name: &str) -> bool {
     }
 
     if !all_success {
-        log_error!("[Rustup Installer] One or more components failed to install");
+        log_error!("[SDB::Tools::RustUpInstaller] One or more components failed to install");
         return false;
     }
 
-    log_info!("[Rustup Installer] All components installed successfully");
+    log_info!("[SDB::Tools::RustUpInstaller] All components installed successfully");
     true
 }
 
@@ -505,7 +511,7 @@ fn install_single_component(component: &str, toolchain_name: &str) -> bool {
     let args = vec!["component", "add", component, "--toolchain", toolchain_name];
 
     log_debug!(
-        "[Rustup Installer] Executing: {} {}",
+        "[SDB::Tools::RustUpInstaller] Executing: {} {}",
         "rustup".cyan().bold(),
         args.join(" ").cyan()
     );
@@ -513,20 +519,20 @@ fn install_single_component(component: &str, toolchain_name: &str) -> bool {
     match Command::new("rustup").args(&args).output() {
         Ok(output) if output.status.success() => {
             log_info!(
-                "[Rustup Installer] Successfully added component '{}' to toolchain '{}'",
+                "[SDB::Tools::RustUpInstaller] Successfully added component '{}' to toolchain '{}'",
                 component.bold().green(),
                 toolchain_name.bold().green()
             );
 
             if !output.stdout.is_empty() {
                 log_debug!(
-                    "[Rustup Installer] Stdout: {}",
+                    "[SDB::Tools::RustUpInstaller] Stdout: {}",
                     String::from_utf8_lossy(&output.stdout)
                 );
             }
             if !output.stderr.is_empty() {
                 log_warn!(
-                    "[Rustup Installer] Stderr (may contain warnings): {}",
+                    "[SDB::Tools::RustUpInstaller] Stderr (may contain warnings): {}",
                     String::from_utf8_lossy(&output.stderr)
                 );
             }
@@ -534,7 +540,7 @@ fn install_single_component(component: &str, toolchain_name: &str) -> bool {
         }
         Ok(output) => {
             log_error!(
-                "[Rustup Installer] Failed to add component '{}' to toolchain '{}'. Exit code: {}. Error: {}",
+                "[SDB::Tools::RustUpInstaller] Failed to add component '{}' to toolchain '{}'. Exit code: {}. Error: {}",
                 component.bold().red(),
                 toolchain_name.bold().red(),
                 output.status.code().unwrap_or(-1),
@@ -543,7 +549,7 @@ fn install_single_component(component: &str, toolchain_name: &str) -> bool {
 
             if !output.stdout.is_empty() {
                 log_debug!(
-                    "[Rustup Installer] Stdout (on failure): {}",
+                    "[SDB::Tools::RustUpInstaller] Stdout (on failure): {}",
                     String::from_utf8_lossy(&output.stdout)
                 );
             }
@@ -551,7 +557,7 @@ fn install_single_component(component: &str, toolchain_name: &str) -> bool {
         }
         Err(e) => {
             log_error!(
-                "[Rustup Installer] Failed to execute 'rustup component add' for '{}' on toolchain '{}': {}",
+                "[SDB::Tools::RustUpInstaller] Failed to execute 'rustup component add' for '{}' on toolchain '{}': {}",
                 component.bold().red(),
                 toolchain_name.bold().red(),
                 e.to_string().red()
@@ -589,7 +595,7 @@ fn verify_toolchain_installation(toolchain_name: &str, components: Option<&Vec<S
         }
     }
 
-    log_debug!("[Rustup Installer] Installation verification completed successfully");
+    log_debug!("[SDB::Tools::RustUpInstaller] Installation verification completed successfully");
     true
 }
 
@@ -614,7 +620,7 @@ fn verify_toolchain_exists(toolchain_name: &str) -> bool {
                     || cleaned_line.starts_with(&format!("{toolchain_name}-"))
                 {
                     log_debug!(
-                        "[Rustup Installer] Verified toolchain '{}' is installed",
+                        "[SDB::Tools::RustUpInstaller] Verified toolchain '{}' is installed",
                         toolchain_name
                     );
                     return true;
@@ -622,14 +628,14 @@ fn verify_toolchain_exists(toolchain_name: &str) -> bool {
             }
 
             log_error!(
-                "[Rustup Installer] Toolchain '{}' not found in installed toolchains",
+                "[SDB::Tools::RustUpInstaller] Toolchain '{}' not found in installed toolchains",
                 toolchain_name.red()
             );
             false
         }
         Ok(output) => {
             log_error!(
-                "[Rustup Installer] Failed to verify toolchain installation. Exit code: {}. Error: {}",
+                "[SDB::Tools::RustUpInstaller] Failed to verify toolchain installation. Exit code: {}. Error: {}",
                 output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr).red()
             );
@@ -637,7 +643,7 @@ fn verify_toolchain_exists(toolchain_name: &str) -> bool {
         }
         Err(e) => {
             log_error!(
-                "[Rustup Installer] Failed to execute toolchain verification command: {}",
+                "[SDB::Tools::RustUpInstaller] Failed to execute toolchain verification command: {}",
                 e.to_string().red()
             );
             false
@@ -700,7 +706,7 @@ fn verify_components_installed(components: &[String], toolchain_name: &str) -> b
 
                 if !component_found {
                     log_error!(
-                        "[Rustup Installer] Component '{}' not found in installed components for toolchain '{}'",
+                        "[SDB::Tools::RustUpInstaller] Component '{}' not found in installed components for toolchain '{}'",
                         component.red(),
                         toolchain_name.red()
                     );
@@ -709,13 +715,15 @@ fn verify_components_installed(components: &[String], toolchain_name: &str) -> b
             }
 
             if all_found {
-                log_debug!("[Rustup Installer] All specified components verified as installed");
+                log_debug!(
+                    "[SDB::Tools::RustUpInstaller] All specified components verified as installed"
+                );
             }
             all_found
         }
         Ok(output) => {
             log_warn!(
-                "[Rustup Installer] Could not verify components. Exit code: {}. Error: {}",
+                "[SDB::Tools::RustUpInstaller] Could not verify components. Exit code: {}. Error: {}",
                 output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr)
             );
@@ -724,7 +732,7 @@ fn verify_components_installed(components: &[String], toolchain_name: &str) -> b
         }
         Err(e) => {
             log_warn!(
-                "[Rustup Installer] Failed to execute component verification: {}",
+                "[SDB::Tools::RustUpInstaller] Failed to execute component verification: {}",
                 e
             );
             // Return true as warning, since component verification failure shouldn't block success
@@ -756,7 +764,9 @@ fn determine_rustup_installation_path(toolchain_name: &str) -> PathBuf {
     }
 
     // Final fallback
-    log_warn!("[Rustup Installer] Could not determine rustup home, using system fallback");
+    log_warn!(
+        "[SDB::Tools::RustUpInstaller] Could not determine rustup home, using system fallback"
+    );
     PathBuf::from("/usr/local/bin")
 }
 
@@ -783,7 +793,7 @@ fn get_rustup_home_path(toolchain_name: &str) -> Option<PathBuf> {
             .join("bin");
 
         log_debug!(
-            "[Rustup Installer] Using RUSTUP_HOME path: {}",
+            "[SDB::Tools::RustUpInstaller] Using RUSTUP_HOME path: {}",
             path.display()
         );
         return Some(path);
@@ -798,7 +808,7 @@ fn get_rustup_home_path(toolchain_name: &str) -> Option<PathBuf> {
             .join("bin");
 
         log_debug!(
-            "[Rustup Installer] Using HOME-based rustup path: {}",
+            "[SDB::Tools::RustUpInstaller] Using HOME-based rustup path: {}",
             path.display()
         );
         return Some(path);

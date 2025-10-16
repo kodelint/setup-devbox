@@ -139,10 +139,13 @@ use std::process::{Command, Output};
 /// ```
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_info!(
-        "[UV Installer] Attempting to install Python package: {}",
+        "[SDB::Tools::UVInstaller] Attempting to install Python package: {}",
         tool_entry.name.bold()
     );
-    log_debug!("[UV Installer] ToolEntry details: {:#?}", tool_entry);
+    log_debug!(
+        "[SDB::Tools::UVInstaller] ToolEntry details: {:#?}",
+        tool_entry
+    );
 
     // 1. Validate configuration - check tool entry and options for correctness
     if !validate_uv_configuration(tool_entry) {
@@ -152,7 +155,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // 2. Determine installation mode - detect whether to use tool, pip, or python mode
     let (subcommand, base_args) = determine_installation_mode(tool_entry);
     log_debug!(
-        "[UV Installer] Using installation mode: {}",
+        "[SDB::Tools::UVInstaller] Using installation mode: {}",
         subcommand.cyan().bold()
     );
 
@@ -170,7 +173,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // 6. Determine installation path - where the package was actually installed
     let install_path = determine_install_path(&subcommand, &tool_entry.name);
     log_debug!(
-        "[UV Installer] Determined installation path: {}",
+        "[SDB::Tools::UVInstaller] Determined installation path: {}",
         install_path.display().to_string().cyan()
     );
 
@@ -180,7 +183,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         execute_post_installation_hooks("[UV Installer]", tool_entry, &working_dir);
 
     log_info!(
-        "[UV Installer] Successfully installed: {} using uv {}",
+        "[SDB::Tools::UVInstaller] Successfully installed: {} using uv {}",
         tool_entry.name.bold().green(),
         subcommand.green()
     );
@@ -224,14 +227,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 fn validate_uv_configuration(tool_entry: &ToolEntry) -> bool {
     // Validate tool name
     if tool_entry.name.trim().is_empty() {
-        log_error!("[UV Installer] Tool name is empty or whitespace");
+        log_error!("[SDB::Tools::UVInstaller] Tool name is empty or whitespace");
         return false;
     }
 
     // Validate options
     if !validate_uv_options(tool_entry) {
         log_error!(
-            "[UV Installer] Invalid options for tool entry: {}",
+            "[SDB::Tools::UVInstaller] Invalid options for tool entry: {}",
             tool_entry.name.red()
         );
         return false;
@@ -243,7 +246,7 @@ fn validate_uv_configuration(tool_entry: &ToolEntry) -> bool {
             if let Some(mode) = opt.strip_prefix("--mode=") {
                 if mode == "python" && tool_entry.version.is_none() {
                     log_error!(
-                        "[UV Installer] Python installation mode requires a version to be specified for tool '{}'",
+                        "[SDB::Tools::UVInstaller] Python installation mode requires a version to be specified for tool '{}'",
                         tool_entry.name.red()
                     );
                     return false;
@@ -290,14 +293,14 @@ fn build_command_args(
                 }
                 Some(_) => {
                     log_error!(
-                        "[UV Installer] Empty Python version specified for tool '{}'",
+                        "[SDB::Tools::UVInstaller] Empty Python version specified for tool '{}'",
                         tool_entry.name.red()
                     );
                     return None;
                 }
                 None => {
                     log_error!(
-                        "[UV Installer] No Python version specified for tool '{}'",
+                        "[SDB::Tools::UVInstaller] No Python version specified for tool '{}'",
                         tool_entry.name.red()
                     );
                     return None;
@@ -309,7 +312,7 @@ fn build_command_args(
             let package_specifier = if let Some(version) = &tool_entry.version {
                 if version.trim().is_empty() {
                     log_error!(
-                        "[UV Installer] Empty version string specified for tool '{}'",
+                        "[SDB::Tools::UVInstaller] Empty version string specified for tool '{}'",
                         tool_entry.name.red()
                     );
                     return None;
@@ -357,7 +360,7 @@ fn execute_uv_command(
     tool_entry: &ToolEntry,
 ) -> Option<Output> {
     log_debug!(
-        "[UV Installer] Executing: {} {} {}",
+        "[SDB::Tools::UVInstaller] Executing: {} {} {}",
         "uv".cyan().bold(),
         subcommand.cyan().bold(),
         command_args.join(" ").cyan()
@@ -371,7 +374,7 @@ fn execute_uv_command(
         Ok(output) => Some(output),
         Err(e) => {
             log_error!(
-                "[UV Installer] Failed to execute 'uv {}' command for '{}': {}",
+                "[SDB::Tools::UVInstaller] Failed to execute 'uv {}' command for '{}': {}",
                 subcommand.bold().red(),
                 tool_entry.name.bold().red(),
                 e.to_string().red()
@@ -403,13 +406,13 @@ fn verify_installation_success(output: &Output, subcommand: &str, tool_entry: &T
         // Log outputs for debugging
         if !output.stdout.is_empty() {
             log_debug!(
-                "[UV Installer] Stdout: {}",
+                "[SDB::Tools::UVInstaller] Stdout: {}",
                 String::from_utf8_lossy(&output.stdout)
             );
         }
         if !output.stderr.is_empty() {
             log_warn!(
-                "[UV Installer] Stderr (may contain warnings): {}",
+                "[SDB::Tools::UVInstaller] Stderr (may contain warnings): {}",
                 String::from_utf8_lossy(&output.stderr)
             );
         }
@@ -419,17 +422,17 @@ fn verify_installation_success(output: &Output, subcommand: &str, tool_entry: &T
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         log_error!(
-            "[UV Installer] Failed to install '{}' using uv {}. Exit code: {}",
+            "[SDB::Tools::UVInstaller] Failed to install '{}' using uv {}. Exit code: {}",
             tool_entry.name.bold().red(),
             subcommand.red(),
             output.status.code().unwrap_or(-1)
         );
 
         if !stderr.is_empty() {
-            log_error!("[UV Installer] Stderr: {}", stderr.red());
+            log_error!("[SDB::Tools::UVInstaller] Stderr: {}", stderr.red());
         }
         if !stdout.is_empty() {
-            log_debug!("[UV Installer] Stdout: {}", stdout);
+            log_debug!("[SDB::Tools::UVInstaller] Stdout: {}", stdout);
         }
 
         false
@@ -463,7 +466,7 @@ fn determine_installation_mode(tool_entry: &ToolEntry) -> (String, Vec<String>) 
                     "python" => return ("python".to_string(), vec!["install".to_string()]),
                     _ => {
                         log_warn!(
-                            "[UV Installer] Unknown installation mode '{}', falling back to 'tool'",
+                            "[SDB::Tools::UVInstaller] Unknown installation mode '{}', falling back to 'tool'",
                             mode.yellow()
                         );
                     }
@@ -500,7 +503,7 @@ fn determine_install_path(subcommand: &str, package_name: &str) -> PathBuf {
                 PathBuf::from(format!("{home}/.local/bin/{package_name}"))
             } else {
                 log_warn!(
-                    "[UV Installer] Could not determine HOME directory for tool installation path"
+                    "[SDB::Tools::UVInstaller] Could not determine HOME directory for tool installation path"
                 );
                 PathBuf::from(format!("/usr/local/bin/{package_name}"))
             }
@@ -520,7 +523,7 @@ fn determine_install_path(subcommand: &str, package_name: &str) -> PathBuf {
                 Some(path) => PathBuf::from(path),
                 None => {
                     log_warn!(
-                        "[UV Installer] Could not determine Python installation path, using default"
+                        "[SDB::Tools::UVInstaller] Could not determine Python installation path, using default"
                     );
                     PathBuf::from(default_python_path(package_name))
                 }
@@ -528,7 +531,7 @@ fn determine_install_path(subcommand: &str, package_name: &str) -> PathBuf {
         }
         _ => {
             log_warn!(
-                "[UV Installer] Unknown subcommand '{}', using generic path",
+                "[SDB::Tools::UVInstaller] Unknown subcommand '{}', using generic path",
                 subcommand
             );
             if let Ok(home) = std::env::var("HOME") {
@@ -569,7 +572,10 @@ fn get_python_installation_path(package_name: &str) -> Option<String> {
 
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
-        log_warn!("[UV Installer] uv python list command failed: {}", error);
+        log_warn!(
+            "[SDB::Tools::UVInstaller] uv python list command failed: {}",
+            error
+        );
         return None;
     }
 
@@ -581,7 +587,7 @@ fn get_python_installation_path(package_name: &str) -> Option<String> {
             if key.contains(package_name) {
                 if let Some(path) = installation.get("path").and_then(|p| p.as_str()) {
                     log_debug!(
-                        "[UV Installer] Found Python installation for {}: {}",
+                        "[SDB::Tools::UVInstaller] Found Python installation for {}: {}",
                         package_name,
                         path
                     );
@@ -592,7 +598,7 @@ fn get_python_installation_path(package_name: &str) -> Option<String> {
     }
 
     log_warn!(
-        "[UV Installer] No matching Python installation found for {}",
+        "[SDB::Tools::UVInstaller] No matching Python installation found for {}",
         package_name
     );
     None
@@ -630,7 +636,7 @@ pub fn validate_uv_options(tool_entry: &ToolEntry) -> bool {
         if let Some(mode) = opt.strip_prefix("--mode=") {
             if !matches!(mode, "tool" | "pip" | "python") {
                 log_error!(
-                    "[UV Installer] Invalid installation mode '{}'. Supported modes: tool, pip, python",
+                    "[SDB::Tools::UVInstaller] Invalid installation mode '{}'. Supported modes: tool, pip, python",
                     mode.red()
                 );
                 is_valid = false;
@@ -653,7 +659,7 @@ pub fn validate_uv_options(tool_entry: &ToolEntry) -> bool {
 
         // Skip empty options
         if opt.trim().is_empty() {
-            log_warn!("[UV Installer] Empty option string detected");
+            log_warn!("[SDB::Tools::UVInstaller] Empty option string detected");
             continue;
         }
 
@@ -670,7 +676,7 @@ pub fn validate_uv_options(tool_entry: &ToolEntry) -> bool {
         // Check if the option is valid for the current mode
         if !valid_options.contains(&opt_name) {
             log_warn!(
-                "[UV Installer] Option '{}' may not be valid for 'uv {}' mode",
+                "[SDB::Tools::UVInstaller] Option '{}' may not be valid for 'uv {}' mode",
                 opt.yellow(),
                 install_mode
             );
@@ -682,7 +688,7 @@ pub fn validate_uv_options(tool_entry: &ToolEntry) -> bool {
         if let Some(version) = &tool_entry.version {
             if !is_valid_python_version(version) {
                 log_warn!(
-                    "[UV Installer] '{}' doesn't look like a valid Python version (expected format like '3.11', '3.12.1', etc.)",
+                    "[SDB::Tools::UVInstaller] '{}' doesn't look like a valid Python version (expected format like '3.11', '3.12.1', etc.)",
                     version.bright_yellow()
                 );
             }

@@ -54,6 +54,7 @@ pub fn download_url_asset(
     tool_entry: &ToolEntry,
     download_url: &str,
 ) -> Option<(tempfile::TempDir, PathBuf)> {
+    let tool_source = capitalize_first(&tool_entry.source);
     // Create temporary directory with descriptive prefix
     let temp_dir = match TempFileBuilder::new()
         .prefix(&format!("setup-devbox-install-{}-", tool_entry.name))
@@ -62,7 +63,7 @@ pub fn download_url_asset(
         Ok(dir) => dir,
         Err(e) => {
             log_error!(
-                "[URL Installer] Failed to create temporary directory for {}: {}",
+                "[SDB::Tools::{tool_source}::Downloader] Failed to create temporary directory for {}: {}",
                 tool_entry.name.red(),
                 e
             );
@@ -80,7 +81,7 @@ pub fn download_url_asset(
     // Validate filename
     if filename.is_empty() || filename == "/" {
         log_error!(
-            "[URL Installer] Could not determine valid filename from URL: {}",
+            "[SDB::Tools::{tool_source}::Downloader] Could not determine valid filename from URL: {}",
             download_url.red()
         );
         return None;
@@ -89,16 +90,22 @@ pub fn download_url_asset(
     let downloaded_path = temp_dir.path().join(&filename);
 
     log_info!(
-        "[URL Installer] Downloading '{}' from {} to temporary location: {}",
+        "[SDB::Tools::{tool_source}::Downloader] Downloading: '{}' from '{}'",
         tool_entry.name.green(),
-        download_url.blue(),
+        download_url.cyan()
+    );
+
+    log_debug!(
+        "[SDB::Tools::{tool_source}::Downloader] Downloading '{}' from {} to temporary location: {}",
+        tool_entry.name.green(),
+        download_url.cyan(),
         downloaded_path.display().to_string().yellow()
     );
 
     // Download file from URL to temporary location
     if let Err(err) = download_file(download_url, &downloaded_path) {
         log_error!(
-            "[URL Installer] Failed to download {} from {}: {}",
+            "[SDB::Tools::{tool_source}::Downloader] Failed to download {} from {}: {}",
             tool_entry.name.red(),
             download_url.red(),
             err
@@ -112,21 +119,27 @@ pub fn download_url_asset(
             let file_size = metadata.len();
             if file_size == 0 {
                 log_error!(
-                    "[URL Installer] Downloaded file is empty (0 bytes) for tool '{}'",
+                    "[SDB::Tools::{tool_source}::Downloader] Downloaded file is empty (0 bytes) for tool '{}'",
                     tool_entry.name.red()
                 );
                 return None;
             }
-            log_debug!("[URL Installer] Downloaded file size: {} bytes", file_size);
+            log_debug!(
+                "[SDB::Tools::{tool_source}::Downloader] Downloaded file size: {} bytes",
+                file_size
+            );
         }
         Err(e) => {
-            log_error!("[URL Installer] Failed to verify downloaded file: {}", e);
+            log_error!(
+                "[SDB::Tools::{tool_source}::Downloader] Failed to verify downloaded file: {}",
+                e
+            );
             return None;
         }
     }
 
     log_info!(
-        "[URL Installer] Download completed for {}",
+        "[SDB::Tools::{tool_source}::Downloader] Download completed for {}",
         tool_entry.name.bright_blue()
     );
 
@@ -147,7 +160,10 @@ pub fn download_url_asset(
 ///   - An `io::Error` if anything went wrong during the HTTP request, file creation, or data copying.
 pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
     // Log a debug message indicating the start of the download, coloring the URL for clarity.
-    log_debug!("[Utils] Starting download from URL: {}", url.blue());
+    log_debug!(
+        "[SDB::Utils::Downloader] Starting download from URL: {}",
+        url.blue()
+    );
 
     // Execute the HTTP GET request using the `ureq` library.
     // `ureq::get(url).call()` sends the request and waits for a response.
@@ -155,7 +171,11 @@ pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
         Ok(res) => res, // If the request was successful, `res` contains the HTTP response.
         Err(e) => {
             // If the HTTP request itself failed (e.g., network error, invalid URL, DNS resolution failure).
-            log_error!("[Utils] HTTP request failed for {}: {}", url.red(), e);
+            log_error!(
+                "[SDB::Utils::Downloader] HTTP request failed for {}: {}",
+                url.red(),
+                e
+            );
             // Convert the `ureq` error into a standard `io::Error` for consistent error handling
             // across the application. `std::io::Error::other` is a generic error kind.
             return Err(io::Error::other(format!("HTTP error: {e}")));
@@ -177,7 +197,7 @@ pub fn download_file(url: &str, dest: &Path) -> io::Result<()> {
 
     // Log a debug message upon successful download, coloring the destination path.
     log_debug!(
-        "[Utils] File downloaded successfully to {}",
+        "[SDB::Utils::Downloader] File downloaded successfully to {}",
         dest.to_string_lossy().green()
     );
     Ok(()) // Indicate success by returning `Ok(())`.
@@ -244,7 +264,7 @@ pub fn detect_file_type(path: &Path) -> String {
         Ok(output) => output,
         Err(e) => {
             log_warn!(
-                "[Utils] Failed to execute 'file' command for type detection: {}. Falling back to 'binary'.",
+                "[SDB::Utils::FileIdentifier] Failed to execute 'file' command for type detection: {}. Falling back to 'binary'.",
                 e
             );
             return "binary".to_string(); // Default to binary if 'file' command fails
@@ -252,7 +272,10 @@ pub fn detect_file_type(path: &Path) -> String {
     };
 
     let mime_type = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    log_debug!("[Utils] 'file' command detected MIME type: {}", mime_type);
+    log_debug!(
+        "[SDB::Utils::FileIdentifier] 'file' command detected MIME type: {}",
+        mime_type
+    );
 
     match mime_type.as_str() {
         "application/zip" => "zip".to_string(),
@@ -319,6 +342,7 @@ pub fn process_asset_by_type(
 ) -> Option<(String, PathBuf, PathBuf)> {
     // Initialize working directory (default to temp directory)
     let mut working_dir = temp_dir.path().to_path_buf();
+    let tool_source = capitalize_first(&tool_entry.source);
 
     // Package type identifier for state tracking
     let package_type: String;
@@ -329,17 +353,22 @@ pub fn process_asset_by_type(
         #[cfg(target_os = "macos")]
         "pkg" => {
             log_info!(
-                "[GitHub Installer] Installing .pkg for {}",
+                "[SDB::Tools::{tool_source}::MacInstaller] Installing pkg for {}",
                 tool_entry.name.bold()
             );
-            match install_pkg(downloaded_path, &tool_entry.name, &tool_entry.rename_to) {
+            match install_pkg(
+                downloaded_path,
+                &tool_source,
+                &tool_entry.name,
+                &tool_entry.rename_to,
+            ) {
                 Ok(path) => {
                     package_type = "macos-pkg-installer".to_string();
                     final_install_path = path;
                 }
                 Err(err) => {
                     log_error!(
-                        "[GitHub Installer] Failed to install .pkg for {}: {}",
+                        "[SDB::Tools::{tool_source}::MacInstaller] Failed to install pkg for {}: {}",
                         tool_entry.name.red(),
                         err
                     );
@@ -352,17 +381,22 @@ pub fn process_asset_by_type(
         #[cfg(target_os = "macos")]
         "dmg" => {
             log_info!(
-                "[GitHub Installer] Installing .dmg for {}",
+                "[SDB::Tools::{tool_source}::MacInstaller] Installing .dmg for {}",
                 tool_entry.name.bold()
             );
-            match install_dmg(downloaded_path, &tool_entry.name, &tool_entry.rename_to) {
+            match install_dmg(
+                downloaded_path,
+                &tool_source,
+                &tool_entry.name,
+                &tool_entry.rename_to,
+            ) {
                 Ok(path) => {
                     package_type = "macos-dmg-installer".to_string();
                     final_install_path = path;
                 }
                 Err(err) => {
                     log_error!(
-                        "[GitHub Installer] Failed to install .dmg for {}: {}",
+                        "[SDB::Tools::{tool_source}::MacInstaller] Failed to install .dmg for {}: {}",
                         tool_entry.name.red(),
                         err
                     );
@@ -374,14 +408,19 @@ pub fn process_asset_by_type(
         // Raw binary - direct installation to bin directory
         "binary" => {
             log_debug!(
-                "[GitHub Installer] Installing binary for {}",
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Installing binary for {}",
                 tool_entry.name.bold()
             );
             final_install_path = PathResolver::get_user_home_dir()?;
             // Move binary to installation path
-            if let Err(err) = move_and_rename_binary(downloaded_path, &final_install_path) {
+            if let Err(err) = move_and_rename_binary(
+                downloaded_path,
+                &final_install_path,
+                tool_entry,
+                capitalize_first(&tool_entry.name),
+            ) {
                 log_error!(
-                    "[GitHub Installer] Failed to move binary for {}: {}",
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to move binary for {}: {}",
                     tool_entry.name.red(),
                     err
                 );
@@ -389,9 +428,13 @@ pub fn process_asset_by_type(
             }
 
             // Set executable permissions (chmod +x)
-            if let Err(err) = make_executable(&final_install_path) {
+            if let Err(err) = make_executable(
+                &final_install_path,
+                tool_entry,
+                capitalize_first(&tool_entry.source),
+            ) {
                 log_error!(
-                    "[GitHub Installer] Failed to make binary executable for {}: {}",
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to make binary executable for {}: {}",
                     tool_entry.name.red(),
                     err
                 );
@@ -405,7 +448,7 @@ pub fn process_asset_by_type(
         archive_type @ ("zip" | "tar.gz" | "gz" | "tar.bz2" | "tar" | "tar.xz" | "tar.bz"
         | "txz" | "tbz2") => {
             log_debug!(
-                "[GitHub Installer] Extracting {} archive for {}",
+                "[SDB::Tools::{tool_source}::Archiver] Extracting {} archive for {}",
                 archive_type,
                 tool_entry.name.blue()
             );
@@ -415,11 +458,12 @@ pub fn process_asset_by_type(
                 downloaded_path,
                 temp_dir.path(),
                 Some(archive_type),
+                "Tools",
             ) {
                 Ok(path) => path,
                 Err(err) => {
                     log_error!(
-                        "[GitHub Installer] Failed to extract archive for {}: {}",
+                        "[SDB::Tools::{tool_source}::Archiver] Failed to extract archive for {}: {}",
                         tool_entry.name.red(),
                         err
                     );
@@ -432,14 +476,15 @@ pub fn process_asset_by_type(
                 &extracted_path,
                 &tool_entry.name,
                 tool_entry.rename_to.as_deref(),
+                capitalize_first(&tool_entry.name)
             )
             .or_else(|| {
                 log_error!(
-                    "[GitHub Installer] No executable found in archive for {}",
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] No executable found in archive for {}",
                     tool_entry.name.red()
                 );
                 log_error!(
-                    "[GitHub Installer] Expected to find binary named '{}' or similar",
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Expected to find binary named '{}' or similar",
                     tool_entry.name
                 );
                 None
@@ -453,9 +498,14 @@ pub fn process_asset_by_type(
             final_install_path = PathResolver::get_user_home_dir()?;
 
             // Move extracted binary to final installation location
-            if let Err(err) = move_and_rename_binary(&executable_path, &final_install_path) {
+            if let Err(err) = move_and_rename_binary(
+                &executable_path,
+                &final_install_path,
+                tool_entry,
+                capitalize_first(&tool_entry.source.to_string()),
+            ) {
                 log_error!(
-                    "[GitHub Installer] Failed to move extracted binary for {}: {}",
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to move extracted binary for {}: {}",
                     tool_entry.name.red(),
                     err
                 );
@@ -463,9 +513,13 @@ pub fn process_asset_by_type(
             }
 
             // Set executable permissions on the installed binary
-            if let Err(err) = make_executable(&final_install_path) {
+            if let Err(err) = make_executable(
+                &final_install_path,
+                tool_entry,
+                capitalize_first(&tool_entry.source.to_string()),
+            ) {
                 log_error!(
-                    "[GitHub Installer] Failed to make extracted binary executable for {}: {}",
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to make extracted binary executable for {}: {}",
                     tool_entry.name.red(),
                     err
                 );
@@ -478,16 +532,27 @@ pub fn process_asset_by_type(
         // Unsupported file type
         unknown => {
             log_error!(
-                "[GitHub Installer] Unsupported file type '{}' for {}",
+                "[SDB::Tools::{tool_source}::FileIdentifer] Unsupported file type '{}' for {}",
                 unknown.red(),
                 tool_entry.name.red()
             );
             log_error!(
-                "[GitHub Installer] Supported types: binary, zip, tar.gz, tar.xz, tar.bz2, pkg, dmg"
+                "[SDB::FileIdentifer] Supported types: binary, zip, tar.gz, tar.xz, tar.bz2, pkg, dmg"
             );
             return None;
         }
     }
 
-    Some((package_type, final_install_path, working_dir))
+    // Get the final file path using the helper function
+    let file_path = PathResolver::get_final_file_path(&final_install_path, tool_entry);
+
+    Some((package_type, file_path, working_dir))
+}
+
+fn capitalize_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str() + "Installer",
+    }
 }
