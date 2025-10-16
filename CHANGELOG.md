@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2025-10-16
+
+### ♻️ Refactor
+
+- Logging on console to show the flow ([71bebb4](https://github.com/kodelint/setup-devbox/commit/71bebb4d0dde4ce603ef46ce7030f4f3a62faf78))(by kodelint)
+- Allowed hyphen values ([f9a64d5](https://github.com/kodelint/setup-devbox/commit/f9a64d5aa1b9626ff5c0d11173215dd14b8f1360))(by kodelint)
+
+### 🎨 Styling
+
+- Some logging style changes ([39d4f36](https://github.com/kodelint/setup-devbox/commit/39d4f361ed7e1eecf79e60eefc77bf53eb461dc5))(by kodelint)
+
+### 🏠 Miscellaneous Tasks
+
+- Cargo file update ([0de232c](https://github.com/kodelint/setup-devbox/commit/0de232c624ccc98e8fb7babdc5336569f456dadd))(by kodelint)
+- Added help information for `remove` command ([c97903f](https://github.com/kodelint/setup-devbox/commit/c97903f458eb42bc8b43797e52e0b00c427e583b))(by kodelint)
+- Formatting ([ddf8d6c](https://github.com/kodelint/setup-devbox/commit/ddf8d6c1cb0459609bb22f0129e27bffe411d41d))(by kodelint)
+
+### 🐛 Bug Fixes
+
+- Fixed binary placement ([6797944](https://github.com/kodelint/setup-devbox/commit/6797944d12c95b672a40f29217fb316c51d21254))(by kodelint)
+
+### 📚 Documentation
+
+- Added documentation for `remove` command ([b363495](https://github.com/kodelint/setup-devbox/commit/b363495a2dcf16ceb6350c34176f3d9096c147b0))(by kodelint)
+
 ## [0.5.0] - 2025-10-13
 
 ### ♻️ Refactor
@@ -11,6 +36,10 @@ All notable changes to this project will be documented in this file.
 - Code placements ([4b23e73](https://github.com/kodelint/setup-devbox/commit/4b23e73a6affb9a0ba7e4fc6fb7335449c0c8f56))(by kodelint)
 - Makefile ([9122173](https://github.com/kodelint/setup-devbox/commit/9122173764fd45cb45382d5e651bad3392ca5238))(by kodelint)
 - Fixed non-macOS code ([3ad1da9](https://github.com/kodelint/setup-devbox/commit/3ad1da9fc5e6e31aedd50550edd06ab7cbe50d5b))(by kodelint)
+
+### 🏠 Miscellaneous Tasks
+
+- **release**: 0.5.0 [skip ci] ([77fb246](https://github.com/kodelint/setup-devbox/commit/77fb2460b2cbfb6361c2b66f489cb472bfb66ac0))(by github-actions[bot])
 
 ### 📚 Documentation
 
