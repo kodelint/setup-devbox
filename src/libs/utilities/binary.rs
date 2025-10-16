@@ -1,6 +1,7 @@
+use crate::schemas::tools::ToolEntry;
 // Our custom logging macros to give us nicely formatted (and colored!) output
 // for debugging, general information, and errors.
-use crate::{log_debug, log_error, log_info, log_warn};
+use crate::{log_debug, log_error, log_warn};
 // The 'colored' crate helps us make our console output look pretty and readab
 use colored::Colorize;
 // A powerful library for parsing executable file formats (ELF, Mach-O, PE)
@@ -21,6 +22,7 @@ use std::os::unix::fs::PermissionsExt;
 // `std::path::PathBuf` provides an OS-agnostic way to build and manipulate file paths.
 use std::path::{Path, PathBuf};
 // For recursively traversing directory trees
+use crate::schemas::path_resolver::PathResolver;
 use walkdir::WalkDir;
 
 /// Recursively searches a given directory for the most likely executable file.
@@ -53,7 +55,12 @@ use walkdir::WalkDir;
 /// * `Option<PathBuf>`:
 ///   - `Some(PathBuf)` containing the full path to the most probable executable file found.
 ///   - `None` if no suitable executable file is identified within the specified directory tree.
-pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> Option<PathBuf> {
+pub fn find_executable(
+    dir: &Path,
+    tool_name: &str,
+    rename_to: Option<&str>,
+    tool_source: String,
+) -> Option<PathBuf> {
     // Convert tool name and target (renamed) name to lowercase for case-insensitive comparisons.
     let tool_name_lower = tool_name.to_lowercase();
     let target_name_lower = rename_to.map_or(tool_name_lower.clone(), |s| s.to_lowercase());
@@ -73,14 +80,17 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
         // If that single entry is a file:
         if sole_path.is_file() {
             log_debug!(
-                "Single file found, inspecting as potential binary: {}",
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Single file found, inspecting as potential binary: {}",
                 sole_path.display()
             );
 
             // Attempt to read the file's content for header inspection.
             match fs::read(&sole_path) {
                 Ok(data) => {
-                    log_debug!("Read {} bytes from file for header inspection.", data.len());
+                    log_debug!(
+                        "[SDB::Tools::{tool_source}::BinaryInstaller] Read {} bytes from file for header inspection.",
+                        data.len()
+                    );
                     // Use `goblin` to parse the file's header and detect known executable formats.
                     match Object::parse(&data) {
                         Ok(obj) => {
@@ -88,7 +98,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                 // If it's an ELF (Linux) or Mach-O (macOS) executable:
                                 Object::Elf(_) | Object::Mach(_) => {
                                     log_debug!(
-                                        "Detected native binary (ELF/Mach-O) in single file: {}",
+                                        "[SDB::Tools::{tool_source}::BinaryInstaller] Detected native binary (ELF/Mach-O) in single file: {}",
                                         sole_path.display()
                                     );
                                     // On Unix-like systems, ensure it's executable.
@@ -101,7 +111,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                                 perms.set_mode(perms.mode() | 0o755);
                                                 let _ = fs::set_permissions(&sole_path, perms);
                                                 log_debug!(
-                                                    "Updated permissions for single file binary: {}",
+                                                    "[SDB::Tools::{tool_source}::BinaryInstaller] Updated permissions for single file binary: {}",
                                                     sole_path.display()
                                                 );
                                             }
@@ -115,7 +125,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                     // Check if the file starts with `#!` (shebang), indicating a script.
                                     if data.starts_with(b"#!") {
                                         log_debug!(
-                                            "Detected shebang script in single file: {}",
+                                            "[SDB::Tools::{tool_source}::BinaryInstaller] Detected shebang script in single file: {}",
                                             sole_path.display()
                                         );
                                         // On Unix-like systems, ensure it's executable.
@@ -127,7 +137,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                                     perms.set_mode(perms.mode() | 0o755);
                                                     let _ = fs::set_permissions(&sole_path, perms);
                                                     log_debug!(
-                                                        "Updated permissions for single file script: {}",
+                                                        "[SDB::Tools::{tool_source}::BinaryInstaller] Updated permissions for single file script: {}",
                                                         sole_path.display()
                                                     );
                                                 }
@@ -140,13 +150,16 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                             }
                         }
                         Err(err) => {
-                            log_debug!("Goblin failed to parse the file: {}", err);
+                            log_debug!(
+                                "[SDB::Tools::{tool_source}::BinaryInstaller] Goblin failed to parse the file: {}",
+                                err
+                            );
                         }
                     }
                 }
                 Err(err) => {
                     log_warn!(
-                        "Failed to read file {} for parsing: {}",
+                        "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to read file {} for parsing: {}",
                         sole_path.display(),
                         err
                     );
@@ -187,7 +200,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
             || file_name.contains("readme")
         {
             log_debug!(
-                "Skipping known non-executable file by extension/name: {}",
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Skipping known non-executable file by extension/name: {}",
                 file_name
             );
             continue; // Move to the next file.
@@ -198,7 +211,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
         // Attempt to read file data for `goblin` and shebang checks.
         if let Ok(data) = fs::read(path) {
             log_debug!(
-                "Read {} bytes from file for header inspection: {}",
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Read {} bytes from file for header inspection: {}",
                 data.len(),
                 path.display()
             );
@@ -207,7 +220,10 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                     // If it's an ELF or Mach-O executable:
                     Object::Elf(_) | Object::Mach(_) => {
                         if is_executable(path) {
-                            log_debug!("Found executable binary (ELF/Mach-O): {}", path.display());
+                            log_debug!(
+                                "[SDB::Tools::{tool_source}::BinaryInstaller] Found executable binary (ELF/Mach-O): {}",
+                                path.display()
+                            );
                             add_candidate = true;
                         } else {
                             // On Unix, try to set executable permissions if not already set.
@@ -217,13 +233,13 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                 perms.set_mode(perms.mode() | 0o755); // Add executable bits
                                 if fs::set_permissions(path, perms).is_ok() {
                                     log_debug!(
-                                        "Set executable bit and added ELF/Mach-O binary: {}",
+                                        "[SDB::Tools::{tool_source}::BinaryInstaller] Set executable bit and added ELF/Mach-O binary: {}",
                                         path.display()
                                     );
                                     add_candidate = true;
                                 } else {
                                     log_warn!(
-                                        "Failed to set executable permissions for {}.",
+                                        "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to set executable permissions for {}.",
                                         path.display()
                                     );
                                 }
@@ -232,7 +248,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                             #[cfg(not(unix))]
                             {
                                 log_debug!(
-                                    "Found executable binary (ELF/Mach-O) on non-Unix: {}",
+                                    "[SDB::Tools::{tool_source}::BinaryInstaller] Found executable binary (ELF/Mach-O) on non-Unix: {}",
                                     path.display()
                                 );
                                 add_candidate = true;
@@ -243,7 +259,10 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                         // If not a native binary, check for shebang.
                         if data.starts_with(b"#!") {
                             if is_executable(path) {
-                                log_debug!("Found executable script (shebang): {}", path.display());
+                                log_debug!(
+                                    "[SDB::Tools::{tool_source}::BinaryInstaller] Found executable script (shebang): {}",
+                                    path.display()
+                                );
                                 add_candidate = true;
                             } else {
                                 // On Unix, try to set executable permissions for scripts.
@@ -253,13 +272,13 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                     perms.set_mode(perms.mode() | 0o755);
                                     if fs::set_permissions(path, perms).is_ok() {
                                         log_debug!(
-                                            "Set executable bit and added script: {}",
+                                            "[SDB::Tools::{tool_source}::BinaryInstaller] Set executable bit and added script: {}",
                                             path.display()
                                         );
                                         add_candidate = true;
                                     } else {
                                         log_warn!(
-                                            "Failed to set executable permissions for script {}.",
+                                            "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to set executable permissions for script {}.",
                                             path.display()
                                         );
                                     }
@@ -268,7 +287,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                                 #[cfg(not(unix))]
                                 {
                                     log_debug!(
-                                        "Found executable script (shebang) on non-Unix: {}",
+                                        "[SDB::Tools::{tool_source}::BinaryInstaller] Found executable script (shebang) on non-Unix: {}",
                                         path.display()
                                     );
                                     add_candidate = true;
@@ -278,10 +297,16 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
                     }
                 }
             } else {
-                log_debug!("Goblin failed to parse the file: {}", path.display());
+                log_debug!(
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Goblin failed to parse the file: {}",
+                    path.display()
+                );
             }
         } else {
-            log_warn!("Failed to read file {} for parsing", path.display());
+            log_warn!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to read file {} for parsing",
+                path.display()
+            );
         }
 
         // Fallback: If no executable format was confirmed, check for an exact filename match.
@@ -289,7 +314,7 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
         // but are still meant to be executed (e.g., custom scripts without shebangs, or certain Windows executables).
         if !add_candidate && file_name == target_name_lower {
             log_debug!(
-                "Fallback: Forcing executable candidate for {} (exact name match).",
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: Forcing executable candidate for {} (exact name match).",
                 path.display()
             );
             // On Unix, attempt to set executable permissions for this fallback candidate.
@@ -314,7 +339,11 @@ pub fn find_executable(dir: &Path, tool_name: &str, rename_to: Option<&str>) -> 
         // If the file is deemed a candidate, add its path and size to the `candidates` vector.
         if add_candidate {
             let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
-            log_debug!("Adding candidate: {} ({} bytes)", path.display(), size);
+            log_debug!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Adding candidate: {} ({} bytes)",
+                path.display(),
+                size
+            );
             candidates.push((path.to_path_buf(), size));
         }
     }
@@ -380,69 +409,203 @@ fn is_executable(path: &Path) -> bool {
 /// # Arguments
 /// * `from`: The source path (`&Path`) of the file to be moved.
 /// * `to`: The destination path (`&Path`), including the new desired filename if renaming.
+/// * `tool_entry`: The tool entry containing optional rename configuration.
 ///
 /// # Returns
 /// * `io::Result<()>`:
 ///   - `Ok(())` on successful move/rename.
 ///   - `io::Error` if the operation fails (e.g., source file not found, permission issues,
 ///     or failure during fallback copy/remove).
-pub fn move_and_rename_binary(from: &Path, to: &Path) -> io::Result<()> {
+pub fn move_and_rename_binary(
+    from: &Path,
+    to: &Path,
+    tool_entry: &ToolEntry,
+    tool_source: String,
+) -> io::Result<()> {
     log_debug!(
-        "[Utils] Moving binary from {} to {}",
-        from.to_string_lossy().yellow(),
+        "[SDB::Tools::{tool_source}::BinaryInstaller] Starting move_and_rename_binary operation"
+    );
+    log_debug!(
+        "[SDB::Tools::{tool_source}::BinaryInstaller] Source path: {}",
+        from.to_string_lossy().yellow()
+    );
+    log_debug!(
+        "[SDB::Tools::{tool_source}::BinaryInstaller] Initial destination path: {}",
         to.to_string_lossy().cyan()
     );
+    log_debug!(
+        "[SDB::Tools::{tool_source}::BinaryInstaller] Tool entry rename_to: {:?}",
+        tool_entry.rename_to
+    );
 
-    // If the destination path has parent directories (e.g., `/usr/local/bin/`),
-    // ensure those directories exist before trying to move the file into them.
-    // `to.parent()` returns `Some(Path)` if `to` has a parent, `None` if `to` is a root or single component.
-    if let Some(parent) = to.parent() {
-        // `fs::create_dir_all` creates all necessary parent directories recursively.
-        // The `?` propagates any `io::Error` from directory creation.
-        fs::create_dir_all(parent)?;
+    // Check if source file exists
+    if !from.exists() {
+        log_error!(
+            "[SDB::Tools::{tool_source}::BinaryInstaller] Source file does not exist: {}",
+            from.to_string_lossy().red()
+        );
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Source file not found: {}",
+                from.display()
+            ),
+        ));
+    }
+    log_debug!(
+        "[SDB::Tools::{tool_source}::BinaryInstaller] Source file exists, proceeding with operation"
+    );
+
+    // Determine the final destination path based on rename_to
+    let final_destination = if let Some(ref new_name) = tool_entry.rename_to {
+        log_debug!(
+            "[SDB::Tools::{tool_source}::BinaryInstaller] rename_to is set to: {}",
+            new_name.green()
+        );
+
+        // Check if 'to' is a directory
+        if to.is_dir() {
+            log_debug!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Destination is a directory, appending new filename: {}",
+                new_name
+            );
+            to.join(new_name)
+        } else {
+            log_debug!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Destination appears to be a file path, using parent directory and appending new filename"
+            );
+            // If 'to' has a parent, join new_name to parent; otherwise use 'to' as is
+            if let Some(parent) = to.parent() {
+                parent.join(new_name)
+            } else {
+                PathBuf::from(new_name)
+            }
+        }
+    } else {
+        log_debug!(
+            "[SDB::Tools::{tool_source}::BinaryInstaller] rename_to is not set, will copy without renaming"
+        );
+
+        // If no rename, use the original filename
+        if to.is_dir() {
+            log_debug!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Destination is a directory, appending original filename"
+            );
+            let file_name = from.file_name().ok_or_else(|| {
+                log_error!("[SDB::Tools::{tool_source}::BinaryInstaller] Source path has no filename component");
+                io::Error::new(io::ErrorKind::InvalidInput, "[SDB::Tools::{tool_source}::BinaryInstaller] Source path has no filename")
+            })?;
+            to.join(file_name)
+        } else {
+            log_debug!("[SDB::Tools::{tool_source}::BinaryInstaller] Using destination path as-is");
+            to.to_path_buf()
+        }
+    };
+
+    log_debug!(
+        "[SDB::Tools::{tool_source}::BinaryInstaller] Final destination path: {}",
+        final_destination.to_string_lossy().cyan()
+    );
+
+    // Check if destination already exists
+    if final_destination.exists() {
+        log_warn!(
+            "[SDB::Tools::{tool_source}::BinaryInstaller] Destination file already exists, will overwrite: {}",
+            final_destination.to_string_lossy().yellow()
+        );
     }
 
-    // Perform the move operation using `fs::rename`.
-    // `fs::rename` is generally preferred because it is:
-    // 1. Atomic: The operation either fully succeeds or fully fails, preventing corrupted states.
-    // 2. Performant: It's often a simple metadata update on the same filesystem.
-    // However, it fails if source and destination are on different filesystems (cross-device link).
-    match fs::rename(from, to) {
-        Ok(_) => {
-            log_debug!(
-                "[Utils] Binary moved/renamed to {}",
-                to.to_string_lossy().green()
-            );
-            Ok(()) // Success case.
-        }
-        // Handle the specific error case where `fs::rename` fails due to `CrossesDevices`.
-        // This means the source and destination paths are on different file systems.
-        Err(e) if e.kind() == io::ErrorKind::CrossesDevices => {
-            log_warn!(
-                "[Utils] Cross-device link detected, falling back to copy and remove for {:?} to {:?}: {}",
-                from.display(),
-                to.display(),
-                e
-            );
-            // Fallback strategy: copy the file to the new location.
-            fs::copy(from, to)?;
-            // Then, remove the original file. This is not atomic.
-            fs::remove_file(from)?;
-            log_info!(
-                "[Utils] Binary copied and old removed successfully to {:?}",
-                to.to_string_lossy().green()
-            );
-            Ok(()) // Success after fallback.
-        }
-        // Handle any other `io::Error` that `fs::rename` might return.
-        Err(e) => {
-            log_error!(
-                "[Utils] Failed to move binary from {:?} to {:?}: {}",
-                from.display(),
-                to.display(),
-                e
-            );
-            Err(e) // Propagate the original error.
+    // Create parent directories if needed
+    if let Some(parent) = final_destination.parent() {
+        log_debug!(
+            "[SDB::Tools::{tool_source}::BinaryInstaller] Ensuring parent directories exist: {}",
+            parent.to_string_lossy()
+        );
+        fs::create_dir_all(parent)?;
+        log_debug!(
+            "[SDB::Tools::{tool_source}::BinaryInstaller] Parent directories verified/created successfully"
+        );
+    } else {
+        log_debug!("[SDB::Tools::{tool_source}::BinaryInstaller] No parent directories to create");
+    }
+
+    // Decide operation based on rename_to
+    if tool_entry.rename_to.is_none() {
+        log_debug!(
+            "[SDB::Tools::{tool_source}::BinaryInstaller] Performing simple copy operation (no rename)"
+        );
+        log_debug!(
+            "[SDB::Tools::{tool_source}::BinaryInstaller] Copying from {} to {}",
+            from.to_string_lossy().yellow(),
+            final_destination.to_string_lossy().cyan()
+        );
+
+        fs::copy(from, &final_destination)?;
+
+        log_debug!(
+            "[SDB::Tools::{tool_source}::BinaryInstaller] Binary copied successfully to {}",
+            final_destination.to_string_lossy().green()
+        );
+        Ok(())
+    } else {
+        log_debug!("[SDB::Tools::{tool_source}::BinaryInstaller] Performing rename/move operation");
+        log_debug!(
+            "[SDB::Tools::{tool_source}::BinaryInstaller] Attempting fs::rename from {} to {}",
+            from.to_string_lossy().yellow(),
+            final_destination.to_string_lossy().cyan()
+        );
+
+        // Perform the move operation using `fs::rename`.
+        match fs::rename(from, &final_destination) {
+            Ok(_) => {
+                log_debug!(
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Binary renamed/moved successfully to {}",
+                    final_destination.to_string_lossy().green()
+                );
+                Ok(())
+            }
+            // Handle the specific error case where `fs::rename` fails due to `CrossesDevices`.
+            Err(e) if e.kind() == io::ErrorKind::CrossesDevices => {
+                log_warn!(
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Cross-device link detected (error: {}), falling back to copy and remove",
+                    e
+                );
+                log_debug!(
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: copying from {} to {}",
+                    from.to_string_lossy().yellow(),
+                    final_destination.to_string_lossy().cyan()
+                );
+
+                fs::copy(from, &final_destination)?;
+                log_debug!(
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: copy completed successfully"
+                );
+                log_debug!(
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: removing original file at {}",
+                    from.to_string_lossy()
+                );
+
+                fs::remove_file(from)?;
+                log_debug!(
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: original file removed from {}",
+                    from.to_string_lossy()
+                );
+                log_debug!(
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Binary copied and original removed successfully. Final location: {}",
+                    final_destination.to_string_lossy().green()
+                );
+                Ok(())
+            }
+            Err(e) => {
+                log_error!(
+                    "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to rename binary from {} to {}: {} (error kind: {:?})",
+                    from.to_string_lossy(),
+                    final_destination.to_string_lossy(),
+                    e,
+                    e.kind()
+                );
+                Err(e)
+            }
         }
     }
 }
@@ -458,31 +621,69 @@ pub fn move_and_rename_binary(from: &Path, to: &Path) -> io::Result<()> {
 /// * `io::Result<()>`:
 ///   - `Ok(())` on success (permissions set or no-op on non-Unix).
 ///   - `io::Error` if permissions cannot be read or set (only applicable on Unix).
-#[cfg(unix)] // This function only compiles on Unix-like operating systems (Linux, macOS).
-pub fn make_executable(path: &Path) -> io::Result<()> {
-    log_debug!(
-        "[Utils] Making {} executable",
-        path.to_string_lossy().yellow()
-    );
-    // Get the current metadata (including permissions) of the file.
-    // The `?` operator propagates any `io::Error` if metadata cannot be retrieved.
-    let mut perms = fs::metadata(path)?.permissions();
+#[cfg(unix)]
+pub fn make_executable(path: &Path, tool_entry: &ToolEntry, tool_source: String) -> io::Result<()> {
+    log_debug!("[SDB::Tools::{tool_source}::BinaryInstaller] Starting make_executable operation");
 
-    // Set the file's permissions.
-    // `0o755` is an octal representation of file permissions:
-    // - Owner: Read (4) + Write (2) + Execute (1) = 7
-    // - Group: Read (4) + Execute (1) = 5
-    // - Others: Read (4) + Execute (1) = 5
-    // This grants full control to the owner, and read/execute to group and others.
-    perms.set_mode(0o755);
-    // Apply the modified permissions back to the file.
-    // The `?` operator propagates any `io::Error` if permissions cannot be set.
-    fs::set_permissions(path, perms)?;
+    // Get the final file path using the helper function
+    let file_path = PathResolver::get_final_file_path(path, tool_entry);
+
+    // Check if the file exists before attempting to modify permissions
+    if !file_path.exists() {
+        log_error!(
+            "[SDB::Tools::{tool_source}::BinaryInstaller] File does not exist: {}",
+            file_path.to_string_lossy().red()
+        );
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] File not found: {}",
+                file_path.display()
+            ),
+        ));
+    }
     log_debug!(
-        "[Utils] File {} is now executable.",
-        path.to_string_lossy().green()
+        "[SDB::Tools::{tool_source}::BinaryInstaller] File exists, proceeding with permission change"
     );
-    Ok(()) // Indicate success.
+
+    // Get the current metadata (including permissions) of the file.
+    log_debug!(
+        "[SDB::Tools::{tool_source}::BinaryInstaller] Reading current file metadata for {}",
+        file_path.to_string_lossy()
+    );
+    let metadata = fs::metadata(&file_path)?;
+    let mut perms = metadata.permissions();
+
+    log_debug!(
+        "[SDB::Tools::{tool_source}::BinaryInstaller] Current permissions mode: {:o}",
+        perms.mode()
+    );
+
+    // Set the file's permissions to 0o755 (rwxr-xr-x)
+    log_debug!(
+        "[SDB::Tools::{tool_source}::BinaryInstaller] Setting permissions to 0o755 (rwxr-xr-x)"
+    );
+    perms.set_mode(0o755);
+
+    // Apply the modified permissions back to the file.
+    log_debug!(
+        "[SDB::Tools::{tool_source}::BinaryInstaller] Applying new permissions to {}",
+        file_path.to_string_lossy()
+    );
+    fs::set_permissions(&file_path, perms)?;
+
+    // Verify the permissions were set correctly
+    let updated_perms = fs::metadata(&file_path)?.permissions();
+    log_debug!(
+        "[SDB::Tools::{tool_source}::BinaryInstaller] New permissions mode: {:o}",
+        updated_perms.mode()
+    );
+
+    log_debug!(
+        "[SDB::Tools::{tool_source}::BinaryInstaller] File {} is now executable.",
+        file_path.to_string_lossy().green()
+    );
+    Ok(())
 }
 
 // Provide a dummy implementation for `make_executable` on non-Unix systems to avoid compilation errors.
