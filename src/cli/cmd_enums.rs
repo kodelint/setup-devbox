@@ -127,7 +127,7 @@ pub enum AddCommands {
         rename_to: Option<String>,
         /// Additional Options for installation.
         /// Source-specific options like compilation flags, installation parameters, etc.
-        #[arg(long)]
+        #[arg(long, trailing_var_arg = true, allow_hyphen_values = true, num_args = 0..)]
         options: Option<Vec<String>>,
         /// Additional commands to run after installation (can be specified multiple times).
         /// Commands executed in sequence after the main installation completes.
