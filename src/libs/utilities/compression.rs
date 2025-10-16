@@ -55,9 +55,10 @@ pub fn extract_archive(
     src: &Path,
     dest: &Path,
     known_file_type: Option<&str>,
+    extracting: &str,
 ) -> io::Result<PathBuf> {
     log_debug!(
-        "[Utils] Extracting archive {} into {}",
+        "[SDB::{extracting}::Extractor] Extracting archive {} into {}",
         src.to_string_lossy().blue(),
         dest.to_string_lossy().cyan()
     );
@@ -67,12 +68,14 @@ pub fn extract_archive(
     // Otherwise, fall back to `detect_file_type` which uses the `file` command.
     let file_type = if let Some(ft) = known_file_type {
         log_debug!(
-            "[Utils] Using known file type from argument: {}",
+            "[SDB::{extracting}::Extractor] Using known file type from argument: {}",
             ft.green()
         );
         ft.to_string()
     } else {
-        log_debug!("[Utils] No known file type provided. Auto-detecting using 'file' command...");
+        log_debug!(
+            "[SDB::{extracting}::Extractor] No known file type provided. Auto-detecting using 'file' command..."
+        );
         detect_file_type(src)
     };
 
@@ -92,7 +95,7 @@ pub fn extract_archive(
             let mut archive = ZipArchive::new(file)?;
             // Extract all contents of the zip archive into the `extracted_path`.
             archive.extract(&extracted_path)?;
-            log_debug!("[Utils] Zip archive extracted successfully.");
+            log_debug!("[SDB::{extracting}::Extractor] Zip archive extracted successfully.");
         }
         "tar.gz" => {
             // Handle specific `tar.gz` files.
@@ -104,12 +107,12 @@ pub fn extract_archive(
             let mut archive = Archive::new(decompressor);
             // Unpack all contents of the tar archive into the `extracted_path`.
             archive.unpack(&extracted_path)?;
-            log_debug!("[Utils] Tar.gz archive extracted successfully.");
+            log_debug!("[SDB::{extracting}::Extractor] Tar.gz archive extracted successfully.");
         }
         "gz" => {
             // Handle pure `.gz` files (not tarred, typically a single compressed file).
             log_info!(
-                "[Utils] Decompressing plain GZ file. Contents will be the original file without tar extraction."
+                "[SDB::{extracting}::Extractor] Decompressing plain GZ file. Contents will be the original file without tar extraction."
             );
             let gz_file = File::open(src)?;
             let mut decompressor = GzDecoder::new(gz_file);
@@ -119,7 +122,7 @@ pub fn extract_archive(
             // Copy the decompressed data from the `GzDecoder` to the new output file.
             io::copy(&mut decompressor, &mut output_file)?;
             log_debug!(
-                "[Utils] GZ file decompressed successfully to {:?}",
+                "[SDB::{extracting}::Extractor] GZ file decompressed successfully to {:?}",
                 output_file_path.display()
             );
         }
@@ -132,7 +135,7 @@ pub fn extract_archive(
             let mut archive = Archive::new(decompressor);
             // Unpack all contents of the tar archive into the `extracted_path`.
             archive.unpack(&extracted_path)?;
-            log_debug!("[Utils] Tar.bz2 archive extracted successfully.");
+            log_debug!("[SDB::{extracting}::Extractor] Tar.bz2 archive extracted successfully.");
         }
         "tar" => {
             // Handle plain `.tar` archives (uncompressed).
@@ -142,21 +145,23 @@ pub fn extract_archive(
             let mut archive = Archive::new(tar);
             // Unpack all contents of the tar archive into the `extracted_path`.
             archive.unpack(&extracted_path)?;
-            log_debug!("[Utils] Tar archive extracted successfully.");
+            log_debug!("[SDB::{extracting}::Extractor] Tar archive extracted successfully.");
         }
         "tar.xz" | "xz" | "txz" => {
             // Added support for tar.xz and xz/txz aliases
-            log_debug!("[Utils] Decompressing Tar.xz/XZ file.");
+            log_debug!("[SDB::{extracting}::Extractor] Decompressing Tar.xz/XZ file.");
             let tar_xz = File::open(src)?;
             let decompressor = XzDecoder::new(tar_xz);
             let mut archive = Archive::new(decompressor);
             archive.unpack(&extracted_path)?;
-            log_debug!("[Utils] Tar.xz archive extracted successfully.");
+            log_debug!("[SDB::{extracting}::Extractor] Tar.xz archive extracted successfully.");
         }
         "binary" => {
             // For standalone binaries like a .exe or uncompressed Mac binary.
             // In this case, "extraction" means simply copying the binary to the `extracted_path`.
-            log_info!("[Utils] Copying detected 'binary' directly to extraction path.");
+            log_info!(
+                "[SDB::{extracting}::Extractor] Copying detected 'binary' directly to extraction path."
+            );
             // Get the filename part from the source path.
             let file_name = src.file_name().ok_or_else(|| {
                 // If the source path doesn't have a filename, return an error.
@@ -165,7 +170,7 @@ pub fn extract_archive(
             // Copy the source file to the `extracted_path` maintaining its original filename.
             fs::copy(src, extracted_path.join(file_name))?;
             log_debug!(
-                "[Utils] Binary copied successfully to {:?}",
+                "[SDB::{extracting}::Extractor] Binary copied successfully to {:?}",
                 extracted_path.join(file_name).display()
             );
         }
@@ -173,7 +178,7 @@ pub fn extract_archive(
             // For macOS `.pkg` files, which are installers, not archives to unpack in the traditional sense.
             // We copy them to the extracted path so they are available for installation later.
             log_info!(
-                "[Utils] Detected .pkg installer. Copying directly to extraction path for installation."
+                "[SDB::{extracting}::Extractor] Detected .pkg installer. Copying directly to extraction path for installation."
             );
             let file_name = src.file_name().ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "Source path has no filename")
@@ -181,14 +186,14 @@ pub fn extract_archive(
             // Copy the `.pkg` file to the `extracted_path`.
             fs::copy(src, extracted_path.join(file_name))?;
             log_debug!(
-                "[Utils] .pkg file copied successfully to {:?}",
+                "[SDB::{extracting}::Extractor] .pkg file copied successfully to {:?}",
                 extracted_path.join(file_name).display()
             );
         }
         _ => {
             // If the `file_type` string does not match any of the supported types.
             log_error!(
-                "[Utils] Unsupported archive type '{}' for extraction: {:?}",
+                "[SDB::{extracting}::Extractor] Unsupported archive type '{}' for extraction: {:?}",
                 file_type.red(),
                 src
             );

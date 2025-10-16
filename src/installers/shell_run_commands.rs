@@ -28,18 +28,18 @@ use std::path::Path;
 pub fn apply_shell_configs(shell_cfg: ShellConfig) {
     eprintln!("{}:", "Shell Configuration".bright_yellow().bold());
     println!("{}\n", "=".repeat(20).bright_yellow());
-    log_info!("[Shell Config] Applying Shell Configurations...");
+    log_info!("[SDB::ShellConfig] Applying Shell Configurations...");
 
     let Some(rc_path) = get_rc_file(&shell_cfg.run_commands.shell) else {
         log_warn!(
-            "[Shell Config] Unsupported shell '{}'. Skipping configuration.",
+            "[SDB::ShellConfig] Unsupported shell '{}'. Skipping configuration.",
             shell_cfg.run_commands.shell.red()
         );
         return;
     };
 
     log_debug!(
-        "[Shell Config] Target RC file: {}",
+        "[SDB::ShellConfig] Target RC file: {}",
         rc_path.display().to_string().cyan()
     );
 
@@ -50,7 +50,7 @@ pub fn apply_shell_configs(shell_cfg: ShellConfig) {
         &shell_cfg.aliases,
     ) {
         log_error!(
-            "[Shell Config] Failed to process shell configuration: {}",
+            "[SDB::ShellConfig] Failed to process shell configuration: {}",
             e
         );
         return;
@@ -59,7 +59,7 @@ pub fn apply_shell_configs(shell_cfg: ShellConfig) {
     // Source the updated RC file
     if let Err(e) = source_rc_file(&shell_cfg.run_commands.shell, &rc_path) {
         log_warn!(
-            "[Shell Config] Failed to source RC file: {}",
+            "[SDB::ShellConfig] Failed to source RC file: {}",
             e.to_string().yellow()
         );
     }
@@ -97,12 +97,12 @@ fn process_shell_config(
     let needs_regeneration = check_for_updates(run_commands, aliases, &existing_content);
 
     if needs_regeneration && is_env_var_set("SDB_RESET_SHELLRC_FILE") {
-        log_info!("[Shell Config] Updates detected - regenerating Shell RC file");
+        log_info!("[SDB::ShellConfig] Updates detected - regenerating Shell RC file");
 
         // Remove the file and start fresh
         if let Err(e) = remove_rc_file(rc_path) {
             log_error!(
-                "[Shell Config] Failed to remove RC file before reset: {}",
+                "[SDB::ShellConfig] Failed to remove RC file before reset: {}",
                 e
             );
             return Err(Box::new(e));
@@ -123,9 +123,9 @@ fn process_shell_config(
         final_write(rc_path, &lines)?;
     } else if needs_regeneration {
         // Updates detected but env var not set - just warn
-        log_warn!("[Shell Config] Updates detected but file regeneration disabled");
+        log_warn!("[SDB::ShellConfig] Updates detected but file regeneration disabled");
         log_warn!(
-            "[Shell Config] Set Environment Variable: {} to automate regeneration",
+            "[SDB::ShellConfig] Set Environment Variable: {} to automate regeneration",
             "SDB_RESET_SHELLRC_FILE".yellow()
         );
     } else {
@@ -139,7 +139,7 @@ fn process_shell_config(
         if changes_made {
             final_write(rc_path, &lines)?;
         } else {
-            log_info!("[Shell Config] No changes needed - all configurations are up to date");
+            log_info!("[SDB::ShellConfig] No changes needed - all configurations are up to date");
         }
     }
 
@@ -246,7 +246,7 @@ fn process_run_commands_after_reset(lines: &mut Vec<String>, run_commands: &[Run
         // Check if we've already processed this exact command
         if processed_commands.contains(&normalized_command) {
             log_debug!(
-                "[Shell Config] Skipping duplicate command: {}",
+                "[SDB::ShellConfig] Skipping duplicate command: {}",
                 command.dimmed()
             );
             continue;
@@ -256,7 +256,7 @@ fn process_run_commands_after_reset(lines: &mut Vec<String>, run_commands: &[Run
             processed_commands.insert(normalized_command);
             *section_stats.entry(section.clone()).or_insert(0) += 1;
             log_info!(
-                "[Shell Config] Added command to {} section: {}",
+                "[SDB::ShellConfig] Added command to {} section: {}",
                 section_header_name(section).cyan(),
                 command.green()
             );
@@ -288,7 +288,7 @@ fn process_aliases_after_reset(lines: &mut Vec<String>, aliases: &[AliasEntry]) 
         // Check if we've already processed this exact alias
         if processed_aliases.contains(&normalized_alias) {
             log_debug!(
-                "[Shell Config] Skipping duplicate alias: {}",
+                "[SDB::ShellConfig] Skipping duplicate alias: {}",
                 alias_line.dimmed()
             );
             continue;
@@ -297,13 +297,13 @@ fn process_aliases_after_reset(lines: &mut Vec<String>, aliases: &[AliasEntry]) 
         if insert_into_section(lines, &alias_line, &ConfigSection::Aliases) {
             processed_aliases.insert(normalized_alias);
             added += 1;
-            log_info!("[Shell Config] Added alias: {}", alias_line.green());
+            log_info!("[SDB::ShellConfig] Added alias: {}", alias_line.green());
         }
     }
 
     if added > 0 {
         log_info!(
-            "[Shell Config] Aliases section: {} added",
+            "[SDB::ShellConfig] Aliases section: {} added",
             added.to_string().cyan()
         );
     }
@@ -350,7 +350,7 @@ fn process_run_commands(
         // Check if this exact command already exists in the RC file
         if existing_in_section.contains(&normalized_command) {
             log_debug!(
-                "[Shell Config] Command already exists in {} section: {}",
+                "[SDB::ShellConfig] Command already exists in {} section: {}",
                 section_header_name(section).dimmed(),
                 command.dimmed()
             );
@@ -362,13 +362,13 @@ fn process_run_commands(
 
         if is_update {
             // This should not happen in normal append mode since we check for updates earlier
-            log_warn!("[Shell Config] Update detected in append mode - this shouldn't happen");
+            log_warn!("[SDB::ShellConfig] Update detected in append mode - this shouldn't happen");
             continue;
         } else if insert_into_section(lines, command, section) {
             *section_stats.entry(section.clone()).or_insert(0) += 1;
             changes_made = true;
             log_info!(
-                "[Shell Config] Added command to {} section: {}",
+                "[SDB::ShellConfig] Added command to {} section: {}",
                 section_header_name(section).cyan(),
                 command.green()
             );
@@ -414,7 +414,7 @@ fn process_aliases(
         // Check if this exact alias already exists
         if existing_aliases.contains(&normalized_alias) {
             log_debug!(
-                "[Shell Config] Alias already exists: {}",
+                "[SDB::ShellConfig] Alias already exists: {}",
                 alias_line.dimmed()
             );
             continue;
@@ -428,7 +428,7 @@ fn process_aliases(
         // Check if an alias with the same name but different value exists
         if is_update {
             // This should not happen in normal append mode since we check for updates earlier
-            log_warn!("[Shell Config] Update detected in append mode - this shouldn't happen");
+            log_warn!("[SDB::ShellConfig] Update detected in append mode - this shouldn't happen");
             continue;
         } else {
             // This is a new alias, add it to the aliases section
@@ -436,14 +436,14 @@ fn process_aliases(
                 // Update count and track changes
                 added += 1;
                 changes_made = true;
-                log_info!("[Shell Config] Added alias: {}", alias_line.green());
+                log_info!("[SDB::ShellConfig] Added alias: {}", alias_line.green());
             }
         }
     }
 
     if added > 0 {
         log_info!(
-            "[Shell Config] Aliases section: {} added",
+            "[SDB::ShellConfig] Aliases section: {} added",
             added.to_string().cyan()
         );
     }
@@ -467,11 +467,11 @@ fn process_aliases(
 fn final_write(rc_path: &Path, lines: &[String]) -> Result<(), std::io::Error> {
     write_rc_file(rc_path, lines).inspect_err(|e| {
         log_warn!(
-            "[Shell Config] Failed to write RC file: {}",
+            "[SDB::ShellConfig] Failed to write RC file: {}",
             e.to_string().red()
         );
     })?;
 
-    log_info!("[Shell Config] Successfully updated shell configuration");
+    log_info!("[SDB::ShellConfig] Successfully updated shell configuration");
     Ok(())
 }

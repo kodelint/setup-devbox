@@ -40,11 +40,13 @@ use crate::{log_debug, log_error, log_info, log_warn};
 #[cfg(target_os = "macos")]
 pub fn install_pkg(
     pkg_path: &Path,
+    tool_source: &str,
     tool_name: &str,
     tool_renamed_to: &Option<String>,
 ) -> io::Result<PathBuf> {
     log_info!(
-        "[macOS Installer] Initiating .pkg installation for: {}",
+        "[SDB::Tools::{}::MacInstaller] Initiating .pkg installation for: {}",
+        tool_source,
         pkg_path.display().to_string().bold()
     );
     log_info!("[macOS Installer] Executing .pkg installer (may require admin privileges)...");
@@ -72,7 +74,8 @@ pub fn install_pkg(
         let cli_root_path = PathBuf::from(format!("/usr/local/{name}"));
         if cli_root_path.exists() && cli_root_path.is_dir() {
             log_debug!(
-                "[macOS Installer] Found CLI tool root directory for '{}' at: {}",
+                "[SDB::Tools::{}::MacInstaller] Found CLI tool root directory for '{}' at: {}",
+                tool_source,
                 name.cyan(),
                 cli_root_path.display()
             );
@@ -83,7 +86,8 @@ pub fn install_pkg(
         let cli_bin_path = PathBuf::from(format!("/usr/local/bin/{name}"));
         if cli_bin_path.exists() {
             log_debug!(
-                "[macOS Installer] Found CLI binary for '{}' at: {}",
+                "[SDB::Tools::{}::MacInstaller] Found CLI binary for '{}' at: {}",
+                tool_source,
                 name.cyan(),
                 cli_bin_path.display()
             );
@@ -99,7 +103,8 @@ pub fn install_pkg(
     let app_path = PathBuf::from(format!("/Applications/{tool_name}.app"));
     if app_path.exists() {
         log_debug!(
-            "[macOS Installer] Found application bundle at: {}",
+            "[SDB::Tools::{}::MacInstaller] Found application bundle at: {}",
+            tool_source,
             app_path.display()
         );
         inferred_install_path = Some(app_path);
@@ -114,7 +119,8 @@ pub fn install_pkg(
     if inferred_install_path.is_none() {
         if let Some(alias) = tool_renamed_to.as_ref() {
             log_debug!(
-                "[macOS Installer] Primary path checks failed. Checking alias '{}'...",
+                "[SDB::Tools::{}::MacInstaller] Primary path checks failed. Checking alias '{}'...",
+                tool_source,
                 alias.cyan()
             );
             inferred_install_path = check_cli_paths(alias);
@@ -125,9 +131,10 @@ pub fn install_pkg(
     // This is the least specific guess.
     let final_path = inferred_install_path.unwrap_or_else(|| {
         log_warn!(
-            "[macOS Installer] Unable to precisely determine install path for '{}' PKG. \
+            "[SDB::Tools::{}::MacInstaller] Unable to precisely determine install path for '{}' PKG. \
              Returning a generic fallback path. For critical tools, consider manually verifying \
              the installation path or adding an explicit 'install_path' if that feature becomes available.",
+             tool_source,
             tool_name.green()
         );
         // Defaulting to /usr/local/bin/<tool_name> as a very common CLI install location.
@@ -135,7 +142,8 @@ pub fn install_pkg(
     });
 
     log_info!(
-        "[macOS Installer] PKG for {} installed successfully. Inferred install path: {}",
+        "[SDB::Tools::{}::MacInstaller] PKG for {} installed successfully. Inferred install path: {}",
+        tool_source,
         tool_name.green(),
         final_path.display().to_string().green()
     );
@@ -163,11 +171,12 @@ pub fn install_pkg(
 #[cfg(target_os = "macos")]
 pub fn install_dmg(
     dmg_path: &Path,
+    tool_source: &str,
     app_name: &str,
     tool_renamed_to: &Option<String>,
 ) -> io::Result<PathBuf> {
     log_info!(
-        "[macOS Installer] Initiating .dmg installation for: {}",
+        "[SDB::Tools::{tool_source}::MacInstaller] Initiating .dmg installation for: {}",
         dmg_path.display().to_string().bold()
     );
 
@@ -183,7 +192,10 @@ pub fn install_dmg(
 
     let mounted_path: Option<PathBuf>;
 
-    log_debug!("[macOS Installer] Mounting DMG: {}", dmg_path.display());
+    log_debug!(
+        "[SDB::Tools::{tool_source}::MacInstaller] Mounting DMG: {}",
+        dmg_path.display()
+    );
     let hdiutil_output = Command::new("sudo")
         .arg("hdiutil")
         .arg("attach")
@@ -198,9 +210,12 @@ pub fn install_dmg(
 
     if !hdiutil_output.status.success() {
         let stderr = String::from_utf8_lossy(&hdiutil_output.stderr);
-        log_error!("[macOS Installer] Failed to mount DMG: {}", stderr.red());
+        log_error!(
+            "[SDB::Tools::{tool_source}::MacInstaller] Failed to mount DMG: {}",
+            stderr.red()
+        );
         return Err(std::io::Error::other(format!(
-            "[macOS Installer] Failed to mount DMG: {stderr}"
+            "[SDB::Tools::{tool_source}::MacInstaller] Failed to mount DMG: {stderr}"
         )));
     }
 
@@ -209,7 +224,7 @@ pub fn install_dmg(
         let path = PathBuf::from(path_str);
         if path.exists() && path.is_dir() {
             log_info!(
-                "[macOS Installer] DMG mounted successfully at: {}",
+                "[SDB::Tools::{tool_source}::MacInstaller] DMG mounted successfully at: {}",
                 path.display().to_string().green()
             );
             mounted_path = Some(path);
@@ -217,7 +232,7 @@ pub fn install_dmg(
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 format!(
-                    "hdiutil reported successful mount, but path does not exist or is not a directory: {}",
+                    "[SDB::Tools::{tool_source}::MacInstaller] hdiutil reported successful mount, but path does not exist or is not a directory: {}",
                     path.display()
                 ),
             ));
@@ -226,14 +241,14 @@ pub fn install_dmg(
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             format!(
-                "Failed to parse mounted path from hdiutil output for {}",
+                "[SDB::Tools::{tool_source}::MacInstaller] Failed to parse mounted path from hdiutil output for {}",
                 dmg_path.display()
             ),
         ));
     }
 
     let mounted_volume_path = mounted_path.ok_or_else(|| {
-        std::io::Error::other("DMG was not mounted or mounted path could not be determined.")
+        std::io::Error::other("[SDB::Tools::{tool_source}::MacInstaller] DMG was not mounted or mounted path could not be determined.")
     })?;
 
     //  Perform Installation and ensure unmount happens
@@ -255,24 +270,24 @@ pub fn install_dmg(
 
         if let Some(pkg_path) = pkg_found {
             log_info!(
-                "[macOS Installer] Found .pkg installer: {}",
+                "[SDB::Tools::{tool_source}::MacInstaller] Found .pkg installer: {}",
                 pkg_path.display().to_string().bold()
             );
             log_info!(
-                "[macOS Installer] Executing .pkg installer (may require admin privileges)..."
+                "[SDB::Tools::{tool_source}::MacInstaller] Executing .pkg installer (may require admin privileges)..."
             );
             // Call install_pkg and return its result (which is PathBuf)
-            install_pkg(&pkg_path, app_name, tool_renamed_to)
+            install_pkg(&pkg_path, tool_source, app_name, tool_renamed_to)
         } else if let Some(app_path) = app_found {
             log_info!(
-                "[macOS Installer] Found .app bundle: {}",
+                "[SDB::Tools::{tool_source}::MacInstaller] Found .app bundle: {}",
                 app_path.display().to_string().bold()
             );
             let target_app_path = PathBuf::from("/Applications").join(format!("{app_name}.app"));
 
             if target_app_path.exists() {
                 log_info!(
-                    "[macOS Installer] Removing existing app at: {}",
+                    "[SDB::Tools::{tool_source}::MacInstaller] Removing existing app at: {}",
                     target_app_path.display().to_string().yellow()
                 );
                 // Use sudo rm -rf for permission issues
@@ -287,20 +302,22 @@ pub fn install_dmg(
                 if !rm_output.status.success() {
                     let stderr = String::from_utf8_lossy(&rm_output.stderr);
                     log_error!(
-                        "[macOS Installer] Failed to remove existing app {}: {}",
+                        "[SDB::Tools::{tool_source}::MacInstaller] Failed to remove existing app {}: {}",
                         target_app_path.display(),
                         stderr.red()
                     );
                     return Err(std::io::Error::other(format!(
-                        "Failed to remove existing app {}: {stderr}",
+                        "[SDB::Tools::{tool_source}::MacInstaller] Failed to remove existing app {}: {stderr}",
                         target_app_path.display()
                     )));
                 }
-                log_info!("[macOS Installer] Existing app removed successfully.");
+                log_info!(
+                    "[SDB::Tools::{tool_source}::MacInstaller] Existing app removed successfully."
+                );
             }
 
             log_debug!(
-                "[macOS Installer] Copying .app to: {}",
+                "[SDB::Tools::{tool_source}::MacInstaller] Copying .app to: {}",
                 target_app_path.display()
             );
             let cp_output = Command::new("sudo")
@@ -315,27 +332,27 @@ pub fn install_dmg(
             if !cp_output.status.success() {
                 let stderr = String::from_utf8_lossy(&cp_output.stderr);
                 log_error!(
-                    "[macOS Installer] Failed to copy .app to /Applications: {}",
+                    "[SDB::Tools::{tool_source}::MacInstaller] Failed to copy {app_name}.app to /Applications: {}",
                     stderr.red()
                 );
                 return Err(std::io::Error::other(format!(
-                    "Failed to copy .app: {stderr}"
+                    "[SDB::Tools::{tool_source}::MacInstaller] Failed to copy {app_name}.app: {stderr}"
                 )));
             }
             log_info!(
-                "[macOS Installer] .app copied successfully to {}",
+                "[SDB::Tools::{tool_source}::MacInstaller] {app_name}.app copied successfully to {}",
                 target_app_path.display().to_string().green()
             );
             Ok(target_app_path) // Return the path for .app
         } else {
             log_warn!(
-                "[macOS Installer] No .pkg or .app found in DMG: {}. Manual intervention may be required.",
+                "[SDB::Tools::{tool_source}::MacInstaller] No {app_name}.pkg or {app_name}.app found in DMG: {}. Manual intervention may be required.",
                 mounted_volume_path.display()
             );
             Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 format!(
-                    "No installable .app or .pkg found in DMG: {}",
+                    "[SDB::Tools::{tool_source}::MacInstaller] No installable {app_name}.app or {app_name}.pkg found in DMG: {}",
                     mounted_volume_path.display()
                 ),
             ))
@@ -343,11 +360,13 @@ pub fn install_dmg(
     })();
 
     // Unmount the DMG (always attempt, regardless of install_result)
-    match unmount_dmg(&mounted_volume_path) {
-        Ok(_) => log_debug!("[macOS Installer] DMG unmounted successfully."),
+    match unmount_dmg(&mounted_volume_path, tool_source) {
+        Ok(_) => {
+            log_debug!("[SDB::Tools::{tool_source}::MacInstaller] DMG unmounted successfully.")
+        }
         Err(e) => {
             log_error!(
-                "[macOS Installer] Failed to unmount DMG {}: {}",
+                "[SDB::Tools::{tool_source}::MacInstaller] Failed to unmount DMG {}: {}",
                 mounted_volume_path.display(),
                 e.to_string().red()
             );
@@ -358,7 +377,7 @@ pub fn install_dmg(
     }
 
     log_info!(
-        "[macOS Installer] .dmg installation process completed for: {}",
+        "[SDB::Tools::{tool_source}::MacInstaller] {app_name}.dmg installation process completed for: {}",
         dmg_path.display().to_string().green()
     );
     // Return the result of the installation process (which includes the PathBuf)
@@ -374,9 +393,9 @@ pub fn install_dmg(
 /// * `io::Result<()>`: `Ok(())` if the DMG was unmounted successfully,
 ///   `Err(io::Error)` otherwise.
 #[cfg(target_os = "macos")]
-fn unmount_dmg(mount_path: &Path) -> io::Result<()> {
+fn unmount_dmg(mount_path: &Path, tool_source: &str) -> io::Result<()> {
     log_debug!(
-        "[macOS Installer] Attempting to unmount DMG from: {}",
+        "[SDB::Tools::{tool_source}::MacInstaller] Attempting to unmount DMG from: {}",
         mount_path.display()
     );
     let detach_output = Command::new("sudo")
@@ -391,12 +410,12 @@ fn unmount_dmg(mount_path: &Path) -> io::Result<()> {
     if !detach_output.status.success() {
         let stderr = String::from_utf8_lossy(&detach_output.stderr);
         return Err(std::io::Error::other(format!(
-            "Failed to unmount DMG {}: {}",
+            "[SDB::Tools::{tool_source}::MacInstaller] Failed to unmount DMG {}: {}",
             mount_path.display(),
             stderr
         )));
     }
-    log_debug!("[macOS Installer] DMG unmounted successfully.");
+    log_debug!("[SDB::Tools::{tool_source}::MacInstaller] DMG unmounted successfully.");
     Ok(())
 }
 

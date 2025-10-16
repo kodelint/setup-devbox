@@ -32,13 +32,13 @@ pub fn source_rc_file(shell_type: &str, rc_path: &Path) -> Result<(), Box<dyn st
 
     if output.status.success() {
         log_info!(
-            "[Shell Config] Successfully sourced {} file",
+            "[SDB::ShellConfig] Successfully sourced {} file",
             shell_type.bold()
         );
         Ok(())
     } else {
         let error_msg = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Failed to source RC file: {error_msg}").into())
+        Err(format!("[SDB::ShellConfig] Failed to source RC file: {error_msg}").into())
     }
 }
 
@@ -64,7 +64,7 @@ pub fn get_rc_file(shell: &str) -> Option<PathBuf> {
         "bash" => ".bashrc",
         _ => {
             log_warn!(
-                "[Shell Config] Unsupported shell '{}'. Only 'zsh' and 'bash' are supported.",
+                "[SDB::ShellConfig] Unsupported shell '{}'. Only 'zsh' and 'bash' are supported.",
                 shell.red()
             );
             return None;
@@ -90,7 +90,7 @@ pub fn remove_rc_file(rc_path: &Path) -> Result<(), std::io::Error> {
     if rc_path.exists() {
         fs::remove_file(rc_path)?;
         log_info!(
-            "[Shell Config] Removed the '{}' file",
+            "[SDB::ShellConfig] Removed the '{}' file",
             rc_path.display().to_string().green()
         );
     }
@@ -150,7 +150,7 @@ pub fn read_rc_file(rc_path: &Path) -> Vec<String> {
         Ok(file) => BufReader::new(file).lines().map_while(Result::ok).collect(),
         Err(err) => {
             log_warn!(
-                "[Shell Config] Could not read RC file {}: {}. Using empty file.",
+                "[SDB::ShellConfig] Could not read RC file {}: {}. Using empty file.",
                 rc_path.display().to_string().red(),
                 err.to_string().red()
             );

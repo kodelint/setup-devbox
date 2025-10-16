@@ -10,6 +10,7 @@ use crate::help_details::edit_help::show_edit_help;
 use crate::help_details::generate_help::show_generate_help;
 use crate::help_details::installers_help::{add_supported_installers, show_installers_help};
 use crate::help_details::now_help::show_now_help;
+use crate::help_details::remove_help::show_remove_help;
 use crate::help_details::sync_config_help::show_sync_config_help;
 use colored::Colorize;
 use std::fmt::Write;
@@ -33,6 +34,7 @@ pub fn run(topic: Option<String>, detailed: bool, filter: Option<String>) {
         Some("generate") => show_generate_help(detailed),
         Some("installers") => show_installers_help(detailed, filter),
         Some("now") => show_now_help(detailed),
+        Some("remove") => show_remove_help(detailed),
         Some("sync-config") | Some("sync_config") => show_sync_config_help(detailed),
         Some("version") => show_version_help(detailed),
         // If the topic is provided but is not one of the known topics, show an error and exit.

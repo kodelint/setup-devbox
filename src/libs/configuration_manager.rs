@@ -106,7 +106,7 @@ impl ConfigurationManagerProcessor {
     pub fn new(paths: &PathResolver) -> Self {
         let base_path = paths.tools_config_dir().to_path_buf();
         log_debug!(
-            "[Tools] Configuration manager using tools config dir: {}",
+            "[SDB::Tools::Configuration::ConfigurationManager] Configuration manager using tools config dir: {}",
             base_path.display()
         );
         Self {
@@ -154,7 +154,7 @@ impl ConfigurationManagerProcessor {
 
         if existing_source_paths.is_empty() {
             log_warn!(
-                "[Tools::ConfigurationManager] Source configuration not found for {}: {}",
+                "[SDB::Tools::Configuration::ConfigurationManager] Source configuration not found for {}: {}",
                 tool_name.red(),
                 source_paths
                     .iter()
@@ -233,7 +233,7 @@ impl ConfigurationManagerProcessor {
             Some(state) => state,
             None => {
                 log_debug!(
-                    "[Tools::ConfigurationManager] No existing configuration state for {}, update needed",
+                    "[SDB::Tools::Configuration::ConfigurationManager] No existing configuration state for {}, update needed",
                     tool_name
                 );
                 return Ok((true, Some("no existing state".to_string())));
@@ -243,7 +243,7 @@ impl ConfigurationManagerProcessor {
         // Check if source file changed by comparing SHAs.
         if current_source_sha != existing_state.source_configuration_sha {
             log_debug!(
-                "[Tools::ConfigurationManager] Source file changed for {} - recorded: {}, current: {}",
+                "[SDB::Tools::Configuration::ConfigurationManager] Source file changed for {} - recorded: {}, current: {}",
                 tool_name,
                 existing_state.source_configuration_sha.red(),
                 current_source_sha.green()
@@ -254,7 +254,7 @@ impl ConfigurationManagerProcessor {
         // Check if destination file exists.
         if current_destination_sha.is_none() {
             log_warn!(
-                "[Tools::ConfigurationManager] Destination file missing for {}: {}, will recreate",
+                "[SDB::Tools::Configuration::ConfigurationManager] Destination file missing for {}: {}, will recreate",
                 tool_name,
                 destination_paths
                     .iter()
@@ -270,7 +270,7 @@ impl ConfigurationManagerProcessor {
         if let Some(dest_sha) = current_destination_sha {
             if *dest_sha != existing_state.destination_configuration_sha {
                 log_debug!(
-                    "[Tools::ConfigurationManager] Destination file modified for {} - recorded: {}, current: {}",
+                    "[SDB::Tools::Configuration::ConfigurationManager] Destination file modified for {} - recorded: {}, current: {}",
                     tool_name,
                     existing_state.destination_configuration_sha.red(),
                     dest_sha.yellow()
@@ -309,7 +309,7 @@ impl ConfigurationManagerProcessor {
         // If configuration is disabled, there's nothing to do.
         if !config_manager.enabled {
             log_debug!(
-                "[Tools::ConfigurationManager] Configuration manager disabled for tool: {}",
+                "[SDB::Tools::Configuration::ConfigurationManager] Configuration manager disabled for tool: {}",
                 tool_name.cyan()
             );
             return Ok(None);
@@ -327,7 +327,7 @@ impl ConfigurationManagerProcessor {
         if !evaluation.needs_update {
             if let Some(reason) = &evaluation.reason {
                 log_info!(
-                    "[Tools::ConfigurationManager] Configuration for {} is up to date ({}), skipping",
+                    "[SDB::Tools::Configuration::ConfigurationManager] Configuration for {} is up to date ({}), skipping",
                     tool_name.green(),
                     reason
                 );
@@ -430,7 +430,7 @@ impl ConfigurationManagerProcessor {
         // Process each source-destination pair
         for (source_path, destination_path) in source_paths.iter().zip(destination_paths.iter()) {
             log_debug!(
-                "[Tools::ConfigurationManager] Updating configuration from {} to {}",
+                "[SDB::Tools::Configuration::ConfigurationManager] Updating configuration from {} to {}",
                 source_path.display().to_string().blue(),
                 destination_path.display().to_string().blue()
             );
@@ -451,7 +451,7 @@ impl ConfigurationManagerProcessor {
             // Write the converted content to the destination file.
             fs::write(destination_path, converted_content)?;
             log_info!(
-                "[Tools::ConfigurationManager] Configuration written to: {}",
+                "[SDB::Tools::Configuration] Configuration written to: {}",
                 destination_path
                     .display()
                     .to_string()

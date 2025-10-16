@@ -488,69 +488,76 @@ impl RemovalSummary {
     /// # Output Format
     ///
     /// ```text
-    /// ===================
-    ///   Removal Summary
-    /// ===================
-    /// ✓ tool1
-    /// ✓ tool2
-    /// Successfully removed tool(s): 2
+    /// Successfully removed 3 tool(s): lsd, git-pr, terraform ✓
+    /// Successfully removed 2 font(s): JetBrainsMono, FiraCode ✓
     ///
     /// ⚠ unknown-tool
     /// Items not found: 1
     ///
     /// ✗ failed-tool - Permission denied
     /// Failed removals: 1
-    /// ===================
     /// ```
     pub fn display(&self) {
-        println!("\n{}", "=".repeat(19).bright_blue());
-        println!("  {}", "Removal Summary".bright_yellow().bold());
-        println!("{}", "=".repeat(19).bright_blue());
+        let mut has_output = false;
 
         // Display successfully removed tools
         if !self.removed_tools.is_empty() {
-            for tool in &self.removed_tools {
-                println!("  {} {}", "✓".green(), tool.green());
-            }
+            let items = self.removed_tools.join(", ");
             println!(
-                "Successfully removed tool(s): {}\n",
-                self.removed_tools.len().to_string().green()
+                "Successfully removed {} tool(s): {} {}",
+                self.removed_tools.len().to_string().green(),
+                items.green(),
+                "✓".green()
             );
+            has_output = true;
         }
 
         // Display successfully removed fonts
         if !self.removed_fonts.is_empty() {
-            for font in &self.removed_fonts {
-                println!("  {} {}", "✓".green(), font.green());
-            }
+            let items = self.removed_fonts.join(", ");
             println!(
-                "Successfully removed font(s): {}\n",
-                self.removed_fonts.len().to_string().green()
+                "Successfully removed {} font(s): {} {}",
+                self.removed_fonts.len().to_string().green(),
+                items.green(),
+                "✓".green()
             );
+            has_output = true;
+        }
+
+        // Add spacing if there were successful removals and there are warnings/errors
+        if has_output && (!self.not_found_items.is_empty() || !self.failed_removals.is_empty()) {
+            println!();
         }
 
         // Display items that were not found
         if !self.not_found_items.is_empty() {
             for item in &self.not_found_items {
-                println!("  {} {}", "⚠".yellow(), item.yellow());
+                println!("{} {}", "⚠".yellow(), item.yellow());
             }
             println!(
-                "Items not found: {}\n",
+                "Items not found: {}",
                 self.not_found_items.len().to_string().yellow()
             );
+            has_output = true;
         }
 
         // Display items that failed to remove
         if !self.failed_removals.is_empty() {
+            if !self.not_found_items.is_empty() {
+                println!();
+            }
             for (item, reason) in &self.failed_removals {
-                println!("  {} {} - {}", "✗".red(), item.red(), reason.red());
+                println!("{} {} - {}", "✗".red(), item.red(), reason.red());
             }
             println!(
-                "Failed removals: {}\n",
+                "Failed removals: {}",
                 self.failed_removals.len().to_string().red()
             );
+            has_output = true;
         }
 
-        println!("{}\n", "=".repeat(19).bright_blue());
+        if has_output {
+            println!();
+        }
     }
 }

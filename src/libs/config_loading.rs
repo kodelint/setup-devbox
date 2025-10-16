@@ -159,7 +159,7 @@ where
 ///   The function will `std::process::exit(1)` if the master config
 ///   cannot be loaded.
 pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
-    log_debug!("Entering load_master_configs() function.");
+    log_debug!("[SDB::ConfigLoader] Entering load_master_configs() function.");
     // Attempt to read the contents of the main `config.yaml` file.
     let main_cfg_content = match fs::read_to_string(config_path_resolved) {
         Ok(c) => c, // Successfully read the file.
@@ -167,7 +167,7 @@ pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
             // If the main config file cannot be read (e.g., not found, permissions),
             // this is a critical error, so log and exit the application.
             log_error!(
-                "Failed to read main config.yaml at {}: {}. Please ensure the file exists and is readable.",
+                "[SDB::ConfigLoader] Failed to read main config.yaml at {}: {}. Please ensure the file exists and is readable.",
                 config_path_resolved.display().to_string().red(),
                 e
             );
@@ -182,7 +182,7 @@ pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
             // If parsing fails (e.g., invalid YAML syntax in main config),
             // this is also a critical error, so log and exit.
             log_error!(
-                "Failed to parse main config.yaml at {}: {}. Please check your YAML syntax for errors.",
+                "[SDB::ConfigLoader] Failed to parse main config.yaml at {}: {}. Please check your YAML syntax for errors.",
                 config_path_resolved.display().to_string().red(),
                 e
             );
@@ -191,7 +191,7 @@ pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
     };
     // log_debug!("MainConfig loaded: Tools: {}, Fonts: {}, Shell: {} and Settings: {}", main_cfg.fonts.as_deref()); // Log the loaded MainConfig for debugging.
     log_debug!(
-        "MainConfig loaded:
+        "[SDB::ConfigLoader] MainConfig loaded:
         Tools config: {},
         Settings config: {},
         Shell config: {},
@@ -213,7 +213,7 @@ pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
         load_individual_config(main_cfg.shellrc.as_ref(), "shell config", "[Shell Config]");
     let fonts_config = load_individual_config(main_cfg.fonts.as_ref(), "fonts", "[Fonts]");
 
-    log_debug!("Exiting load_master_configs() function.");
+    log_debug!("[SDB::ConfigLoader] Exiting load_master_configs() function.");
     // Return the `ParsedConfigs` struct containing all loaded sub-configurations.
     ParsedConfigs {
         tools: tools_config,
@@ -244,14 +244,14 @@ pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
 ///   The function will `std::process::exit(1)` if the single config
 ///   cannot be loaded or is of an unsupported type.
 pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str) -> ParsedConfigs {
-    log_debug!("Entering load_single_config() function.");
+    log_debug!("[SDB::ConfigLoader] Entering load_single_config() function.");
     // Inform the user that a single config file is being loaded.
     log_info!(
-        "Loading configuration from single file: {}",
+        "[SDB] Loading configuration from single file: {}",
         config_path_resolved.display().to_string().blue()
     );
     log_debug!(
-        "Attempting to load configuration directly from: {}",
+        "[SDB::ConfigLoader] Attempting to load configuration directly from: {}",
         config_path_resolved.display()
     );
 
@@ -261,7 +261,7 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
         Err(e) => {
             // If the file cannot be read, it's a critical error for single config mode.
             log_error!(
-                "Failed to read single config file {}: {}. Please check its existence and permissions.",
+                "[SDB::ConfigLoader] Failed to read single config file {}: {}. Please check its existence and permissions.",
                 config_path_resolved.display().to_string().red(),
                 e
             );
@@ -281,29 +281,29 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
     // Match the `config_filename` to determine which type of configuration to parse it as.
     match config_filename {
         "tools.yaml" => {
-            log_debug!("Identified as tools.yaml. Attempting to parse...");
+            log_debug!("[SDB::ConfigLoader] Identified as tools.yaml. Attempting to parse...");
             // Attempt to deserialize as `ToolConfig`.
             parsed_configs.tools = match serde_yaml::from_str(&contents) {
                 Ok(cfg) => {
-                    log_info!("[Tools] Successfully parsed tools.yaml.");
+                    log_info!("[SDB::Tools] Successfully parsed tools.yaml.");
                     Some(cfg)
                 }
                 Err(e) => {
-                    log_error!("Failed to parse tools.yaml: {}", e);
+                    log_error!("[SDB::ConfigLoader] Failed to parse tools.yaml: {}", e);
                     None
                 }
             }
         }
         "settings.yaml" => {
-            log_debug!("Identified as settings.yaml. Attempting to parse...");
+            log_debug!("[SDB::ConfigLoader] Identified as settings.yaml. Attempting to parse...");
             // Attempt to deserialize as `SettingsConfig`.
             parsed_configs.settings = match serde_yaml::from_str(&contents) {
                 Ok(cfg) => {
-                    log_info!("[Settings] Successfully parsed settings.yaml.");
+                    log_info!("[SDB::Settings] Successfully parsed settings.yaml.");
                     Some(cfg)
                 }
                 Err(e) => {
-                    log_error!("Failed to parse settings.yaml: {}", e);
+                    log_error!("[SDB::ConfigLoader] Failed to parse settings.yaml: {}", e);
                     None
                 }
             }
@@ -314,11 +314,11 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
             // Attempt to deserialize as `ShellConfig`.
             parsed_configs.shell = match serde_yaml::from_str(&contents) {
                 Ok(cfg) => {
-                    log_info!("[ShellRC] Successfully parsed shell config.");
+                    log_info!("[[SDB::ShellCofig] Successfully parsed shell config.");
                     Some(cfg)
                 }
                 Err(e) => {
-                    log_error!("Failed to parse shell config: {}", e);
+                    log_error!("[SDB::ConfigLoader] Failed to parse shell config: {}", e);
                     None
                 }
             }
@@ -328,11 +328,11 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
             // Attempt to deserialize as `FontConfig`.
             parsed_configs.fonts = match serde_yaml::from_str(&contents) {
                 Ok(cfg) => {
-                    log_info!("[Fonts] Successfully parsed fonts.yaml.");
+                    log_info!("[SDB::Fonts] Successfully parsed fonts.yaml.");
                     Some(cfg)
                 }
                 Err(e) => {
-                    log_error!("Failed to parse fonts.yaml: {}", e);
+                    log_error!("[SDB::ConfigLoader] Failed to parse fonts.yaml: {}", e);
                     None
                 }
             }
@@ -340,12 +340,12 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
         other => {
             // If the filename does not match any recognized single config type, it's an error.
             log_error!(
-                "Unsupported single config file type: '{}'. Expected 'tools.yaml', 'settings.yaml', 'shellrc.yaml', or 'fonts.yaml'.",
+                "[SDB::ConfigLoader] Unsupported single config file type: '{}'. Expected 'tools.yaml', 'settings.yaml', 'shellrc.yaml', or 'fonts.yaml'.",
                 other.red()
             );
             std::process::exit(1); // Exit the application due to an unhandled config type.
         }
     }
-    log_debug!("Exiting load_single_config() function.");
+    log_debug!("[SDB::ConfigLoader] Exiting single config loader function.");
     parsed_configs // Return the populated `ParsedConfigs`.
 }

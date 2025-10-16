@@ -35,11 +35,11 @@ use crate::schemas::path_resolver::PathResolver;
 /// * `config_path`: Optional custom path to `config.yaml` or a single config file.
 /// * `state_path`: Optional custom path to `state.json`.
 pub fn run(paths: &PathResolver, update_latest: bool) {
-    log_debug!("Entered now::run() function.");
+    log_debug!("[SDB] Entered now::run() function.");
 
     if update_latest {
         log_info!(
-            "'{}' flag is set, forcing update of all `latest` version tools",
+            "[SDB] '{}' flag is set, forcing update of all `latest` version tools",
             "Update latest".bright_yellow()
         );
     }
@@ -50,11 +50,14 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
     let state_path_resolved = paths.state_file();
 
     log_debug!(
-        "[Now] Using config file: {}",
+        "[SDB::Now] Using config file: {}",
         config_path_resolved.display()
     );
-    log_debug!("[Now] Config filename: {}", config_filename);
-    log_debug!("[Now] Using state file: {}", state_path_resolved.display());
+    log_debug!("[SDB::Now] Config filename: {}", config_filename);
+    log_debug!(
+        "[SDB::Now] Using state file: {}",
+        state_path_resolved.display()
+    );
 
     // Load existing application state or initialize a new one.
     let mut state: DevBoxState =
@@ -79,7 +82,7 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
         ); // Add paths
     } else {
         log_debug!(
-            "[Tools] No tool configurations found (tools.yaml missing or empty). Skipping tool installation phase."
+            "[SDB::Now] No tool configurations found (tools.yaml missing or empty). Skipping tool installation phase."
         );
     }
 
@@ -88,7 +91,7 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
         install_fonts(fonts_cfg, &mut state, &state_path_resolved.to_path_buf());
     } else {
         log_debug!(
-            "[Fonts] No font configurations found (fonts.yaml missing or empty). Skipping font installation phase."
+            "[SDB::Now] No font configurations found (fonts.yaml missing or empty). Skipping font installation phase."
         );
     }
 
@@ -97,7 +100,7 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
         apply_shell_configs(shell_cfg);
     } else {
         log_debug!(
-            "[Shell Config] No shell configurations found (shellrc.yaml missing or empty). Skipping shell configuration phase."
+            "[SDB::Now] No shell configurations found (shellrc.yaml missing or empty). Skipping shell configuration phase."
         );
     }
 
@@ -106,10 +109,13 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
         apply_system_settings(settings_cfg, &mut state, &state_path_resolved.to_path_buf());
     } else {
         log_debug!(
-            "[Settings] No system settings configurations found (settings.yaml missing or empty). Skipping settings application phase."
+            "[SDB::Now] No system settings configurations found (settings.yaml missing or empty). Skipping settings application phase."
         );
     }
 
-    log_info!("'{}' command completed!!", "setup-devbox now".cyan());
-    log_debug!("Exited now::run() function.");
+    log_info!(
+        "[SDB::Now] '{}' command completed!!",
+        "setup-devbox now".cyan()
+    );
+    log_debug!("[SDB::Now] Exited now::run() function.");
 }

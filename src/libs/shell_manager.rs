@@ -350,7 +350,7 @@ pub fn add_section_header(lines: &mut Vec<String>, section: &ConfigSection) {
 
     lines.insert(insert_pos, create_section_header(section));
     log_debug!(
-        "[Shell Config] Created {} section",
+        "[SDB::Shell::ShellConfigurator] Created {} section",
         section_header_name(section).cyan()
     );
 }
@@ -364,7 +364,7 @@ pub fn log_section_stats(section_stats: &HashMap<ConfigSection, u32>) {
     for (section, added) in section_stats {
         if *added > 0 {
             log_info!(
-                "[Shell Config] {} section: {} added",
+                "[SDB::Shell::ShellConfigurator] {} section: {} added",
                 section_header_name(section).cyan(),
                 added.to_string().cyan()
             );

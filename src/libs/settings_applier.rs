@@ -51,8 +51,8 @@ pub fn apply_system_settings(
     eprintln!("\n");
     eprintln!("{}:", "OS Settings".bright_yellow().bold());
     println!("{}\n", "=".repeat(12).bright_yellow());
-    log_info!("[OS Settings] Applying System Settings...");
-    log_debug!("Entering apply_system_settings() function.");
+    log_info!("[SDB::OsSettings] Applying System Settings...");
+    log_debug!("[SDB::OsSettings] Entering apply_system_settings() function.");
 
     let mut settings_updated_in_session = false;
 
@@ -65,7 +65,7 @@ pub fn apply_system_settings(
             let setting_type = entry.value_type;
 
             log_debug!(
-                "[OS Settings] Considering setting: {} = {} (type: {})",
+                "[SDB::OsSettings] Considering setting: {} = {} (type: {})",
                 full_key.bold(),
                 desired_value.blue(),
                 setting_type.cyan()
@@ -75,7 +75,7 @@ pub fn apply_system_settings(
                 s_state.value == desired_value && s_state.value_type == setting_type
             }) {
                 log_info!(
-                    "[OS Settings] Attempting to apply setting: {} = {} (type: {})",
+                    "[SDB::OsSettings] Attempting to apply setting: {} = {} (type: {})",
                     full_key.bold().cyan(),
                     desired_value.yellow(),
                     setting_type.magenta()
@@ -90,7 +90,7 @@ pub fn apply_system_settings(
                     "dict" => "-dict",
                     _ => {
                         log_warn!(
-                            "[OS Settings] Unknown setting type '{}' for key '{}'. Defaulting to '-string'.",
+                            "[SDB::OsSettings] Unknown setting type '{}' for key '{}'. Defaulting to '-string'.",
                             setting_type.yellow(),
                             full_key.yellow()
                         );
@@ -123,7 +123,7 @@ pub fn apply_system_settings(
                                 match (split.next(), split.next()) {
                                     (Some(k), Some(v)) => vec![k.trim().to_string(), v.trim().to_string()],
                                     _ => {
-                                        log_warn!("[OS Settings] Malformed dictionary entry: '{}'. Skipping.", pair.yellow());
+                                        log_warn!("[SDB::OsSettings] Malformed dictionary entry: '{}'. Skipping.", pair.yellow());
                                         vec![]
                                     }
                                 }
@@ -140,7 +140,7 @@ pub fn apply_system_settings(
                     Ok(out) => out,
                     Err(e) => {
                         log_error!(
-                            "[OS Settings] Could not execute 'defaults' command for setting '{}'. Error: {}",
+                            "[SDB::OsSettings] Could not execute 'defaults' command for setting '{}'. Error: {}",
                             full_key.bold().red(),
                             e.to_string().red()
                         );
@@ -150,7 +150,7 @@ pub fn apply_system_settings(
 
                 if output.status.success() {
                     log_info!(
-                        "[OS Settings] Successfully applied '{}' to domain '{}'.",
+                        "[SDB::OsSettings] Successfully applied '{}' to domain '{}'.",
                         entry.key,
                         entry.domain
                     );
@@ -167,7 +167,7 @@ pub fn apply_system_settings(
                 } else {
                     let stderr = String::from_utf8_lossy(&output.stderr);
                     log_error!(
-                        "[OS Settings] Failed to apply setting '{}' (Domain: '{}', Key: '{}'). Exit code: {}. Error: {}",
+                        "[SDB::OsSettings] Failed to apply setting '{}' (Domain: '{}', Key: '{}'). Exit code: {}. Error: {}",
                         full_key.bold().red(),
                         entry.domain.red(),
                         entry.key.red(),
@@ -176,14 +176,14 @@ pub fn apply_system_settings(
                     );
                     if !output.stdout.is_empty() {
                         log_debug!(
-                            "[OS Settings] Stdout (on failure): {}",
+                            "[SDB::OsSettings] Stdout (on failure): {}",
                             String::from_utf8_lossy(&output.stdout)
                         );
                     }
                 }
             } else {
                 log_debug!(
-                    "[OS Settings] Setting '{}' already matches desired value. Skipping application.",
+                    "[SDB::OsSettings] Setting '{}' already matches desired value. Skipping application.",
                     full_key.blue()
                 );
             }
@@ -201,7 +201,7 @@ pub fn apply_system_settings(
             let setting_type = entry.value_type;
 
             log_debug!(
-                "[OS Settings] Considering setting: {} = {} (type: {})",
+                "[SDB::OsSettings] Considering setting: {} = {} (type: {})",
                 full_key.bold(),
                 desired_value.blue(),
                 setting_type.cyan()
@@ -211,7 +211,7 @@ pub fn apply_system_settings(
                 s_state.value == desired_value && s_state.value_type == setting_type
             }) {
                 log_info!(
-                    "[OS Settings] Attempting to apply setting: {} = {} (type: {})",
+                    "[SDB::OsSettings] Attempting to apply setting: {} = {} (type: {})",
                     full_key.bold().cyan(),
                     desired_value.yellow(),
                     setting_type.magenta()
@@ -234,7 +234,7 @@ pub fn apply_system_settings(
                     }
                     _ => {
                         log_warn!(
-                            "[OS Settings] Unknown setting type '{}' for key '{}'. Defaulting to string.",
+                            "[SDB::OsSettings] Unknown setting type '{}' for key '{}'. Defaulting to string.",
                             setting_type.yellow(),
                             full_key.yellow()
                         );
@@ -253,7 +253,7 @@ pub fn apply_system_settings(
                     Ok(out) => out,
                     Err(e) => {
                         log_error!(
-                            "[OS Settings] Could not execute 'gsettings' command for setting '{}'. Error: {}",
+                            "[SDB::OsSettings] Could not execute 'gsettings' command for setting '{}'. Error: {}",
                             full_key.bold().red(),
                             e.to_string().red()
                         );
@@ -283,7 +283,7 @@ pub fn apply_system_settings(
                 } else {
                     let stderr = String::from_utf8_lossy(&output.stderr);
                     log_error!(
-                        "[OS Settings] Failed to apply setting '{}' (Domain: '{}', Key: '{}'). Exit code: {}. Error: {}",
+                        "[SDB::OsSettings] Failed to apply setting '{}' (Domain: '{}', Key: '{}'). Exit code: {}. Error: {}",
                         full_key.bold().red(),
                         entry.domain.red(),
                         entry.key.red(),
@@ -292,14 +292,14 @@ pub fn apply_system_settings(
                     );
                     if !output.stdout.is_empty() {
                         log_debug!(
-                            "[OS Settings] Stdout (on failure): {}",
+                            "[SDB::OsSettings] Stdout (on failure): {}",
                             String::from_utf8_lossy(&output.stdout)
                         );
                     }
                 }
             } else {
                 log_debug!(
-                    "[OS Settings] Setting '{}' already matches desired value. Skipping application.",
+                    "[SDB::OsSettings] Setting '{}' already matches desired value. Skipping application.",
                     full_key.blue()
                 );
             }
@@ -319,7 +319,7 @@ pub fn apply_system_settings(
     {
         if !settings_cfg.settings.linux.is_empty() {
             log_warn!(
-                "[OS Settings] Linux specific settings were found in config but this is a macOS system. Skipping Linux settings."
+                "[SDB::OsSettings] Linux specific settings were found in config but this is a macOS system. Skipping Linux settings."
             );
         }
     }
@@ -328,7 +328,7 @@ pub fn apply_system_settings(
     {
         if !settings_cfg.settings.macos.is_empty() {
             log_warn!(
-                "[OS Settings] macOS specific settings were found in config but this is a Linux system. Skipping macOS settings."
+                "[SDB::OsSettings] macOS specific settings were found in config but this is a Linux system. Skipping macOS settings."
             );
         }
     }
@@ -336,21 +336,21 @@ pub fn apply_system_settings(
     // Save state if any settings were updated
     if settings_updated_in_session {
         log_info!(
-            "[OS Settings] One or more settings were applied or updated. Saving current DevBox state..."
+            "[SDB::OsSettings] One or more settings were applied or updated. Saving current DevBox state..."
         );
         if !save_devbox_state(state, state_path_resolved) {
             log_error!(
-                "[StateSave] Failed to save state after settings application. Data loss risk!"
+                "[SDB::StateSave] Failed to save state after settings application. Data loss risk!"
             );
         } else {
-            log_info!("[StateSave] State saved successfully after settings updates.");
+            log_info!("[SDB::StateSave] State saved successfully after settings updates.");
         }
     } else {
         log_info!(
-            "[OS Settings] No new settings applied or state changes detected for settings in this run."
+            "[SDB::OsSettings] No new settings applied or state changes detected for settings in this run."
         );
     }
 
     eprintln!();
-    log_debug!("Exiting apply_system_settings() function.");
+    log_debug!("[SDB::OsSettings] Exiting apply_system_settings() function.");
 }

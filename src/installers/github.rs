@@ -141,10 +141,13 @@ use crate::{log_debug, log_error, log_info};
 /// ```
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_info!(
-        "[GitHub Installer] Attempting to install tool: {}",
+        "[SDB::Tools::GitHubInstaller] Attempting to install tool: {}",
         tool_entry.name.bold()
     );
-    log_debug!("[GitHub Installer] ToolEntry details: {:#?}", tool_entry);
+    log_debug!(
+        "[SDB::Tools::GitHubInstaller] ToolEntry details: {:#?}",
+        tool_entry
+    );
 
     // Step 1: Detect platform (OS and architecture) for asset selection
     let (os, arch) = detect_platform()?;
@@ -153,16 +156,16 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     let (repo, tag) = validate_github_configuration(tool_entry)?;
 
     // Step 3: Fetch release information from GitHub API
-    log_debug!("[GitHub Installer] Fetching release information for {repo}/{tag}");
+    log_debug!("[SDB::Tools::GitHubInstaller] Fetching release information for {repo}/{tag}");
     let release = fetch_github_release(repo, tag)?;
 
     // Step 4: Select appropriate asset for the detected platform
-    log_debug!("[GitHub Installer] Selecting asset for {os}-{arch}");
+    log_debug!("[SDB::Tools::GitHubInstaller] Selecting asset for {os}-{arch}");
     let asset = select_platform_asset(&release, &os, &arch)?;
 
     // Step 5: Download asset to temporary location
     log_debug!(
-        "[GitHub Installer] Downloading asset: {}",
+        "[SDB::Tools::GitHubInstaller] Downloading asset: {}",
         asset.name.bold()
     );
     let (temp_dir, downloaded_path) =
@@ -171,7 +174,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // Step 6: Detect file type and determine installation strategy
     let file_type = detect_file_type(&downloaded_path);
     log_debug!(
-        "[GitHub Installer] Detected file type: {}",
+        "[SDB::Tools::GitHubInstaller] Detected file type: {}",
         file_type.to_string().magenta()
     );
 
@@ -181,14 +184,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 
     // Step 8: Execute any post-installation hooks defined in tool configuration
     log_debug!(
-        "[GitHub Installer] Executing post-installation hooks for {}",
+        "[SDB::Tools::GitHubInstaller] Executing post-installation hooks for {}",
         tool_entry.name.bold()
     );
     let executed_post_installation_hooks =
-        execute_post_installation_hooks("[GitHub Installer]", tool_entry, &working_dir);
+        execute_post_installation_hooks("[SDB::Tools::GitHubInstaller]", tool_entry, &working_dir);
 
     log_info!(
-        "[GitHub Installer] Successfully installed tool: {} (version: {})",
+        "[SDB::Tools::GitHubInstaller] Successfully installed tool: {} (version: {})",
         tool_entry.name.bold().green(),
         tag.green()
     );
@@ -228,18 +231,18 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 fn detect_platform() -> Option<(String, String)> {
     // Detect operating system (darwin, linux, windows, etc.)
     let os = detect_os().or_else(|| {
-        log_error!("[GitHub Installer] Unable to detect operating system");
+        log_error!("[SDB::Tools::GitHubInstaller] Unable to detect operating system");
         None
     })?;
 
     // Detect CPU architecture (x86_64, arm64, aarch64, etc.)
     let arch = detect_architecture().or_else(|| {
-        log_error!("[GitHub Installer] Unable to detect architecture");
+        log_error!("[SDB::Tools::GitHubInstaller] Unable to detect architecture");
         None
     })?;
 
     log_info!(
-        "[GitHub Installer] Detected platform: {}{}{}",
+        "[SDB::Tools::GitHubInstaller] Detected platform: {}{}{}",
         os.green(),
         "-".green(),
         arch.green()
@@ -271,11 +274,11 @@ fn validate_github_configuration(tool_entry: &ToolEntry) -> Option<(&String, &St
     // Verify repository field is present
     let repo = tool_entry.repo.as_ref().or_else(|| {
         log_error!(
-            "[GitHub Installer] Configuration error: 'repo' field is missing for tool {}",
+            "[SDB::Tools::GitHubInstaller] Configuration error: 'repo' field is missing for tool {}",
             tool_entry.name.red()
         );
         log_error!(
-            "[GitHub Installer] Expected format: 'repo: owner/repository' (e.g., 'repo: cli/cli')"
+            "[SDB::Tools::GitHubInstaller] Expected format: 'repo: owner/repository' (e.g., 'repo: cli/cli')"
         );
         None
     })?;
@@ -283,10 +286,10 @@ fn validate_github_configuration(tool_entry: &ToolEntry) -> Option<(&String, &St
     // Verify tag field is present
     let tag = tool_entry.tag.as_ref().or_else(|| {
         log_error!(
-            "[GitHub Installer] Configuration error: 'tag' field is missing for tool {}",
+            "[SDB::Tools::GitHubInstaller] Configuration error: 'tag' field is missing for tool {}",
             tool_entry.name.red()
         );
-        log_error!("[GitHub Installer] Expected format: 'tag: v1.0.0' or 'tag: 1.0.0'");
+        log_error!("[SDB::Tools::GitHubInstaller] Expected format: 'tag: v1.0.0' or 'tag: 1.0.0'");
         None
     })?;
 
@@ -326,20 +329,20 @@ fn validate_github_configuration(tool_entry: &ToolEntry) -> Option<(&String, &St
 fn fetch_github_release(repo: &str, tag: &str) -> Option<Release> {
     // Construct GitHub API URL for the specific release
     let api_url = format!("https://api.github.com/repos/{repo}/releases/tags/{tag}");
-    log_debug!("[GitHub Installer] API URL: {}", api_url.blue());
+    log_debug!("[SDB::Tools::GitHubInstaller] API URL: {}", api_url.blue());
 
     // Make HTTP GET request with required User-Agent header
     let response = match ureq::get(&api_url).set("User-Agent", "setup-devbox").call() {
         Ok(resp) => resp,
         Err(e) => {
             log_error!(
-                "[GitHub Installer] Failed to fetch GitHub release for {}/{}: {}",
+                "[SDB::Tools::GitHubInstaller] Failed to fetch GitHub release for {}/{}: {}",
                 repo.red(),
                 tag.red(),
                 e
             );
             log_error!(
-                "[GitHub Installer] This could be due to network issues, invalid repo/tag, or rate limiting"
+                "[SDB::Tools::GitHubInstaller] This could be due to network issues, invalid repo/tag, or rate limiting"
             );
             return None;
         }
@@ -348,7 +351,7 @@ fn fetch_github_release(repo: &str, tag: &str) -> Option<Release> {
     // Check for HTTP error status codes (4xx, 5xx)
     if response.status() >= 400 {
         log_error!(
-            "[GitHub Installer] GitHub API error (HTTP {}) for {}/{}",
+            "[SDB::Tools::GitHubInstaller] GitHub API error (HTTP {}) for {}/{}",
             response.status(),
             repo.red(),
             tag.red()
@@ -357,10 +360,10 @@ fn fetch_github_release(repo: &str, tag: &str) -> Option<Release> {
         // Provide helpful context for common error codes
         match response.status() {
             404 => log_error!(
-                "[GitHub Installer] Release not found. Verify the repository and tag are correct."
+                "[SDB::Tools::GitHubInstaller] Release not found. Verify the repository and tag are correct."
             ),
             403 => log_error!(
-                "[GitHub Installer] Rate limit exceeded or access forbidden. Consider authenticating for higher limits."
+                "[SDB::Tools::GitHubInstaller] Rate limit exceeded or access forbidden. Consider authenticating for higher limits."
             ),
             _ => {}
         }
@@ -372,7 +375,7 @@ fn fetch_github_release(repo: &str, tag: &str) -> Option<Release> {
         Ok(release) => Some(release),
         Err(err) => {
             log_error!(
-                "[GitHub Installer] Failed to parse GitHub release JSON for {}/{}: {}",
+                "[SDB::Tools::GitHubInstaller] Failed to parse GitHub release JSON for {}/{}: {}",
                 repo.red(),
                 tag.red(),
                 err
@@ -430,16 +433,16 @@ fn select_platform_asset<'a>(
     if matching_assets.is_empty() {
         let available_assets: Vec<String> = release.assets.iter().map(|a| a.name.clone()).collect();
         log_error!(
-            "[GitHub Installer] No suitable asset found for platform {}-{}.",
+            "[SDB::Tools::GitHubInstaller] No suitable asset found for platform {}-{}.",
             os.red(),
             arch.red()
         );
         log_error!(
-            "[GitHub Installer] Available assets: {}",
+            "[SDB::Tools::GitHubInstaller] Available assets: {}",
             available_assets.join(", ").yellow()
         );
         log_error!(
-            "[GitHub Installer] This release may not support your platform, or asset naming doesn't match expected patterns"
+            "[SDB::Tools::GitHubInstaller] This release may not support your platform, or asset naming doesn't match expected patterns"
         );
         return None;
     }
@@ -460,7 +463,7 @@ fn select_platform_asset<'a>(
     // Select the first (highest priority) asset after sorting
     let selected_asset = matching_assets.first().unwrap();
     log_debug!(
-        "[GitHub Installer] Selected asset: {}",
+        "[SDB::Tools::GitHubInstaller] Selected asset: {}",
         selected_asset.name.bold()
     );
 

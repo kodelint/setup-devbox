@@ -108,14 +108,20 @@ impl PipVariant {
 /// ```
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_info!(
-        "[Pip Installer] Attempting to install Python package: {}",
+        "[SDB::Tools::PipInstaller] Attempting to install Python package: {}",
         tool_entry.name.bold()
     );
-    log_debug!("[Pip Installer] ToolEntry details: {:#?}", tool_entry);
+    log_debug!(
+        "[SDB::Tools::PipInstaller] ToolEntry details: {:#?}",
+        tool_entry
+    );
 
     // 1. Detect and validate pip executable
     let pip_variant = detect_pip_variant()?;
-    log_debug!("[Pip Installer] Using pip variant: {:?}", pip_variant);
+    log_debug!(
+        "[SDB::Tools::PipInstaller] Using pip variant: {:?}",
+        pip_variant
+    );
 
     // 2. Validate package configuration
     if !validate_package_configuration(tool_entry) {
@@ -125,18 +131,20 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // 3. Determine installation mode (user vs system)
     let is_user_install = detect_installation_mode(tool_entry);
     log_debug!(
-        "[Pip Installer] Installation mode: {}",
+        "[SDB::Tools::PipInstaller] Installation mode: {}",
         if is_user_install { "user" } else { "system" }.cyan()
     );
 
     // 4. Check if package is already installed (optimization)
     if check_package_already_installed(&tool_entry.name, &pip_variant) {
         log_info!(
-            "[Pip Installer] Package '{}' appears to be already installed",
+            "[SDB::Tools::PipInstaller] Package '{}' appears to be already installed",
             tool_entry.name.green()
         );
         // Continue with installation to ensure correct version and options
-        log_debug!("[Pip Installer] Proceeding with installation to ensure correct version");
+        log_debug!(
+            "[SDB::Tools::PipInstaller] Proceeding with installation to ensure correct version"
+        );
     }
 
     // 5. Prepare and execute pip install command
@@ -154,14 +162,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     let install_path =
         determine_pip_installation_path(&tool_entry.name, is_user_install, &pip_variant);
     log_debug!(
-        "[Pip Installer] Determined installation path: {}",
+        "[SDB::Tools::PipInstaller] Determined installation path: {}",
         install_path.display().to_string().cyan()
     );
 
     // 8. Verify binary/package exists at expected path
     if !verify_package_accessible(&tool_entry.name, &pip_variant) {
         log_error!(
-            "[Pip Installer] Package '{}' is not accessible after installation",
+            "[SDB::Tools::PipInstaller] Package '{}' is not accessible after installation",
             tool_entry.name.red()
         );
         return None;
@@ -185,7 +193,7 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         });
 
     log_info!(
-        "[Pip Installer] Successfully installed Python package: {} (version: {})",
+        "[SDB::Tools::PipInstaller] Successfully installed Python package: {} (version: {})",
         tool_entry.name.bold().green(),
         actual_version.green()
     );
@@ -211,13 +219,13 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 fn detect_pip_variant() -> Option<PipVariant> {
     // Try pip3 first (preferred for Python 3)
     if Command::new("pip3").arg("--version").output().is_ok() {
-        log_debug!("[Pip Installer] Found pip3");
+        log_debug!("[SDB::Tools::PipInstaller] Found pip3");
         return Some(PipVariant::Pip3);
     }
 
     // Try pip
     if Command::new("pip").arg("--version").output().is_ok() {
-        log_debug!("[Pip Installer] Found pip");
+        log_debug!("[SDB::Tools::PipInstaller] Found pip");
         return Some(PipVariant::Pip);
     }
 
@@ -227,7 +235,7 @@ fn detect_pip_variant() -> Option<PipVariant> {
         .output()
         .is_ok()
     {
-        log_debug!("[Pip Installer] Found python3 -m pip");
+        log_debug!("[SDB::Tools::PipInstaller] Found python3 -m pip");
         return Some(PipVariant::Python3Module);
     }
 
@@ -237,12 +245,12 @@ fn detect_pip_variant() -> Option<PipVariant> {
         .output()
         .is_ok()
     {
-        log_debug!("[Pip Installer] Found python -m pip");
+        log_debug!("[SDB::Tools::PipInstaller] Found python -m pip");
         return Some(PipVariant::PythonModule);
     }
 
     log_error!(
-        "[Pip Installer] No pip executable found. Please ensure Python and pip are installed and in your PATH."
+        "[SDB::Tools::PipInstaller] No pip executable found. Please ensure Python and pip are installed and in your PATH."
     );
     None
 }
@@ -251,7 +259,7 @@ fn detect_pip_variant() -> Option<PipVariant> {
 fn validate_package_configuration(tool_entry: &ToolEntry) -> bool {
     // Validate package name
     if tool_entry.name.trim().is_empty() {
-        log_error!("[Pip Installer] Package name cannot be empty");
+        log_error!("[SDB::Tools::PipInstaller] Package name cannot be empty");
         return false;
     }
 
@@ -261,7 +269,7 @@ fn validate_package_configuration(tool_entry: &ToolEntry) -> bool {
         .contains(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_' && c != '.')
     {
         log_error!(
-            "[Pip Installer] Invalid package name '{}'. Package names should only contain alphanumeric characters, hyphens, underscores, and periods.",
+            "[SDB::Tools::PipInstaller] Invalid package name '{}'. Package names should only contain alphanumeric characters, hyphens, underscores, and periods.",
             tool_entry.name.red()
         );
         return false;
@@ -270,7 +278,7 @@ fn validate_package_configuration(tool_entry: &ToolEntry) -> bool {
     // Validate version format if specified
     if let Some(version) = &tool_entry.version {
         if version.trim().is_empty() {
-            log_warn!("[Pip Installer] Empty version specified, using latest available");
+            log_warn!("[SDB::Tools::PipInstaller] Empty version specified, using latest available");
         }
     }
 
@@ -293,7 +301,7 @@ fn check_package_already_installed(package_name: &str, pip_variant: &PipVariant)
     match Command::new(command).args(&args).output() {
         Ok(output) if output.status.success() => {
             log_debug!(
-                "[Pip Installer] Package '{}' is already installed",
+                "[SDB::Tools::PipInstaller] Package '{}' is already installed",
                 package_name
             );
             true
@@ -302,13 +310,13 @@ fn check_package_already_installed(package_name: &str, pip_variant: &PipVariant)
             // pip show returns non-zero exit code if package is not installed
             if output.status.code() == Some(1) {
                 log_debug!(
-                    "[Pip Installer] Package '{}' is not installed",
+                    "[SDB::Tools::PipInstaller] Package '{}' is not installed",
                     package_name
                 );
                 false
             } else {
                 log_warn!(
-                    "[Pip Installer] Could not check package status. Exit code: {}. Error: {}",
+                    "[SDB::Tools::PipInstaller] Could not check package status. Exit code: {}. Error: {}",
                     output.status.code().unwrap_or(-1),
                     String::from_utf8_lossy(&output.stderr)
                 );
@@ -317,7 +325,7 @@ fn check_package_already_installed(package_name: &str, pip_variant: &PipVariant)
         }
         Err(e) => {
             log_warn!(
-                "[Pip Installer] Failed to check package installation status: {}",
+                "[SDB::Tools::PipInstaller] Failed to check package installation status: {}",
                 e
             );
             false
@@ -350,14 +358,17 @@ fn prepare_pip_install_command(tool_entry: &ToolEntry, pip_variant: &PipVariant)
 
     // Add any additional options
     if let Some(options) = &tool_entry.options {
-        log_debug!("[Pip Installer] Adding custom options: {:#?}", options);
+        log_debug!(
+            "[SDB::Tools::PipInstaller] Adding custom options: {:#?}",
+            options
+        );
         for opt in options {
             command_args.push(opt.clone());
         }
     }
 
     log_debug!(
-        "[Pip Installer] Prepared command arguments: {} {}",
+        "[SDB::Tools::PipInstaller] Prepared command arguments: {} {}",
         pip_variant.command().cyan().bold(),
         command_args.join(" ").cyan()
     );
@@ -372,7 +383,7 @@ fn execute_pip_install_command(
     tool_entry: &ToolEntry,
 ) -> bool {
     log_debug!(
-        "[Pip Installer] Executing: {} {}",
+        "[SDB::Tools::PipInstaller] Executing: {} {}",
         pip_variant.command().cyan().bold(),
         command_args.join(" ").cyan()
     );
@@ -383,20 +394,20 @@ fn execute_pip_install_command(
     {
         Ok(output) if output.status.success() => {
             log_info!(
-                "[Pip Installer] Successfully installed package: {}",
+                "[SDB::Tools::PipInstaller] Successfully installed package: {}",
                 tool_entry.name.bold().green()
             );
 
             // Log output for debugging
             if !output.stdout.is_empty() {
                 log_debug!(
-                    "[Pip Installer] Stdout: {}",
+                    "[SDB::Tools::PipInstaller] Stdout: {}",
                     String::from_utf8_lossy(&output.stdout)
                 );
             }
             if !output.stderr.is_empty() {
                 log_warn!(
-                    "[Pip Installer] Stderr (may contain warnings): {}",
+                    "[SDB::Tools::PipInstaller] Stderr (may contain warnings): {}",
                     String::from_utf8_lossy(&output.stderr)
                 );
             }
@@ -404,7 +415,7 @@ fn execute_pip_install_command(
         }
         Ok(output) => {
             log_error!(
-                "[Pip Installer] Failed to install package '{}'. Exit code: {}. Error: {}",
+                "[SDB::Tools::PipInstaller] Failed to install package '{}'. Exit code: {}. Error: {}",
                 tool_entry.name.bold().red(),
                 output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr).red()
@@ -412,7 +423,7 @@ fn execute_pip_install_command(
 
             if !output.stdout.is_empty() {
                 log_debug!(
-                    "[Pip Installer] Stdout (on failure): {}",
+                    "[SDB::Tools::PipInstaller] Stdout (on failure): {}",
                     String::from_utf8_lossy(&output.stdout)
                 );
             }
@@ -420,7 +431,7 @@ fn execute_pip_install_command(
         }
         Err(e) => {
             log_error!(
-                "[Pip Installer] Failed to execute 'pip install' for '{}': {}",
+                "[SDB::Tools::PipInstaller] Failed to execute 'pip install' for '{}': {}",
                 tool_entry.name.bold().red(),
                 e.to_string().red()
             );
@@ -441,7 +452,7 @@ fn verify_pip_installation(package_name: &str, pip_variant: &PipVariant) -> bool
         return false;
     }
 
-    log_debug!("[Pip Installer] Installation verification completed successfully");
+    log_debug!("[SDB::Tools::PipInstaller] Installation verification completed successfully");
     true
 }
 
@@ -466,13 +477,13 @@ fn verify_package_in_list(package_name: &str, pip_variant: &PipVariant) -> bool 
 
             if installed_set.contains(&package_name.to_lowercase().as_str()) {
                 log_debug!(
-                    "[Pip Installer] Verified package '{}' is in pip list",
+                    "[SDB::Tools::PipInstaller] Verified package '{}' is in pip list",
                     package_name
                 );
                 true
             } else {
                 log_error!(
-                    "[Pip Installer] Package '{}' not found in installed packages list",
+                    "[SDB::Tools::PipInstaller] Package '{}' not found in installed packages list",
                     package_name.red()
                 );
                 false
@@ -480,7 +491,7 @@ fn verify_package_in_list(package_name: &str, pip_variant: &PipVariant) -> bool 
         }
         Ok(output) => {
             log_warn!(
-                "[Pip Installer] Could not verify installation via pip list. Exit code: {}. Error: {}",
+                "[SDB::Tools::PipInstaller] Could not verify installation via pip list. Exit code: {}. Error: {}",
                 output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr)
             );
@@ -489,7 +500,7 @@ fn verify_package_in_list(package_name: &str, pip_variant: &PipVariant) -> bool 
         }
         Err(e) => {
             log_warn!(
-                "[Pip Installer] Failed to execute installation verification: {}",
+                "[SDB::Tools::PipInstaller] Failed to execute installation verification: {}",
                 e
             );
             // Return true as warning, since verification failure shouldn't block success
@@ -505,14 +516,14 @@ fn verify_package_accessible(package_name: &str, pip_variant: &PipVariant) -> bo
     match Command::new(command).args(&args).output() {
         Ok(output) if output.status.success() => {
             log_debug!(
-                "[Pip Installer] Verified package '{}' is accessible via pip show",
+                "[SDB::Tools::PipInstaller] Verified package '{}' is accessible via pip show",
                 package_name
             );
             true
         }
         Ok(output) => {
             log_error!(
-                "[Pip Installer] Package '{}' not accessible via pip show. Exit code: {}. Error: {}",
+                "[SDB::Tools::PipInstaller] Package '{}' not accessible via pip show. Exit code: {}. Error: {}",
                 package_name.red(),
                 output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr).red()
@@ -521,7 +532,7 @@ fn verify_package_accessible(package_name: &str, pip_variant: &PipVariant) -> bo
         }
         Err(e) => {
             log_error!(
-                "[Pip Installer] Failed to execute package accessibility check: {}",
+                "[SDB::Tools::PipInstaller] Failed to execute package accessibility check: {}",
                 e.to_string().red()
             );
             false
@@ -583,7 +594,9 @@ fn determine_pip_installation_path(
     }
 
     // Final fallback
-    log_warn!("[Pip Installer] Could not determine pip installation path, using system fallback");
+    log_warn!(
+        "[SDB::Tools::PipInstaller] Could not determine pip installation path, using system fallback"
+    );
     PathBuf::from("/usr/local/bin").join(package_name)
 }
 
@@ -608,7 +621,7 @@ fn get_user_installation_path(package_name: &str, pip_variant: &PipVariant) -> O
         if output.status.success() {
             let user_base = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !user_base.is_empty() {
-                log_debug!("[Pip Installer] Found user base: {}", user_base);
+                log_debug!("[SDB::Tools::PipInstaller] Found user base: {}", user_base);
                 return Some(PathBuf::from(user_base).join("bin").join(package_name));
             }
         }
@@ -616,7 +629,7 @@ fn get_user_installation_path(package_name: &str, pip_variant: &PipVariant) -> O
 
     // Fallback to HOME/.local/bin
     if let Ok(home) = env::var("HOME") {
-        log_debug!("[Pip Installer] Using HOME/.local/bin fallback");
+        log_debug!("[SDB::Tools::PipInstaller] Using HOME/.local/bin fallback");
         return Some(
             PathBuf::from(home)
                 .join(".local")
@@ -653,7 +666,7 @@ fn get_system_installation_path(package_name: &str, pip_variant: &PipVariant) ->
                 // Go up from site-packages to find the bin directory
                 if path.pop() && path.pop() && path.pop() {
                     let bin_path = path.join("bin").join(package_name);
-                    log_debug!("[Pip Installer] Found system bin path: {}", bin_path.display());
+                    log_debug!("[SDB::Tools::PipInstaller] Found system bin path: {}", bin_path.display());
                     return Some(bin_path);
                 }
             }
@@ -676,7 +689,7 @@ fn get_common_python_paths(package_name: &str) -> Option<PathBuf> {
     for path in &common_paths {
         if path.exists() {
             log_debug!(
-                "[Pip Installer] Found executable at common path: {}",
+                "[SDB::Tools::PipInstaller] Found executable at common path: {}",
                 path.display()
             );
             return Some(path.clone());

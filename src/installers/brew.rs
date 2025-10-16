@@ -113,19 +113,24 @@ use crate::libs::tool_installer::execute_post_installation_hooks;
 ///
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     log_info!(
-        "[Brew Installer] Attempting to install Homebrew formula: {}",
+        "[SDB::Tools::BrewInstaller] Attempting to install Homebrew formula: {}",
         tool_entry.name.bold()
     );
-    log_debug!("[Brew Installer] ToolEntry details: {:#?}", tool_entry);
+    log_debug!(
+        "[SDB::Tools::BrewInstaller] ToolEntry details: {:#?}",
+        tool_entry
+    );
 
     // 1. Check if formula is already installed (optimization)
     if check_formula_already_installed(&tool_entry.name) {
         log_info!(
-            "[Brew Installer] Formula '{}' appears to be already installed",
+            "[SDB::Tools::BrewInstaller] Formula '{}' appears to be already installed",
             tool_entry.name.green()
         );
         // Continue with installation to ensure correct version and options
-        log_debug!("[Brew Installer] Proceeding with installation to ensure correct version");
+        log_debug!(
+            "[SDB::Tools::BrewInstaller] Proceeding with installation to ensure correct version"
+        );
     }
 
     // 2. Prepare and execute brew install command
@@ -142,14 +147,14 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     // 4. Determine accurate installation path
     let install_path = determine_brew_installation_path(tool_entry);
     log_debug!(
-        "[Brew Installer] Determined installation path: {}",
+        "[SDB::Tools::BrewInstaller] Determined installation path: {}",
         install_path.display().to_string().cyan()
     );
 
     // 5. Verify binary exists at expected path
     if !verify_binary_exists(install_path.clone()) {
         log_error!(
-            "[Brew Installer] Binary not found at expected path: {}",
+            "[SDB::Tools::BrewInstaller] Binary not found at expected path: {}",
             install_path.display().to_string().red()
         );
         return None;
@@ -161,13 +166,13 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
         .unwrap_or(&PathBuf::from("/"))
         .to_path_buf();
     let executed_post_installation_hooks =
-        execute_post_installation_hooks("[Brew Installer]", tool_entry, &working_dir);
+        execute_post_installation_hooks("[SDB::Tools::BrewInstaller]", tool_entry, &working_dir);
 
     // 7. Get actual installed version for accurate tracking
     let actual_version = determine_installed_version(tool_entry);
 
     log_info!(
-        "[Brew Installer] Successfully installed Homebrew formula: {} (version: {})",
+        "[SDB::Tools::BrewInstaller] Successfully installed Homebrew formula: {} (version: {})",
         tool_entry.name.bold().green(),
         actual_version.green()
     );
@@ -208,7 +213,7 @@ fn check_formula_already_installed(formula_name: &str) -> bool {
     match Command::new("brew").args(["list", formula_name]).output() {
         Ok(output) if output.status.success() => {
             log_debug!(
-                "[Brew Installer] Formula '{}' is already installed",
+                "[SDB::Tools::BrewInstaller] Formula '{}' is already installed",
                 formula_name
             );
             true
@@ -217,13 +222,13 @@ fn check_formula_already_installed(formula_name: &str) -> bool {
             // brew list returns non-zero exit code if formula is not installed
             if output.status.code() == Some(1) {
                 log_debug!(
-                    "[Brew Installer] Formula '{}' is not installed",
+                    "[SDB::Tools::BrewInstaller] Formula '{}' is not installed",
                     formula_name
                 );
                 false
             } else {
                 log_warn!(
-                    "[Brew Installer] Could not check formula status. Exit code: {}. Error: {}",
+                    "[SDB::Tools::BrewInstaller] Could not check formula status. Exit code: {}. Error: {}",
                     output.status.code().unwrap_or(-1),
                     String::from_utf8_lossy(&output.stderr)
                 );
@@ -232,7 +237,7 @@ fn check_formula_already_installed(formula_name: &str) -> bool {
         }
         Err(e) => {
             log_warn!(
-                "[Brew Installer] Failed to check formula installation status: {}",
+                "[SDB::Tools::BrewInstaller] Failed to check formula installation status: {}",
                 e
             );
             false
@@ -265,7 +270,7 @@ fn prepare_brew_install_command(tool_entry: &ToolEntry) -> Vec<String> {
             let formula_with_version = format!("{}@{}", tool_entry.name, version);
             command_args.push(formula_with_version);
             log_debug!(
-                "[Brew Installer] Installing specific version: {}",
+                "[SDB::Tools::BrewInstaller] Installing specific version: {}",
                 version.cyan()
             );
         } else {
@@ -277,14 +282,17 @@ fn prepare_brew_install_command(tool_entry: &ToolEntry) -> Vec<String> {
 
     // Add any additional options (like --HEAD, --devel, etc.)
     if let Some(options) = &tool_entry.options {
-        log_debug!("[Brew Installer] Adding custom options: {:#?}", options);
+        log_debug!(
+            "[SDB::Tools::BrewInstaller] Adding custom options: {:#?}",
+            options
+        );
         for opt in options {
             command_args.push(opt.clone());
         }
     }
 
     log_debug!(
-        "[Brew Installer] Prepared command arguments: {} {}",
+        "[SDB::Tools::BrewInstaller] Prepared command arguments: {} {}",
         "brew".cyan().bold(),
         command_args.join(" ").cyan()
     );
@@ -308,7 +316,7 @@ fn prepare_brew_install_command(tool_entry: &ToolEntry) -> Vec<String> {
 /// Runs: `brew install <formula_name> [options]`
 fn execute_brew_install_command(command_args: &[String], tool_entry: &ToolEntry) -> bool {
     log_debug!(
-        "[Brew Installer] Executing: {} {}",
+        "[SDB::Tools::BrewInstaller] Executing: {} {}",
         "brew".cyan().bold(),
         command_args.join(" ").cyan()
     );
@@ -316,20 +324,20 @@ fn execute_brew_install_command(command_args: &[String], tool_entry: &ToolEntry)
     match Command::new("brew").args(command_args).output() {
         Ok(output) if output.status.success() => {
             log_info!(
-                "[Brew Installer] Successfully installed formula: {}",
+                "[SDB::Tools::BrewInstaller] Successfully installed formula: {}",
                 tool_entry.name.bold().green()
             );
 
             // Log output for debugging
             if !output.stdout.is_empty() {
                 log_debug!(
-                    "[Brew Installer] Stdout: {}",
+                    "[SDB::Tools::BrewInstaller] Stdout: {}",
                     String::from_utf8_lossy(&output.stdout)
                 );
             }
             if !output.stderr.is_empty() {
                 log_warn!(
-                    "[Brew Installer] Stderr (may contain warnings): {}",
+                    "[SDB::Tools::BrewInstaller] Stderr (may contain warnings): {}",
                     String::from_utf8_lossy(&output.stderr)
                 );
             }
@@ -337,7 +345,7 @@ fn execute_brew_install_command(command_args: &[String], tool_entry: &ToolEntry)
         }
         Ok(output) => {
             log_error!(
-                "[Brew Installer] Failed to install formula '{}'. Exit code: {}. Error: {}",
+                "[SDB::Tools::BrewInstaller] Failed to install formula '{}'. Exit code: {}. Error: {}",
                 tool_entry.name.bold().red(),
                 output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr).red()
@@ -345,7 +353,7 @@ fn execute_brew_install_command(command_args: &[String], tool_entry: &ToolEntry)
 
             if !output.stdout.is_empty() {
                 log_debug!(
-                    "[Brew Installer] Stdout (on failure): {}",
+                    "[SDB::Tools::BrewInstaller] Stdout (on failure): {}",
                     String::from_utf8_lossy(&output.stdout)
                 );
             }
@@ -353,7 +361,7 @@ fn execute_brew_install_command(command_args: &[String], tool_entry: &ToolEntry)
         }
         Err(e) => {
             log_error!(
-                "[Brew Installer] Failed to execute 'brew install' for '{}': {}",
+                "[SDB::Tools::BrewInstaller] Failed to execute 'brew install' for '{}': {}",
                 tool_entry.name.bold().red(),
                 e.to_string().red()
             );
@@ -385,13 +393,13 @@ fn verify_brew_installation(formula_name: &str) -> bool {
     // Verify the formula is properly linked
     if !verify_formula_linked(formula_name) {
         log_warn!(
-            "[Brew Installer] Formula '{}' is installed but not linked",
+            "[SDB::Tools::BrewInstaller] Formula '{}' is installed but not linked",
             formula_name
         );
         // Continue anyway as this might be intentional
     }
 
-    log_debug!("[Brew Installer] Installation verification completed successfully");
+    log_debug!("[SDB::Tools::BrewInstaller] Installation verification completed successfully");
     true
 }
 
@@ -409,14 +417,14 @@ fn verify_formula_in_list(formula_name: &str) -> bool {
     match Command::new("brew").args(["list", formula_name]).output() {
         Ok(output) if output.status.success() => {
             log_debug!(
-                "[Brew Installer] Verified formula '{}' is in brew list",
+                "[SDB::Tools::BrewInstaller] Verified formula '{}' is in brew list",
                 formula_name
             );
             true
         }
         Ok(output) => {
             log_error!(
-                "[Brew Installer] Formula '{}' not found in installed formulae. Exit code: {}. Error: {}",
+                "[SDB::Tools::BrewInstaller] Formula '{}' not found in installed formulae. Exit code: {}. Error: {}",
                 formula_name.red(),
                 output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr).red()
@@ -425,7 +433,7 @@ fn verify_formula_in_list(formula_name: &str) -> bool {
         }
         Err(e) => {
             log_error!(
-                "[Brew Installer] Failed to execute formula verification: {}",
+                "[SDB::Tools::BrewInstaller] Failed to execute formula verification: {}",
                 e.to_string().red()
             );
             false
@@ -454,7 +462,7 @@ fn verify_formula_linked(formula_name: &str) -> bool {
             // Check if the formula is listed and has a version (indicating it's properly installed)
             if output_str.contains(formula_name) {
                 log_debug!(
-                    "[Brew Installer] Verified formula '{}' is properly linked",
+                    "[SDB::Tools::BrewInstaller] Verified formula '{}' is properly linked",
                     formula_name
                 );
                 return true;
@@ -479,13 +487,13 @@ fn verify_formula_linked(formula_name: &str) -> bool {
 fn verify_binary_exists(install_path: PathBuf) -> bool {
     if install_path.exists() {
         log_debug!(
-            "[Brew Installer] Verified binary exists at: {}",
+            "[SDB::Tools::BrewInstaller] Verified binary exists at: {}",
             install_path.display()
         );
         true
     } else {
         log_error!(
-            "[Brew Installer] Binary does not exist at expected path: {}",
+            "[SDB::Tools::BrewInstaller] Binary does not exist at expected path: {}",
             install_path.display().to_string().red()
         );
         false
@@ -523,7 +531,7 @@ fn determine_brew_installation_path(tool_entry: &ToolEntry) -> PathBuf {
     if let Some(brew_prefix) = get_brew_prefix() {
         let path = PathBuf::from(&brew_prefix).join("bin").join(&bin_name);
         log_debug!(
-            "[Brew Installer] Using brew prefix path: {}",
+            "[SDB::Tools::BrewInstaller] Using brew prefix path: {}",
             path.display()
         );
         return path;
@@ -535,7 +543,7 @@ fn determine_brew_installation_path(tool_entry: &ToolEntry) -> PathBuf {
     }
 
     // Final fallback
-    log_warn!("[Brew Installer] Could not determine brew prefix, using system fallback");
+    log_warn!("[SDB::Tools::BrewInstaller] Could not determine brew prefix, using system fallback");
     PathBuf::from("/usr/local/bin").join(bin_name)
 }
 
@@ -557,21 +565,27 @@ fn get_brew_prefix() -> Option<String> {
         Ok(output) if output.status.success() => {
             let prefix = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !prefix.is_empty() {
-                log_debug!("[Brew Installer] Detected brew prefix: {}", prefix);
+                log_debug!(
+                    "[SDB::Tools::BrewInstaller] Detected brew prefix: {}",
+                    prefix
+                );
                 return Some(prefix);
             }
             None
         }
         Ok(output) => {
             log_warn!(
-                "[Brew Installer] Failed to get brew prefix. Exit code: {}. Error: {}",
+                "[SDB::Tools::BrewInstaller] Failed to get brew prefix. Exit code: {}. Error: {}",
                 output.status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&output.stderr)
             );
             None
         }
         Err(e) => {
-            log_warn!("[Brew Installer] Failed to execute 'brew --prefix': {}", e);
+            log_warn!(
+                "[SDB::Tools::BrewInstaller] Failed to execute 'brew --prefix': {}",
+                e
+            );
             None
         }
     }
@@ -608,7 +622,7 @@ fn get_common_brew_paths(bin_name: &str) -> Option<PathBuf> {
     for path in &common_paths {
         if path.exists() {
             log_debug!(
-                "[Brew Installer] Found binary at common path: {}",
+                "[SDB::Tools::BrewInstaller] Found binary at common path: {}",
                 path.display()
             );
             return Some(path.clone());

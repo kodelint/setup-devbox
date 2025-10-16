@@ -61,15 +61,7 @@ setup-devbox is designed to automate the setup and configuration of your develop
   ```
 
 ### 🚀 Available Commands
-- #### `version` Show the current Version of the tool.
 
-    ##### **Description**:
-    This command simply outputs the version number of the setup-devbox application. It's useful for quickly checking which version you are running, especially when reporting issues or ensuring you have the latest updates.
-
-    **Usage:**
-    ```bash
-    setup-devbox version
-    ```
 - #### `add` to add tool, font, setting or alias from command line.
 
     ##### **Description**:
@@ -95,7 +87,83 @@ setup-devbox is designed to automate the setup and configuration of your develop
     --tag v3.4.0 \
     --install-only regular
     ```
-- #### `now` Installs and Configures Tools, Fonts, OS Settings, and Shell Configs.
+    
+- #### `generate` Generates the default configs.
+
+  ##### **Description:**
+  This command helps you get started quickly by creating boilerplate configuration files (`config.yaml`, `tools.yaml`, `settings.yaml`, `shellrc.yaml`, `fonts.yaml`)
+  in a specified or default configuration directory. These generated files serve as a template, 
+  which you can then customize to define your specific development environment. 
+  This command will typically not overwrite existing files without explicit confirmation.
+
+  **Usage:**
+    ```bash
+    setup-devbox generate [OPTIONS]
+    ```
+  ##### Options
+  - `--config <CONFIG>`: Optional argument to specify the target directory where the main configuration file (e.g., `config.yaml`) should be generated. 
+     If not provided, the default config directory (typically `~/.setup-devbox/configs/`) will be used. 
+  - `--state <STATE>`: Optional argument to specify the target directory where the state file (e.g., `state.json`) should be generated. 
+     If not provided, the default state file path (typically `~/.setup-devbox/state.json`) will be used. 
+  - `-h`, `--help`: Print help for the generate command.
+  
+  ##### Examples
+
+    ```bash
+    # Generate all default configuration files in the default location
+    setup-devbox generate
+    
+    # Generate default configurations in a custom directory
+    setup-devbox generate --config /my/custom/configs/ --state /my/custom/data/state.json
+    ```
+
+- #### `remove` to **remove** tool, font, setting or alias from command line.
+
+    ##### **Description**:
+    You can use `remove` command to remove any tool, font, setting or alias from command line directly. It will validate 
+    the command, remove the tool, font, setting or alias and then update the corresponding configuration file and the state file.
+    It automatically figures out which **installer** was used to install the component and uses the same to remove it.
+
+    **Usage:**
+    ```bash
+    # Remove a tool
+    setup-devbox remove tool lsd
+    
+    # Remove a font
+    setup-devbox remove font HackNerd
+    
+    ```
+
+- #### `sync-config` Sync or Generate configurations from state-file.
+
+  ##### **Description:**
+  This command is intended to help keep your declarative configuration files (e.g., `tools.yaml`) 
+  in sync with the actual state of your system as recorded by `setup-devbox`, or to generate new configuration entries based on the current state. 
+  This can be useful for:
+  - **Discovery**: Creating `tools.yaml` entries for tools that `setup-devbox` has already installed via the now command.
+  - **State Alignment**: Helping to align your configuration files with changes recorded in the `state.json`.
+
+  **Usage:**
+    ```bash
+    setup-devbox sync-config [OPTIONS]
+    ```
+  ##### Options
+  - `--state <STATE>`: Optional argument to specify the state file to read from. Defaults to `~/.setup-devbox/state.json`. 
+  - `--output-dir <OUTPUT_DIR>`: Optional argument to specify the directory where configuration files should be generated or updated. 
+    Defaults to `~/.setup-devbox/configs`. 
+  - `-h`, `--help`: Print help for the sync-config command.
+
+  ##### Examples
+
+    ```bash
+    # Sync configurations based on the default state file to the default config directory
+    setup-devbox sync-config
+    
+    # Sync configurations from a custom state file to a custom output directory
+    setup-devbox sync-config --state /my/custom/data/state.json --output-dir /my/custom/configs/
+    ```
+    
+    - #### `now` Installs and Configures Tools, Fonts, OS Settings, and Shell Configs.
 
     ##### **Description:**
     This is the primary command for provisioning and updating 
@@ -129,60 +197,13 @@ setup-devbox is designed to automate the setup and configuration of your develop
     # Combine custom files with forced updates
     setup-devbox now --config ~/custom/config.yaml --update-latest
     ```
-- #### `generate` Generates the default configs.
-
-  ##### **Description:**
-  This command helps you get started quickly by creating boilerplate configuration files (`config.yaml`, `tools.yaml`, `settings.yaml`, `shellrc.yaml`, `fonts.yaml`)
-  in a specified or default configuration directory. These generated files serve as a template, 
-  which you can then customize to define your specific development environment. 
-  This command will typically not overwrite existing files without explicit confirmation.
-
-  **Usage:**
-    ```bash
-    setup-devbox generate [OPTIONS]
-    ```
-  ##### Options
-  - `--config <CONFIG>`: Optional argument to specify the target directory where the main configuration file (e.g., `config.yaml`) should be generated. 
-     If not provided, the default config directory (typically `~/.setup-devbox/configs/`) will be used. 
-  - `--state <STATE>`: Optional argument to specify the target directory where the state file (e.g., `state.json`) should be generated. 
-     If not provided, the default state file path (typically `~/.setup-devbox/state.json`) will be used. 
-  - `-h`, `--help`: Print help for the generate command.
-  
-  ##### Examples
-
-    ```bash
-    # Generate all default configuration files in the default location
-    setup-devbox generate
     
-    # Generate default configurations in a custom directory
-    setup-devbox generate --config /my/custom/configs/ --state /my/custom/data/state.json
-    ```
+    - #### `version` Show the current Version of the tool.
 
-- #### `sync-config` Sync or Generate configurations from state-file.
+    ##### **Description**:
+    This command simply outputs the version number of the setup-devbox application. It's useful for quickly checking which version you are running, especially when reporting issues or ensuring you have the latest updates.
 
-  ##### **Description:**
-  This command is intended to help keep your declarative configuration files (e.g., `tools.yaml`) 
-  in sync with the actual state of your system as recorded by `setup-devbox`, or to generate new configuration entries based on the current state. 
-  This can be useful for:
-  - **Discovery**: Creating `tools.yaml` entries for tools that `setup-devbox` has already installed via the now command.
-  - **State Alignment**: Helping to align your configuration files with changes recorded in the `state.json`.
-
-  **Usage:**
+    **Usage:**
     ```bash
-    setup-devbox sync-config [OPTIONS]
-    ```
-  ##### Options
-  - `--state <STATE>`: Optional argument to specify the state file to read from. Defaults to `~/.setup-devbox/state.json`. 
-  - `--output-dir <OUTPUT_DIR>`: Optional argument to specify the directory where configuration files should be generated or updated. 
-    Defaults to `~/.setup-devbox/configs`. 
-  - `-h`, `--help`: Print help for the sync-config command.
-
-  ##### Examples
-
-    ```bash
-    # Sync configurations based on the default state file to the default config directory
-    setup-devbox sync-config
-    
-    # Sync configurations from a custom state file to a custom output directory
-    setup-devbox sync-config --state /my/custom/data/state.json --output-dir /my/custom/configs/
+    setup-devbox version
     ```

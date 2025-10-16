@@ -155,7 +155,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                     Ok(evaluation) => Some(evaluation),
                     Err(e) => {
                         log_warn!(
-                            "[Tools] Error evaluating configuration for {}: {}. Assuming update needed.",
+                            "[SDB::Tools] Error evaluating configuration for {}: {}. Assuming update needed.",
                             tool.name,
                             e
                         );
@@ -164,7 +164,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                             needs_update: true,
                             current_source_sha: String::new(),
                             current_destination_sha: None,
-                            reason: Some(format!("evaluation error: {e}")),
+                            reason: Some(format!("[SDB::Tools] Evaluation error: {e}")),
                         })
                     }
                 };
@@ -172,12 +172,14 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                 // Convert evaluation result to ConfigurationAction
                 let config_action = match &config_evaluation {
                     Some(eval) if eval.needs_update => ConfigurationAction::Update,
-                    Some(eval) => ConfigurationAction::Skip(
-                        eval.reason
-                            .clone()
-                            .unwrap_or_else(|| "configuration up-to-date".to_string()),
+                    Some(eval) => {
+                        ConfigurationAction::Skip(eval.reason.clone().unwrap_or_else(|| {
+                            "[SDB::Tools::Configuration] Configuration up-to-date".to_string()
+                        }))
+                    }
+                    None => ConfigurationAction::Skip(
+                        "[SDB::Tools::Configuration] Configuration disabled".to_string(),
                     ),
-                    None => ConfigurationAction::Skip("configuration disabled".to_string()),
                 };
 
                 // Combine the individual actions into a final `ToolAction`.
@@ -228,7 +230,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
 
                     // Skip because the 'latest' version was recently updated.
                     return VersionAction::Skip(format!(
-                        "version 'latest' updated {time_since_update} (within {threshold_description} threshold)"
+                        "[SDB::Tools] Version 'latest' updated {time_since_update} (within {threshold_description} threshold)"
                     ));
                 }
             }
@@ -243,11 +245,15 @@ impl<'a> ToolInstallationOrchestrator<'a> {
 
             if required_version != "latest" && normalized_current == normalized_required {
                 // Skip because the specified version is already installed.
-                return VersionAction::Skip("specified version already installed".to_string());
+                return VersionAction::Skip(
+                    "[SDB::Tools] specified version already installed".to_string(),
+                );
             }
         } else if !current_state.version.is_empty() && current_state.version != "latest" {
             // A tool with no specified version is already installed with a specific version.
-            return VersionAction::Skip("version not specified but tool is installed".to_string());
+            return VersionAction::Skip(
+                "[SDB::Tools] Version not specified but tool is installed".to_string(),
+            );
         }
 
         // Default case: a specific version is required and not installed, or it's a forced update.
@@ -318,12 +324,12 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     /// ## Returns
     /// `ToolProcessingResult` indicating the outcome of the processing
     fn process_individual_tool(&mut self, tool: &ToolEntry) -> ToolProcessingResult {
-        log_debug!("[Tools] Processing tool: {}", tool.name.bright_green());
+        log_debug!("[SDB::Tools] Processing tool: {}", tool.name.bright_green());
 
         // Step 1: Validate the tool's configuration.
         if let Err(validation_error) = tool.validate() {
             return ToolProcessingResult::Failed(format!(
-                "Configuration validation failed: {validation_error}",
+                "[SDB::Tools::Configuration] Configuration validation failed: {validation_error}",
             ));
         }
 
@@ -335,7 +341,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         // Step 3: Determine and execute the required action.
         let current_state = self.state.tools.get(&tool.name);
         log_debug!(
-            "[Tools] Determining if the tool: {} is already installed",
+            "[SDB::Tools] Determining if the tool: {} is already installed",
             &tool.name.cyan()
         );
         let (required_action, cached_config_evaluation) =
@@ -360,8 +366,9 @@ impl<'a> ToolInstallationOrchestrator<'a> {
             installer_name.as_str(),
             "brew" | "go" | "cargo" | "rustup" | "pip3" | "uv"
         ) {
-            check_installer_command_available(&installer_name)
-                .map_err(|error| format!("Installer '{installer_name}' not available: {error}"))
+            check_installer_command_available(&installer_name).map_err(|error| {
+                format!("[SDB::Tools] Installer '{installer_name}' not available: {error}")
+            })
         } else {
             // Installers like `github` or `url` don't require a pre-existing command.
             Ok(())
@@ -415,9 +422,9 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         tool: &ToolEntry,
         cached_config_evaluation: Option<ConfigurationEvaluationResult>,
     ) -> ToolProcessingResult {
-        log_info!("[Tools] Configuration Management...");
+        log_info!("[SDB::Tools] Configuration Management...");
         log_info!(
-            "[Tools] Updating configuration for: {}",
+            "[SDB::Tools::Configurations] Updating configuration for: {}",
             tool.name.bright_green()
         );
 
@@ -433,13 +440,13 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                     self.state.tools.insert(tool.name.clone(), existing_state);
                     ToolProcessingResult::ConfigurationUpdated
                 }
-                Err(error) => {
-                    ToolProcessingResult::Failed(format!("Configuration update failed: {error}"))
-                }
+                Err(error) => ToolProcessingResult::Failed(format!(
+                    "[SDB::Tools::Configuration] Configuration update failed: {error}"
+                )),
             }
         } else {
             // This should not happen if the logic is correct, but it's a safeguard.
-            ToolProcessingResult::Failed("Tool not found in state".to_string())
+            ToolProcessingResult::Failed("[SDB::Tools] Tool not found in state".to_string())
         }
     }
 
@@ -460,7 +467,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         operation_type: &str,
         cached_config_evaluation: Option<ConfigurationEvaluationResult>,
     ) -> ToolProcessingResult {
-        log_info!("[Tools] Installing {}...", "Tools".bright_green());
+        log_info!("[SDB::Tools] Installing {}...", "Tools".bright_green());
         self.display_installation_header(tool, operation_type);
 
         // Invoke the correct installer based on the tool's `source`.
@@ -474,7 +481,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                     cached_config_evaluation,
                 ) {
                     log_warn!(
-                        "[Tools] Configuration management warning for {}: {}. Continuing.",
+                        "[SDB::Tools] Configuration management warning for {}: {}. Continuing.",
                         tool.name.yellow(),
                         error
                     );
@@ -493,7 +500,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
             None => {
                 // If the installer returns `None`, it signifies a failure.
                 self.display_installation_failure(tool, operation_type);
-                ToolProcessingResult::Failed(format!("{operation_type} failed"))
+                ToolProcessingResult::Failed(format!("[SDB::Tools] {operation_type} failed"))
             }
         }
     }
@@ -502,7 +509,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     fn display_installation_header(&self, tool: &ToolEntry, operation_type: &str) {
         println!("\n{}", "=".repeat(80).bright_blue());
         log_info!(
-            "[Tools] {} {} tool using {}",
+            "[SDB::Tools] {} {} tool using {}",
             operation_type.bright_blue().bold(),
             tool.name.bright_green().bold(),
             tool.source.to_string().bright_cyan(),
@@ -512,7 +519,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     // A helper function to display a formatted success message.
     fn display_installation_success(&self, tool: &ToolEntry, operation_type: &str) {
         log_info!(
-            "[Tools] Successfully completed {} tool: {}",
+            "[SDB::Tools] Successfully completed {} tool: {}",
             operation_type.to_lowercase(),
             tool.name.bold().bright_green()
         );
@@ -522,7 +529,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     // A helper function to display a formatted failure message.
     fn display_installation_failure(&self, tool: &ToolEntry, operation_type: &str) {
         log_error!(
-            "[Tools] Failed to {} tool: {}",
+            "[SDB::Tools] Failed to {} tool: {}",
             operation_type.to_lowercase(),
             tool.name.bold().red()
         );
@@ -551,7 +558,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
             "url" => url::install(tool),
             unsupported_installer => {
                 log_warn!(
-                    "[Tools] Unsupported installer: {} for tool: {}",
+                    "[SDB::Tools] Unsupported installer: {} for tool: {}",
                     unsupported_installer.yellow(),
                     tool.name.bold()
                 );
@@ -720,7 +727,7 @@ impl InstallationSummary {
         }
 
         println!();
-        log_error!("[Tools] Failed installations:");
+        log_error!("[SDB::Tools] Failed installations:");
         for (tool_name, failure_reason) in &self.failed_tools {
             log_error!("  {} - {}", tool_name.red().bold(), failure_reason.red());
         }
@@ -733,7 +740,10 @@ impl InstallationSummary {
             + self.configuration_updated_tools.len();
 
         if total_processed > 0 {
-            log_info!("[Tools] Successfully processed {} tool(s)", total_processed);
+            log_info!(
+                "[SDB::Tools] Successfully processed {} tool(s)",
+                total_processed
+            );
         }
     }
 }
@@ -773,7 +783,7 @@ pub fn install_tools(
     let mut orchestrator = ToolInstallationOrchestrator::new(state, &installation_config, paths);
 
     log_debug!(
-        "[Tools] Update policy: {}",
+        "[SDB::Tools] Update policy: {}",
         if installation_config.force_update_enabled {
             "forced update of all 'latest' version tools (--update-latest flag)".to_string()
         } else {
@@ -796,7 +806,7 @@ pub fn install_tools(
     if summary.has_state_changes() {
         save_state_to_file(state, state_file_path);
     } else {
-        log_info!("[Tools] No new tools installed or state changes detected.");
+        log_info!("[SDB::Tools] No new tools installed or state changes detected.");
     }
 
     eprintln!();
@@ -824,7 +834,7 @@ pub fn execute_post_installation_hooks(
 
     if post_install_hooks.is_empty() {
         log_debug!(
-            "[Tools] {} No additional commands for {}",
+            "[SDB::Tools] {} No additional commands for {}",
             installer_prefix,
             tool_entry.name.dimmed()
         );
@@ -832,14 +842,14 @@ pub fn execute_post_installation_hooks(
     }
 
     log_info!(
-        "[Tools] {} Executing {} additional command(s) for {}",
+        "[SDB::Tools] {} Executing {} post hook(s) for {}",
         installer_prefix,
         post_install_hooks.len().to_string().yellow(),
         tool_entry.name.bold()
     );
 
     log_debug!(
-        "[Tools] {} Working directory: {}",
+        "[SDB::Tools::PostHooks] {} Working directory: {}",
         installer_prefix,
         working_directory.display().to_string().cyan()
     );
@@ -853,7 +863,7 @@ pub fn execute_post_installation_hooks(
     ) {
         Ok(executed_commands) => {
             log_info!(
-                "[Tools] {} Successfully completed additional commands for {}",
+                "[SDB::Tools] {} Successfully completed additional hooks/commands for {}",
                 installer_prefix,
                 tool_entry.name.green()
             );
@@ -861,7 +871,7 @@ pub fn execute_post_installation_hooks(
         }
         Err(execution_error) => {
             log_warn!(
-                "[Tools] {} Additional commands failed for {}: {}. Continuing.",
+                "[SDB::Tools] {} Additional hooks/commands failed for {}: {}. Continuing.",
                 installer_prefix,
                 tool_entry.name.yellow(),
                 execution_error.yellow()

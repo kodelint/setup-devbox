@@ -15,6 +15,7 @@ use colored::Colorize;
 //                              INTERNAL IMPORTS                               //
 // =========================================================================== //
 
+use crate::schemas::tools::ToolEntry;
 use crate::{log_debug, log_error, log_info, log_warn};
 
 /// # PathResolver
@@ -201,7 +202,7 @@ impl PathResolver {
 
         // Basic validation: ensure the resulting path is not empty.
         if path.as_os_str().is_empty() {
-            return Err("Resolved config path is empty".to_string());
+            return Err("[SDB] Resolved config path is empty".to_string());
         }
 
         Ok(path)
@@ -239,7 +240,7 @@ impl PathResolver {
 
         // Basic validation: ensure the resulting path is not empty.
         if path.as_os_str().is_empty() {
-            return Err("Resolved state path is empty".to_string());
+            return Err("[SDB] Resolved state path is empty".to_string());
         }
 
         Ok(path)
@@ -255,13 +256,13 @@ impl PathResolver {
         if let Ok(env_path) = env::var("SDB_TOOLS_SOURCE_CONFIG_PATH") {
             match Self::expand_path(&env_path) {
                 Ok(expanded) => {
-                    log_debug!("[Tools] Using {}", "SDB_TOOLS_SOURCE_CONFIG_PATH".cyan());
+                    log_debug!("[SDB] Using {}", "SDB_TOOLS_SOURCE_CONFIG_PATH".cyan());
                     return expanded;
                 }
                 Err(_) => {
                     // Log warning if expansion/validation fails for the environment path.
                     log_warn!(
-                        "[Tools] Failed to expand {}, using fallback",
+                        "[SDB] Failed to expand {}, using fallback",
                         "SDB_TOOLS_SOURCE_CONFIG_PATH".cyan()
                     );
                 }
@@ -323,7 +324,6 @@ impl PathResolver {
     ///
     /// # Returns
     /// A `Result` containing the expanded `PathBuf` or an error if the result is empty.
-
     pub fn expand_path(path: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
         // Handle $HOME environment variable first.
         let expanded = if path.starts_with("$HOME") {
@@ -374,14 +374,14 @@ impl PathResolver {
     /// or if the operating system is not supported.
     #[cfg(target_os = "macos")]
     pub fn get_font_installation_dir() -> io::Result<PathBuf> {
-        log_debug!("[Font Paths] Attempting to get macOS font installation directory.");
+        log_debug!("[SDB] Attempting to get macOS font installation directory.");
         let Some(home_dir) = dirs::home_dir() else {
             log_error!(
-                "[Font Paths] Could not determine home directory. Cannot proceed with font installation."
+                "[SDB] Could not determine home directory. Cannot proceed with font installation."
             );
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                "Home directory not found",
+                "[SDB] Home directory not found",
             ));
         };
 
@@ -390,7 +390,7 @@ impl PathResolver {
         // Ensure the directory exists.
         fs::create_dir_all(&font_dir).map_err(|e| {
             log_error!(
-                "[Font Paths] Failed to create font installation directory '{}': {}",
+                "[SDB] Failed to create font installation directory '{}': {}",
                 font_dir.display(),
                 e.to_string().red()
             );
@@ -398,7 +398,7 @@ impl PathResolver {
         })?;
 
         log_debug!(
-            "[Font Paths] macOS font installation directory: {}",
+            "[SDB] macOS font installation directory: {}",
             font_dir.display()
         );
         Ok(font_dir)
@@ -406,14 +406,14 @@ impl PathResolver {
 
     #[cfg(target_os = "linux")]
     pub fn get_font_installation_dir() -> io::Result<PathBuf> {
-        log_debug!("[Font Paths] Attempting to get Linux font installation directory.");
+        log_debug!("[SDB] Attempting to get Linux font installation directory.");
         let Some(home_dir) = dirs::home_dir() else {
             log_error!(
-                "[Font Paths] Could not determine home directory. Cannot proceed with font installation."
+                "[SDB] Could not determine home directory. Cannot proceed with font installation."
             );
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                "Home directory not found",
+                "[SDB] Home directory not found",
             ));
         };
 
@@ -422,7 +422,7 @@ impl PathResolver {
         // Ensure the directory exists.
         fs::create_dir_all(&font_dir).map_err(|e| {
             log_error!(
-                "[Font Paths] Failed to create font installation directory '{}': {}",
+                "[SDB] Failed to create font installation directory '{}': {}",
                 font_dir.display(),
                 e.to_string().red()
             );
@@ -430,7 +430,7 @@ impl PathResolver {
         })?;
 
         log_debug!(
-            "[Font Paths] Linux font installation directory: {}",
+            "[SDB] Linux font installation directory: {}",
             font_dir.display()
         );
         Ok(font_dir)
@@ -440,7 +440,7 @@ impl PathResolver {
     pub fn get_font_installation_dir() -> io::Result<PathBuf> {
         Err(io::Error::new(
             io::ErrorKind::Unsupported,
-            "Font installation not supported on this operating system",
+            "[SDB] Font installation not supported on this operating system",
         ))
     }
 
@@ -532,5 +532,46 @@ impl PathResolver {
 
         // Return both paths (currently identical, but maintained for API consistency)
         Some(user_home_path)
+    }
+    /// Determines the final file path by combining the base path with either the rename_to value
+    /// or the tool name from the tool entry.
+    ///
+    /// # Arguments
+    /// * `base_path`: The directory path (`&Path`) where the binary is/will be located.
+    /// * `tool_entry`: The tool entry containing the name and optional rename configuration.
+    ///
+    /// # Returns
+    /// * `PathBuf`: The complete file path including the filename.
+    pub fn get_final_file_path(base_path: &Path, tool_entry: &ToolEntry) -> PathBuf {
+        log_debug!(
+            "[SDB] Determining final file path from base: {}",
+            base_path.to_string_lossy().yellow()
+        );
+        log_debug!("[SDB] Tool entry name: {}", tool_entry.name.cyan());
+        log_debug!("[SDB] Tool entry rename_to: {:?}", tool_entry.rename_to);
+
+        // Determine the actual filename to use
+        let filename = if let Some(ref rename_to) = tool_entry.rename_to {
+            log_debug!(
+                "[SDB] Using rename_to value as filename: {}",
+                rename_to.green()
+            );
+            rename_to.as_str()
+        } else {
+            log_debug!(
+                "[SDB] Using tool name as filename: {}",
+                tool_entry.name.green()
+            );
+            &tool_entry.name
+        };
+
+        let file_path = base_path.join(filename);
+
+        log_debug!(
+            "[SDB] Final file path determined: {}",
+            file_path.to_string_lossy().cyan()
+        );
+
+        file_path
     }
 }
