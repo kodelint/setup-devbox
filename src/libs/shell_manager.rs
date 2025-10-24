@@ -17,14 +17,13 @@ use std::collections::{HashMap, HashSet};
 /// - For export commands: Checks if the same variable name already exists with a different value
 /// - For other commands: Currently returns false (could be extended for other patterns)
 pub fn is_command_update(command: &str, existing_commands: &HashSet<String>) -> bool {
-    // For export commands, check if we're updating the same variable
-    if command.starts_with("export ") {
-        if let Some(equals_pos) = command.find('=') {
-            let var_name = &command[7..equals_pos]; // Skip "export "
-            return existing_commands
-                .iter()
-                .any(|existing| existing.starts_with(&format!("export {var_name}")));
-        }
+    // Check if this is an export command with a valid assignment
+    if command.starts_with("export ") && command.contains('=') {
+        let equals_pos = command.find('=').unwrap(); // Safe unwrap after contains check
+        let var_name = &command[7..equals_pos]; // Skip "export "
+        return existing_commands
+            .iter()
+            .any(|existing| existing.starts_with(&format!("export {var_name}")));
     }
 
     false
@@ -191,24 +190,21 @@ pub fn section_header_name(section: &ConfigSection) -> &'static str {
 /// - Alias commands: Keep only "alias NAME" (strip the value)
 /// - Other commands: Normalize whitespace (collapse multiple spaces to single)
 pub fn normalize_command(command: &str) -> String {
-    // For exports, normalize the variable name extraction
-    if command.starts_with("export ") {
-        if let Some(equals_pos) = command.find('=') {
-            let var_name = &command[7..equals_pos]; // Skip "export "
-            return format!("export {var_name}");
-        }
+    // Normalize export commands by extracting the variable name
+    if command.starts_with("export ") && command.contains('=') {
+        let equals_pos = command.find('=').unwrap(); // Safe unwrap after contains check
+        let var_name = &command[7..equals_pos]; // Skip "export "
+        return format!("export {var_name}");
     }
 
-    // For aliases, normalize the alias name
-    if command.starts_with("alias ") {
-        if let Some(equals_pos) = command.find('=') {
-            let alias_name = &command[6..equals_pos]; // Skip "alias "
-            return format!("alias {alias_name}");
-        }
+    // Normalize alias commands by extracting the alias name
+    if command.starts_with("alias ") && command.contains('=') {
+        let equals_pos = command.find('=').unwrap(); // Safe unwrap after contains check
+        let alias_name = &command[6..equals_pos]; // Skip "alias "
+        return format!("alias {alias_name}");
     }
 
-    // For other commands, just normalize whitespace
-    // Split on whitespace and rejoin with single spaces
+    // Normalize other commands by collapsing whitespace
     command.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
@@ -231,26 +227,28 @@ pub fn parse_existing_sections(lines: &[String]) -> HashMap<ConfigSection, HashS
     let mut current_section: Option<ConfigSection> = None;
 
     for line in lines {
+        // Detect section headers
         if let Some(section) = detect_section_from_header(line) {
             current_section = Some(section);
             continue;
         }
 
-        // Reset section if we hit a non-managed section or significant gap
+        // Reset section if we hit a non-managed comment block
         if line.trim().starts_with("# ") && !line.contains("Managed by setup-devbox") {
             current_section = None;
             continue;
         }
 
-        // If we're inside a managed section and this is a content line (not comment or empty)
-        if let Some(section) = &current_section {
-            let trimmed = line.trim();
-            if !trimmed.is_empty() && !trimmed.starts_with("#") {
-                existing
-                    .entry(section.clone())
-                    .or_insert_with(HashSet::new)
-                    .insert(normalize_command(trimmed));
-            }
+        // If inside a managed section and line is meaningful (not empty or comment)
+        let trimmed = line.trim();
+        if let Some(section) = &current_section
+            && !trimmed.is_empty()
+            && !trimmed.starts_with('#')
+        {
+            existing
+                .entry(section.clone())
+                .or_default()
+                .insert(normalize_command(trimmed));
         }
     }
 
