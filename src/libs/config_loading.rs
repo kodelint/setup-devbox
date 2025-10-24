@@ -11,6 +11,7 @@
 
 // External crate imports:
 use colored::Colorize; // Imports the `Colorize` trait for adding color to console output.
+use std::collections::{HashMap, HashSet, VecDeque};
 // Standard library module for interacting with the file system (e.g., reading files).
 // Provides `PathBuf` for working with file paths.
 use std::path::PathBuf;
@@ -29,7 +30,7 @@ use crate::schemas::fonts::FontConfig;
 use crate::schemas::os_settings::SettingsConfig;
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::shell_configuration::ShellConfig;
-use crate::schemas::tools::ToolConfig;
+use crate::schemas::tools::{ToolConfig, ToolEntry};
 
 /// A composite struct designed to hold all the parsed configuration data.
 ///
@@ -215,12 +216,15 @@ pub fn load_master_configs(config_path_resolved: &PathBuf) -> ParsedConfigs {
 
     log_debug!("[SDB::ConfigLoader] Exiting load_master_configs() function.");
     // Return the `ParsedConfigs` struct containing all loaded sub-configurations.
-    ParsedConfigs {
+    let parsed_configs = ParsedConfigs {
         tools: tools_config,
         settings: settings_config,
         shell: shell_config,
         fonts: fonts_config,
-    }
+    };
+
+    // Reorder tools based on dependencies before returning
+    reorder_tools_by_dependency(parsed_configs)
 }
 
 /// Loads a single configuration file directly, bypassing the master `config.yaml`.
@@ -347,5 +351,282 @@ pub fn load_single_config(config_path_resolved: &PathBuf, config_filename: &str)
         }
     }
     log_debug!("[SDB::ConfigLoader] Exiting single config loader function.");
-    parsed_configs // Return the populated `ParsedConfigs`.
+    // Reorder tools based on dependencies and return.
+    reorder_tools_by_dependency(parsed_configs)
+}
+
+/// Reorders tool entries so that source installers appear before the tools that depend on them.
+/// This ensures correct installation sequencing, especially when tools rely on other tools
+/// (e.g., `cargo` depends on `rust`, which may depend on `rustup`).
+///
+/// # Example
+/// If `cargo` is listed as a source for other tools, and `cargo` itself is a tool entry,
+/// it will be placed before any tools that use it as their source.
+///
+/// # Parameters
+/// - `parsed_configs`: Parsed configuration object containing tool definitions.
+///
+/// # Returns
+/// - A reordered `ParsedConfigs` object with tools sorted by dependency order.
+pub fn reorder_tools_by_dependency(mut parsed_configs: ParsedConfigs) -> ParsedConfigs {
+    log_debug!("[SDB::ConfigLoader] Reordering tools based on source dependencies.");
+
+    // Only proceed if the tools section exists in the config
+    if let Some(ref mut tools_cfg) = parsed_configs.tools {
+        // Perform topological sort to determine correct tool order
+        let sorted_tools = topological_sort_tools(&tools_cfg.tools);
+        tools_cfg.tools = sorted_tools;
+    }
+
+    parsed_configs
+}
+
+/// Performs a topological sort on tool entries based on their declared or implicit source dependencies.
+/// This ensures that installers (tools used as sources) are processed before the tools that depend on them.
+///
+/// # Special Handling
+/// - Rust toolchain is treated specially: `cargo` → `rust` → `rustup`
+/// - Implicit dependencies are inferred even if not explicitly declared.
+///
+/// # Parameters
+/// - `tools`: Slice of `ToolEntry` structs representing all configured tools.
+///
+/// # Returns
+/// - A vector of `ToolEntry` sorted in dependency-respecting order.
+fn topological_sort_tools(tools: &[ToolEntry]) -> Vec<ToolEntry> {
+    // Map tool names to their full entries for fast lookup
+    let mut tool_map: HashMap<String, ToolEntry> = HashMap::new();
+    let mut tool_names: HashSet<String> = HashSet::new();
+
+    for tool in tools {
+        tool_map.insert(tool.name.clone(), tool.clone());
+        tool_names.insert(tool.name.clone());
+    }
+
+    // Detect presence of Rust toolchain components
+    let has_rustup = tool_names.contains("rustup");
+    let has_rust = tool_names.contains("rust");
+    let has_cargo_users = tools.iter().any(|t| t.source == "cargo");
+
+    // Dependency graph: maps a tool name to the list of tools that depend on it
+    let mut graph: HashMap<String, Vec<String>> = HashMap::new();
+    // In-degree map: tracks how many dependencies each tool has
+    let mut in_degree: HashMap<String, usize> = HashMap::new();
+
+    // Set of tools that act as installers (i.e., used as sources by other tools)
+    let mut is_installer: HashSet<String> = HashSet::new();
+
+    // Initialize in-degree for all tools
+    for tool_name in &tool_names {
+        in_degree.insert(tool_name.clone(), 0);
+    }
+
+    // Build dependency graph and in-degree map
+    for tool in tools {
+        let tool_name = &tool.name;
+        let source = &tool.source;
+
+        // Case 1: Explicit dependency on another tool
+        if tool_names.contains(source) {
+            // Direct dependency: this tool depends on 'source'
+            graph
+                .entry(source.clone())
+                .or_default()
+                .push(tool_name.clone());
+
+            *in_degree.get_mut(tool_name).unwrap() += 1;
+            is_installer.insert(source.clone());
+
+            log_debug!(
+                "[SDB::ConfigLoader] Dependency detected: '{}' depends on '{}'",
+                tool_name,
+                source
+            );
+        }
+        // Case 2: Implicit dependency on Rust via cargo
+        else if source == "cargo" && has_rust {
+            // Tools using cargo depend on rust
+            graph
+                .entry("rust".to_string())
+                .or_default()
+                .push(tool_name.clone());
+
+            *in_degree.get_mut(tool_name).unwrap() += 1;
+            is_installer.insert("rust".to_string());
+
+            log_debug!(
+                "[SDB::ConfigLoader] Dependency detected: '{}' depends on 'rust' (via cargo source)",
+                tool_name
+            );
+        }
+    }
+
+    // Case 3: Enforce rustup → rust dependency if both exist
+    if has_rustup && has_rust {
+        // Ensure rust depends on rustup
+        let rust_already_depends_on_rustup = graph
+            .get("rustup")
+            .map(|deps| deps.contains(&"rust".to_string()))
+            .unwrap_or(false);
+
+        if !rust_already_depends_on_rustup {
+            graph
+                .entry("rustup".to_string())
+                .or_default()
+                .push("rust".to_string());
+
+            *in_degree.get_mut("rust").unwrap() += 1;
+            is_installer.insert("rustup".to_string());
+
+            log_debug!("[SDB::ConfigLoader] Enforced dependency: 'rust' depends on 'rustup'");
+        }
+    }
+
+    // Log all tools identified as installers
+    if !is_installer.is_empty() {
+        let installer_list: Vec<&String> = is_installer.iter().collect();
+        log_debug!(
+            "[SDB::ConfigLoader] Identified installers (will be prioritized): {}",
+            installer_list
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
+
+    // Warn about missing Rust toolchain components
+    if has_cargo_users && !has_rust {
+        log_warn!(
+            "[SDB::ConfigLoader] Some tools use 'cargo' as source, but 'rust' is not in the configuration. \
+             Ensure cargo is available on the system or add 'rust' to your config."
+        );
+    }
+
+    if has_rust && !has_rustup {
+        log_warn!(
+            "[SDB::ConfigLoader] Tool 'rust' is configured but 'rustup' is not. \
+             Ensure rust is installed or add 'rustup' to your config."
+        );
+    }
+
+    // Begin topological sort using modified Kahn's algorithm
+    let mut installer_queue: VecDeque<String> = VecDeque::new();
+    let mut regular_queue: VecDeque<String> = VecDeque::new();
+
+    // Start with tools that have no dependencies (in-degree = 0)
+    // Separate them into installers and regular tools
+    for (tool_name, &degree) in &in_degree {
+        if degree == 0 {
+            if is_installer.contains(tool_name) {
+                installer_queue.push_back(tool_name.clone());
+                log_debug!(
+                    "[SDB::ConfigLoader] Prioritizing installer '{}' (used by other tools)",
+                    tool_name
+                );
+            } else {
+                regular_queue.push_back(tool_name.clone());
+                let tool_source = tool_map
+                    .get(tool_name)
+                    .map(|t| t.source.as_str())
+                    .unwrap_or("unknown");
+                log_debug!(
+                    "[SDB::ConfigLoader] Queuing tool '{}' with external source '{}' (no internal dependencies)",
+                    tool_name,
+                    tool_source
+                );
+            }
+        }
+    }
+
+    log_debug!(
+        "[SDB::ConfigLoader] Starting topological sort: {} installers in priority queue, {} tools with external sources queued",
+        installer_queue.len(),
+        regular_queue.len()
+    );
+
+    let mut sorted_names: Vec<String> = Vec::new();
+    let mut processing_installers = true;
+
+    // Main sorting loop: process installers first, then regular tools
+    while !installer_queue.is_empty() || !regular_queue.is_empty() {
+        // Prefer installer queue
+        let tool_name = if let Some(name) = installer_queue.pop_front() {
+            if processing_installers {
+                log_debug!("[SDB::ConfigLoader] Processing installer: '{}'", name);
+            } else {
+                log_debug!(
+                    "[SDB::ConfigLoader] Switching back to installer: '{}'",
+                    name
+                );
+                processing_installers = true;
+            }
+            name
+        } else if let Some(name) = regular_queue.pop_front() {
+            if processing_installers {
+                log_debug!(
+                    "[SDB::ConfigLoader] Installers complete. Processing regular tools starting with: '{}'",
+                    name
+                );
+                processing_installers = false;
+            }
+            name
+        } else {
+            break;
+        };
+
+        sorted_names.push(tool_name.clone());
+
+        // Decrease in-degree of dependent tools and enqueue if ready
+        if let Some(dependents) = graph.get(&tool_name) {
+            for dependent in dependents {
+                let degree = in_degree.get_mut(dependent).unwrap();
+                *degree -= 1;
+
+                if *degree == 0 {
+                    // Add to appropriate queue based on whether it's an installer
+                    if is_installer.contains(dependent) {
+                        installer_queue.push_back(dependent.clone());
+                        log_debug!(
+                            "[SDB::ConfigLoader] Unlocked installer '{}' for priority processing (all dependencies satisfied)",
+                            dependent
+                        );
+                    } else {
+                        regular_queue.push_back(dependent.clone());
+                        log_debug!(
+                            "[SDB::ConfigLoader] Unlocked tool '{}' (all dependencies satisfied)",
+                            dependent
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    // Detect and handle circular dependencies
+    if sorted_names.len() != tools.len() {
+        log_warn!(
+            "[SDB::ConfigLoader] Circular dependency detected in tool sources. \
+             Some tools may be processed in suboptimal order."
+        );
+
+        // Add remaining tools (those involved in circular dependencies)
+        for tool in tools {
+            if !sorted_names.contains(&tool.name) {
+                sorted_names.push(tool.name.clone());
+            }
+        }
+    }
+
+    // Final debug log of tool processing order
+    log_debug!(
+        "[SDB::ConfigLoader] Tools will be processed in the following order: {}",
+        sorted_names.join(" -> ")
+    );
+
+    // Rebuild the tools vector in sorted order
+    sorted_names
+        .iter()
+        .filter_map(|name| tool_map.get(name).cloned())
+        .collect()
 }
