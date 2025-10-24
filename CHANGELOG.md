@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2025-10-24
+
+### 🏠 Miscellaneous Tasks
+
+- Clippy Compliant ([3c23766](https://github.com/kodelint/setup-devbox/commit/3c23766e9b8455253ccbf0eebce2be72ec2dd35c))(by kodelint)
+- Cargo formatting ([11f0a7f](https://github.com/kodelint/setup-devbox/commit/11f0a7f99c18792dce884fc36284f0dcd7a254b0))(by kodelint)
+
+### 🚀 Features
+
+- Build dependency graph for tool and installers ([d70c973](https://github.com/kodelint/setup-devbox/commit/d70c9733d704859ff3fd5a6f2798835676e6414e))(by kodelint)
+
 ## [0.5.1] - 2025-10-16
 
 ### ♻️ Refactor
@@ -18,6 +29,7 @@ All notable changes to this project will be documented in this file.
 - Cargo file update ([0de232c](https://github.com/kodelint/setup-devbox/commit/0de232c624ccc98e8fb7babdc5336569f456dadd))(by kodelint)
 - Added help information for `remove` command ([c97903f](https://github.com/kodelint/setup-devbox/commit/c97903f458eb42bc8b43797e52e0b00c427e583b))(by kodelint)
 - Formatting ([ddf8d6c](https://github.com/kodelint/setup-devbox/commit/ddf8d6c1cb0459609bb22f0129e27bffe411d41d))(by kodelint)
+- **release**: 0.5.1 [skip ci] ([3e58868](https://github.com/kodelint/setup-devbox/commit/3e588681e0726fe05e46ede26c63207e62bf4dc6))(by github-actions[bot])
 
 ### 🐛 Bug Fixes
 
