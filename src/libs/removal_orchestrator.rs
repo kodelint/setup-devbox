@@ -438,21 +438,23 @@ impl<'a> RemovalOrchestrator<'a> {
 
             let path = entry.path();
 
-            // Check if this is a font file for our font
-            if path.is_file() {
-                if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                    // Match files containing the font name and ending with .ttf
-                    if file_name.contains(&font_state.name) && file_name.ends_with(".ttf") {
-                        fs::remove_file(&path).map_err(|e| {
-                            format!("Failed to remove font file {}: {}", path.display(), e)
-                        })?;
-                        log_info!(
-                            "[SDB::Remove::Font] Deleted: {}",
-                            path.display().to_string().cyan()
-                        );
-                        removed_count += 1;
-                    }
-                }
+            // Check if this is a font file matching our criteria
+            if path.is_file()
+                && path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|file_name| {
+                        file_name.contains(&font_state.name) && file_name.ends_with(".ttf")
+                    })
+                    .unwrap_or(false)
+            {
+                fs::remove_file(&path)
+                    .map_err(|e| format!("Failed to remove font file {}: {}", path.display(), e))?;
+                log_info!(
+                    "[SDB::Remove::Font] Deleted: {}",
+                    path.display().to_string().cyan()
+                );
+                removed_count += 1;
             }
         }
 
