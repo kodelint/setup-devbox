@@ -435,9 +435,9 @@ impl<'a> RemovalOrchestrator<'a> {
                     e
                 )
             })?;
-        
+
             let path = entry.path();
-        
+
             // Check if this is a font file matching our criteria
             if path.is_file()
                 && path
@@ -445,11 +445,11 @@ impl<'a> RemovalOrchestrator<'a> {
                     .and_then(|n| n.to_str())
                     .map(|file_name| {
                         file_name.contains(&font_state.name) && file_name.ends_with(".ttf")
-                    }).unwrap_or(false)
+                    })
+                    .unwrap_or(false)
             {
-                fs::remove_file(&path).map_err(|e| {
-                    format!("Failed to remove font file {}: {}", path.display(), e)
-                })?;
+                fs::remove_file(&path)
+                    .map_err(|e| format!("Failed to remove font file {}: {}", path.display(), e))?;
                 log_info!(
                     "[SDB::Remove::Font] Deleted: {}",
                     path.display().to_string().cyan()
