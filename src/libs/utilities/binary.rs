@@ -104,17 +104,17 @@ pub fn find_executable(
                                     // On Unix-like systems, ensure it's executable.
                                     #[cfg(unix)]
                                     {
-                                        if !is_executable(&sole_path) {
-                                            if let Ok(metadata) = fs::metadata(&sole_path) {
-                                                let mut perms = metadata.permissions();
-                                                // Add executable permissions (0o755) to existing ones.
-                                                perms.set_mode(perms.mode() | 0o755);
-                                                let _ = fs::set_permissions(&sole_path, perms);
-                                                log_debug!(
-                                                    "[SDB::Tools::{tool_source}::BinaryInstaller] Updated permissions for single file binary: {}",
-                                                    sole_path.display()
-                                                );
-                                            }
+                                        if let false = is_executable(&sole_path)
+                                            && let Ok(metadata) = fs::metadata(&sole_path)
+                                        {
+                                            let mut perms = metadata.permissions();
+                                            // Add executable permissions (0o755) to existing ones.
+                                            perms.set_mode(perms.mode() | 0o755);
+                                            let _ = fs::set_permissions(&sole_path, perms);
+                                            log_debug!(
+                                                "[SDB::Tools::{tool_source}::BinaryInstaller] Updated permissions for single file binary: {}",
+                                                sole_path.display()
+                                            );
                                         }
                                     }
                                     // If it's a confirmed native binary, return it immediately as the most likely candidate.
@@ -131,16 +131,16 @@ pub fn find_executable(
                                         // On Unix-like systems, ensure it's executable.
                                         #[cfg(unix)]
                                         {
-                                            if !is_executable(&sole_path) {
-                                                if let Ok(metadata) = fs::metadata(&sole_path) {
-                                                    let mut perms = metadata.permissions();
-                                                    perms.set_mode(perms.mode() | 0o755);
-                                                    let _ = fs::set_permissions(&sole_path, perms);
-                                                    log_debug!(
-                                                        "[SDB::Tools::{tool_source}::BinaryInstaller] Updated permissions for single file script: {}",
-                                                        sole_path.display()
-                                                    );
-                                                }
+                                            if let false = is_executable(&sole_path)
+                                                && let Ok(metadata) = fs::metadata(&sole_path)
+                                            {
+                                                let mut perms = metadata.permissions();
+                                                perms.set_mode(perms.mode() | 0o755);
+                                                let _ = fs::set_permissions(&sole_path, perms);
+                                                log_debug!(
+                                                    "[SDB::Tools::{tool_source}::BinaryInstaller] Updated permissions for single file script: {}",
+                                                    sole_path.display()
+                                                );
                                             }
                                         }
                                         // If it's a script, return it immediately.
