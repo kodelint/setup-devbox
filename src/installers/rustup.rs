@@ -190,10 +190,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     }
 
     // 4. Install components if specified - adds additional tools to the toolchain
-    if let Some(components) = &tool_entry.options {
-        if !install_components(components, &toolchain_name) {
-            return None;
-        }
+    if let Some(components) = &tool_entry.options
+        && !install_components(components, &toolchain_name)
+    {
+        return None;
     }
 
     // 5. Verify the complete installation - ensure everything was installed correctly
@@ -589,10 +589,10 @@ fn verify_toolchain_installation(toolchain_name: &str, components: Option<&Vec<S
     }
 
     // 2. Verify components if any were specified - check each component is installed
-    if let Some(component_list) = components {
-        if !verify_components_installed(component_list, toolchain_name) {
-            return false;
-        }
+    if let Some(component_list) = components
+        && !verify_components_installed(component_list, toolchain_name)
+    {
+        return false;
     }
 
     log_debug!("[SDB::Tools::RustUpInstaller] Installation verification completed successfully");
@@ -866,13 +866,12 @@ fn get_actual_toolchain_version(toolchain_name: &str) -> Option<String> {
         Ok(output) if output.status.success() => {
             let version_output = String::from_utf8_lossy(&output.stdout);
             // Parse "rustc 1.70.0 (90c541806 2023-05-31)" format
-            if let Some(first_line) = version_output.lines().next() {
-                if let Some(version_start) = first_line.find("rustc ") {
-                    let version_part = &first_line[version_start + 6..];
-                    if let Some(space_pos) = version_part.find(' ') {
-                        return Some(version_part[..space_pos].to_string());
-                    }
-                }
+            if let Some(first_line) = version_output.lines().next()
+                && let Some(version_start) = first_line.find("rustc ")
+                && let Some(space_pos) = first_line[version_start + 6..].find(' ')
+            {
+                let version_part = &first_line[version_start + 6..];
+                return Some(version_part[..space_pos].to_string());
             }
         }
         _ => {}
