@@ -267,16 +267,16 @@ impl ConfigurationManagerProcessor {
         }
 
         // Check if destination file was modified externally by comparing SHAs.
-        if let Some(dest_sha) = current_destination_sha {
-            if *dest_sha != existing_state.destination_configuration_sha {
-                log_debug!(
-                    "[SDB::Tools::Configuration::ConfigurationManager] Destination file modified for {} - recorded: {}, current: {}",
-                    tool_name,
-                    existing_state.destination_configuration_sha.red(),
-                    dest_sha.yellow()
-                );
-                return Ok((true, Some("destination file modified".to_string())));
-            }
+        if let Some(dest_sha) = current_destination_sha
+            && *dest_sha != existing_state.destination_configuration_sha
+        {
+            log_debug!(
+                "[SDB::Tools::Configuration::ConfigurationManager] Destination file modified for {} - recorded: {}, current: {}",
+                tool_name,
+                existing_state.destination_configuration_sha.red(),
+                dest_sha.yellow()
+            );
+            return Ok((true, Some("destination file modified".to_string())));
         }
 
         // If none of the above conditions are met, the configuration is up-to-date.
