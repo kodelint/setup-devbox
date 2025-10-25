@@ -116,15 +116,15 @@ pub fn install_pkg(
     }
 
     // 3. If still not found, check using the 'tool_renamed_to' alias.
-    if inferred_install_path.is_none() {
-        if let Some(alias) = tool_renamed_to.as_ref() {
-            log_debug!(
-                "[SDB::Tools::{}::MacInstaller] Primary path checks failed. Checking alias '{}'...",
-                tool_source,
-                alias.cyan()
-            );
-            inferred_install_path = check_cli_paths(alias);
-        }
+    if let Some(alias) = tool_renamed_to.as_ref()
+        && inferred_install_path.is_none()
+    {
+        log_debug!(
+            "[SDB::Tools::{}::MacInstaller] Primary path checks failed. Checking alias '{}'...",
+            tool_source,
+            alias.cyan()
+        );
+        inferred_install_path = check_cli_paths(alias);
     }
 
     // 4. Fallback if no specific path was found, or if the tool name doesn't lead to a direct match.
@@ -434,15 +434,16 @@ fn extract_mounted_path_from_hdiutil_plist(plist_output: &str) -> Option<String>
     // A simple line-by-line search for the mount-point key and its subsequent string value.
     // For more complex plist structures, using a dedicated plist parser crate would be ideal.
     let mut lines = plist_output.lines().map(|s| s.trim());
-    while let Some(line) = lines.next() {
-        if line == "<key>mount-point</key>" {
-            if let Some(path_line) = lines.next() {
-                // The mount path is typically enclosed in <string> tags
-                if path_line.starts_with("<string>") && path_line.ends_with("</string>") {
-                    return Some(path_line[8..path_line.len() - 9].to_string());
-                }
+    while let Some("<key>mount-point</key>") = lines.next() {
+        match lines.next() {
+            Some(path_line)
+                if path_line.starts_with("<string>") && path_line.ends_with("</string>") =>
+            {
+                return Some(path_line[8..path_line.len() - 9].to_string());
             }
+            _ => continue,
         }
     }
+
     None
 }
