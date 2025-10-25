@@ -217,24 +217,29 @@ impl<'a> ToolInstallationOrchestrator<'a> {
             || current_state.version.contains("nightly");
 
         // Handle the "latest" version logic with an update threshold.
-        if is_latest_version_scenario && !self.configuration.force_update_enabled {
-            if let Some(last_updated_timestamp) = &current_state.last_updated {
-                if !is_timestamp_older_than(
-                    last_updated_timestamp,
-                    &self.configuration.update_threshold_duration,
-                ) {
-                    let time_since_update = time_since(last_updated_timestamp)
-                        .unwrap_or_else(|| "recently".to_string());
-                    let threshold_description =
-                        format_duration(&self.configuration.update_threshold_duration);
+        if is_latest_version_scenario
+            && !self.configuration.force_update_enabled
+            && current_state
+                .last_updated
+                .as_ref()
+                .map(|ts| {
+                    !is_timestamp_older_than(ts, &self.configuration.update_threshold_duration)
+                })
+                .unwrap_or(false)
+        {
+            let last_updated_timestamp = current_state.last_updated.as_ref().unwrap(); // Safe unwrap
+            let time_since_update =
+                time_since(last_updated_timestamp).unwrap_or_else(|| "recently".to_string());
+            let threshold_description =
+                format_duration(&self.configuration.update_threshold_duration);
 
-                    // Skip because the 'latest' version was recently updated.
-                    return VersionAction::Skip(format!(
-                        "[SDB::Tools] Version 'latest' updated {time_since_update} (within {threshold_description} threshold)"
-                    ));
-                }
-            }
-            // The tool is older than the threshold, so it needs an update.
+            return VersionAction::Skip(format!(
+                "[SDB::Tools] Version 'latest' updated {time_since_update} (within {threshold_description} threshold)"
+            ));
+        }
+
+        // The tool is older than the threshold, so it needs an update.
+        if is_latest_version_scenario && !self.configuration.force_update_enabled {
             return VersionAction::Update;
         }
 
