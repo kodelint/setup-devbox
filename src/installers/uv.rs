@@ -243,14 +243,14 @@ fn validate_uv_configuration(tool_entry: &ToolEntry) -> bool {
     // Validate version for python mode
     if let Some(options) = &tool_entry.options {
         for opt in options {
-            if let Some(mode) = opt.strip_prefix("--mode=") {
-                if mode == "python" && tool_entry.version.is_none() {
-                    log_error!(
-                        "[SDB::Tools::UVInstaller] Python installation mode requires a version to be specified for tool '{}'",
-                        tool_entry.name.red()
-                    );
-                    return false;
-                }
+            if let Some("python") = opt.strip_prefix("--mode=")
+                && tool_entry.version.is_none()
+            {
+                log_error!(
+                    "[SDB::Tools::UVInstaller] Python installation mode requires a version to be specified for tool '{}'",
+                    tool_entry.name.red()
+                );
+                return false;
             }
         }
     }
@@ -583,17 +583,19 @@ fn get_python_installation_path(package_name: &str) -> Option<String> {
     let installations: Vec<Value> = serde_json::from_str(&output_str).ok()?;
 
     for installation in installations {
-        if let Some(key) = installation.get("key").and_then(|k| k.as_str()) {
-            if key.contains(package_name) {
-                if let Some(path) = installation.get("path").and_then(|p| p.as_str()) {
-                    log_debug!(
-                        "[SDB::Tools::UVInstaller] Found Python installation for {}: {}",
-                        package_name,
-                        path
-                    );
-                    return Some(path.to_string());
-                }
+        match (
+            installation.get("key").and_then(|k| k.as_str()),
+            installation.get("path").and_then(|p| p.as_str()),
+        ) {
+            (Some(key), Some(path)) if key.contains(package_name) => {
+                log_debug!(
+                    "[SDB::Tools::UVInstaller] Found Python installation for {}: {}",
+                    package_name,
+                    path
+                );
+                return Some(path.to_string());
             }
+            _ => continue,
         }
     }
 
@@ -685,13 +687,14 @@ pub fn validate_uv_options(tool_entry: &ToolEntry) -> bool {
 
     // Mode-specific validations
     if install_mode == "python" {
-        if let Some(version) = &tool_entry.version {
-            if !is_valid_python_version(version) {
+        match &tool_entry.version {
+            Some(version) if !is_valid_python_version(version) => {
                 log_warn!(
                     "[SDB::Tools::UVInstaller] '{}' doesn't look like a valid Python version (expected format like '3.11', '3.12.1', etc.)",
                     version.bright_yellow()
                 );
             }
+            _ => {}
         }
     }
 
