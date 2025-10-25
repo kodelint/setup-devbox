@@ -375,6 +375,7 @@ impl PathResolver {
     #[cfg(target_os = "macos")]
     pub fn get_font_installation_dir() -> io::Result<PathBuf> {
         log_debug!("[SDB] Attempting to get macOS font installation directory.");
+
         let Some(home_dir) = dirs::home_dir() else {
             log_error!(
                 "[SDB] Could not determine home directory. Cannot proceed with font installation."
@@ -387,14 +388,13 @@ impl PathResolver {
 
         let font_dir = home_dir.join("Library").join("Fonts");
 
-        // Ensure the directory exists.
-        fs::create_dir_all(&font_dir).map_err(|e| {
+        // Ensure the directory exists, logging any error via inspect_err
+        fs::create_dir_all(&font_dir).inspect_err(|e| {
             log_error!(
                 "[SDB] Failed to create font installation directory '{}': {}",
                 font_dir.display(),
                 e.to_string().red()
             );
-            e // Propagate the io::Error
         })?;
 
         log_debug!(
