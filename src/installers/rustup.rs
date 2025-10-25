@@ -41,31 +41,27 @@
 //! - **Warn**: Non-fatal issues or verification warnings
 //! - **Error**: Installation failures with specific error codes and messages
 
-// For getting environment variables, like HOME.
-// `std::env` is used to find the user's home directory to determine rustup's installation path.
-// Internal module imports:
-// `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
-// `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
-use crate::schemas::state_file::ToolState;
-use crate::schemas::tools::ToolEntry;
-// Imports custom logging macros from the crate root.
+// Standard Library Imports
+use std::env;
+use std::path::PathBuf;
+use std::process::Command;
+// External Crate Imports
+// The `colored` crate allows us to make log messages and other terminal output more readable
+// by applying colors (e.g., `.blue()`, `.green()`, `.red()`).
+use colored::Colorize;
+// Internal Module Imports
 // These macros (`log_debug`, `log_error`, `log_info`, `log_warn`) provide
 // a standardized way to output messages to the console with different severity levels,
 // making it easier to track the application's flow and diagnose issues.
 use crate::{log_debug, log_error, log_info, log_warn};
-// For adding color to terminal output.
-// The `colored` crate allows us to make log messages and other terminal output more readable
-// by applying colors (e.g., `.blue()`, `.green()`, `.red()`).
-use colored::Colorize;
-use std::env;
-// For working with file paths, specifically to construct installation paths.
-// `PathBuf` provides an OS-agnostic way to build and manipulate file paths.
-use std::path::PathBuf;
 // For executing external commands and capturing their output.
-// `std::process::Command` is used to run `rustup` commands.
+// `std::process::Command` is used to run commands/hooks.
 // `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
-use crate::libs::tool_installer::execute_post_installation_hooks;
-use std::process::Command;
+use crate::libs::tools::execute_post_installation_hooks;
+// `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
+// `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
+use crate::schemas::state_file::ToolState;
+use crate::schemas::tools::ToolEntry;
 
 /// Installs a Rust toolchain and optionally its components using `rustup`.
 ///

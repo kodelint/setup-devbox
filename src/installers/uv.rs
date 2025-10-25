@@ -34,14 +34,27 @@
 //! - **Warn**: Non-fatal issues or warnings during installation
 //! - **Error**: Installation failures with specific error codes and messages
 
-use crate::libs::tool_installer::execute_post_installation_hooks;
-use crate::schemas::state_file::ToolState;
-use crate::schemas::tools::ToolEntry;
-use crate::{log_debug, log_error, log_info, log_warn};
-use colored::Colorize;
-use serde_json::Value;
+// Standard Library Imports
 use std::path::PathBuf;
 use std::process::{Command, Output};
+// External Crate Imports
+// The `colored` crate allows us to make log messages and other terminal output more readable
+// by applying colors (e.g., `.blue()`, `.green()`, `.red()`).
+use colored::Colorize;
+use serde_json::Value;
+// Internal Module Imports
+// These macros (`log_debug`, `log_error`, `log_info`, `log_warn`) provide
+// a standardized way to output messages to the console with different severity levels,
+// making it easier to track the application's flow and diagnose issues.
+use crate::{log_debug, log_error, log_info, log_warn};
+// For executing external commands and capturing their output.
+// `std::process::Command` is used to run commands/hooks.
+// `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
+use crate::libs::tools::execute_post_installation_hooks;
+// `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
+// `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
+use crate::schemas::state_file::ToolState;
+use crate::schemas::tools::ToolEntry;
 
 /// Installs a Python package using `uv` with comprehensive validation and error handling.
 ///

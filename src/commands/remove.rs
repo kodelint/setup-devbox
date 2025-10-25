@@ -41,9 +41,11 @@
 //! remove_setting("com.apple.dock".to_string(), "autohide".to_string());
 //! ```
 
-use crate::libs::removal_orchestrator::RemovalOrchestrator;
-use crate::libs::state_management::{load_or_initialize_state, save_state_to_file};
-use crate::libs::uninstallers::{ConfigurationCleaner, RemovalResult, RemovalSummary};
+use crate::libs::state::manager::{load_or_initialize_state, save_state_to_file};
+use crate::libs::tools::uninstaller::executors::{
+    ConfigurationCleaner, RemovalResult, RemovalSummary,
+};
+use crate::libs::tools::uninstaller::orchestrator::RemovalOrchestrator;
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::state_file::DevBoxState;
 use crate::{log_debug, log_error, log_info, log_warn};

@@ -41,7 +41,9 @@ use serde::{Deserialize, Serialize};
 //                              INTERNAL IMPORTS                               //
 // =========================================================================== //
 
-use crate::libs::configuration_manager::{ConfigurationManager, ConfigurationManagerProcessor};
+use crate::libs::tools::configuration::processor::{
+    ConfigurationManager, ConfigurationManagerProcessor,
+};
 use crate::schemas::state_file::DevBoxState;
 
 // ============================================================================

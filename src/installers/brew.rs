@@ -63,7 +63,7 @@ use crate::schemas::tools::ToolEntry;
 // Custom logging macros for structured output.
 use crate::{log_debug, log_error, log_info, log_warn};
 // Post-installation hook execution functionality.
-use crate::libs::tool_installer::execute_post_installation_hooks;
+use crate::libs::tools::execute_post_installation_hooks;
 
 /// Installs a tool using the Homebrew package manager with comprehensive error handling.
 ///

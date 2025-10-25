@@ -42,7 +42,7 @@
 use colored::Colorize;
 
 // Utility imports
-use crate::libs::tool_installer::execute_post_installation_hooks;
+use crate::libs::tools::execute_post_installation_hooks;
 use crate::libs::utilities::assets;
 use crate::libs::utilities::{
     assets::detect_file_type,

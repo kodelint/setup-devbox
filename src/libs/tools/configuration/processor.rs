@@ -20,9 +20,9 @@
 //! - Only processes files when actual changes are detected
 //! - Efficient format conversion with minimal intermediate representations
 
-pub(crate) use crate::schemas::configuration_management::ConfigurationEvaluationResult;
 pub(crate) use crate::schemas::configuration_management::{
-    ConfigurationManager, ConfigurationManagerProcessor, ConfigurationManagerState,
+    ConfigurationEvaluationResult, ConfigurationManager, ConfigurationManagerProcessor,
+    ConfigurationManagerState,
 };
 use crate::schemas::path_resolver::PathResolver;
 use crate::{log_debug, log_info, log_warn};
@@ -33,60 +33,6 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 use toml::Value as TomlValue;
-// ============================================================================
-// CONFIGURATION MANAGER IMPLEMENTATIONS
-// ============================================================================
-
-/// ### Struct Implementations
-/// ConfigurationManager struct defines the core configuration for a single tool's configuration management.
-/// It's typically part of a larger schema for a tool and controls whether configuration
-/// syncing is enabled and where the destination file should be placed.
-impl Default for ConfigurationManager {
-    /// Provides a default state for the `ConfigurationManager`, with configuration
-    /// disabled by default.
-    ///
-    /// ## Default Behavior
-    /// - `enabled: false` - Configuration management is disabled
-    /// - `tools_configuration_paths: Vec::new()` - Empty path list
-    ///
-    /// This ensures that tools without explicit configuration management settings
-    /// won't have their configuration files managed by the system.
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            tools_configuration_paths: Vec::new(),
-        }
-    }
-}
-
-/// ConfigurationManagerState struct holds the state of a configuration after it has been processed.
-/// The SHA hashes are crucial for detecting changes in both source and destination
-/// files between runs.
-impl ConfigurationManagerState {
-    /// Creates a new `ConfigurationManagerState` with the provided details.
-    ///
-    /// ## Parameters
-    /// - `enabled`: Whether configuration management is enabled for this tool
-    /// - `tools_configuration_paths`: List of destination configuration file paths
-    /// - `source_sha`: SHA-256 hash of the source configuration file content
-    /// - `destination_sha`: SHA-256 hash of the destination configuration file content
-    ///
-    /// ## Returns
-    /// A new `ConfigurationManagerState` instance with the provided values.
-    pub fn new(
-        enabled: bool,
-        tools_configuration_paths: Vec<String>,
-        source_sha: String,
-        destination_sha: String,
-    ) -> Self {
-        Self {
-            enabled,
-            tools_configuration_paths,
-            source_configuration_sha: source_sha,
-            destination_configuration_sha: destination_sha,
-        }
-    }
-}
 
 // ============================================================================
 // CONFIGURATION PROCESSOR IMPLEMENTATION

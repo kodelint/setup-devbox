@@ -27,7 +27,7 @@
 //! - `settings.yaml`: OS-specific system settings (macOS)
 //! - `shellrc.yaml`: Shell initialization template (not tracked in state)
 
-use crate::libs::configuration_manager::ConfigurationManagerState;
+use crate::libs::tools::configuration::processor::ConfigurationManagerState;
 use crate::schemas::configuration_management::ConfigurationManager;
 use crate::schemas::fonts::FontEntry;
 use crate::schemas::os_settings::{OsSpecificSettings, SettingEntry, SettingsConfig};

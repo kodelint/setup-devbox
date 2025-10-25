@@ -39,7 +39,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 // Post-installation hook execution functionality.
-use crate::libs::tool_installer::execute_post_installation_hooks;
+use crate::libs::tools::execute_post_installation_hooks;
 // Internal module imports:
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.

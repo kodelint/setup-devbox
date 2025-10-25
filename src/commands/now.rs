@@ -10,15 +10,15 @@ use crate::{log_debug, log_info};
 use colored::Colorize;
 // For colored terminal output.
 
+use crate::libs::tools::install_tools;
 use crate::libs::{
-    config_loading::{
+    config::{
         load_master_configs, // Loads configurations from `config.yaml`.
         load_single_config,  // Loads a single configuration file.
     },
-    font_installer::install_fonts,
-    settings_applier::apply_system_settings,
-    state_management,
-    tool_installer::install_tools,
+    fonts::installer::install_fonts,
+    settings::apply_system_settings,
+    state::manager::load_or_initialize_state,
 };
 use crate::schemas::path_resolver::PathResolver;
 
@@ -60,8 +60,7 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
     );
 
     // Load existing application state or initialize a new one.
-    let mut state: DevBoxState =
-        state_management::load_or_initialize_state(&state_path_resolved.to_path_buf());
+    let mut state: DevBoxState = load_or_initialize_state(&state_path_resolved.to_path_buf());
 
     // Load configurations based on the detected config filename.
     let parsed_configs = if config_filename == "config.yaml" {
@@ -73,7 +72,7 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
     // Apply configurations and update state for each section.
     // State is saved immediately after each major block if changes occur.
     if let Some(tools_cfg) = parsed_configs.tools {
-        log_info!("[SDB::Tools] Prosseing {}...", "Tools".bright_green());
+        log_info!("[SDB::Tools] Processing {}...", "Tools".bright_green());
         install_tools(
             tools_cfg,
             &mut state,

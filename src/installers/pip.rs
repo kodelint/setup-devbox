@@ -5,30 +5,28 @@
 // The installer handles Python package installations with support for different pip variants,
 // installation modes (user vs system), version specifications, and comprehensive verification.
 
-use std::env;
-// Standard library imports:
-// `std::path::PathBuf`: Provides an owned, OS-agnostic path for path manipulation.
-use std::path::PathBuf;
-// `std::process::{Command, Output}`: Core functionality for executing external commands.
-//   - `Command`: Builder for new processes, used to construct and configure `pip` commands.
-//   - `Output`: Represents the output of a finished process, containing exit status, stdout, and stderr.
-use std::process::Command;
-// `std::collections::HashSet`: Used for efficient lookup during verification.
+// Standard Library Imports
 use std::collections::HashSet;
-
-// External crate imports:
-// `colored::Colorize`: Library for adding color to terminal output for better readability.
+use std::env;
+use std::path::PathBuf;
+use std::process::Command;
+// External Crate Imports
+// The `colored` crate allows us to make log messages and other terminal output more readable
+// by applying colors (e.g., `.blue()`, `.green()`, `.red()`).
 use colored::Colorize;
-
-// Internal module imports:
+// Internal Module Imports
+// These macros (`log_debug`, `log_error`, `log_info`, `log_warn`) provide
+// a standardized way to output messages to the console with different severity levels,
+// making it easier to track the application's flow and diagnose issues.
+use crate::{log_debug, log_error, log_info, log_warn};
+// For executing external commands and capturing their output.
+// `std::process::Command` is used to run commands/hooks.
+// `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
+use crate::libs::tools::execute_post_installation_hooks;
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
 use crate::schemas::state_file::ToolState;
 use crate::schemas::tools::ToolEntry;
-// Custom logging macros for structured output.
-use crate::{log_debug, log_error, log_info, log_warn};
-// Post-installation hook execution functionality.
-use crate::libs::tool_installer::execute_post_installation_hooks;
 
 /// Represents the type of pip executable detected
 #[derive(Debug, Clone)]
