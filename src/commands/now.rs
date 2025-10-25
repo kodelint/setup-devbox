@@ -73,6 +73,7 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
     // Apply configurations and update state for each section.
     // State is saved immediately after each major block if changes occur.
     if let Some(tools_cfg) = parsed_configs.tools {
+        log_info!("[SDB::Tools] Prosseing {}...", "Tools".bright_green());
         install_tools(
             tools_cfg,
             &mut state,

@@ -472,7 +472,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         operation_type: &str,
         cached_config_evaluation: Option<ConfigurationEvaluationResult>,
     ) -> ToolProcessingResult {
-        log_info!("[SDB::Tools] Installing {}...", "Tools".bright_green());
+        // log_info!("[SDB::Tools] Installing {}...", "Tools".bright_green());
         self.display_installation_header(tool, operation_type);
 
         // Invoke the correct installer based on the tool's `source`.
@@ -512,7 +512,8 @@ impl<'a> ToolInstallationOrchestrator<'a> {
 
     // A simple helper function to display a formatted header for installation.
     fn display_installation_header(&self, tool: &ToolEntry, operation_type: &str) {
-        println!("\n{}", "=".repeat(80).bright_blue());
+        println!("\nTool Name: {}", tool.name.bright_green().bold());
+        println!("{}", "=".repeat(80).blue());
         log_info!(
             "[SDB::Tools] {} {} tool using {}",
             operation_type.bright_blue().bold(),
