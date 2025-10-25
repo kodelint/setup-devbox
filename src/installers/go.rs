@@ -487,18 +487,16 @@ fn determine_actual_binary_name(tool_entry: &ToolEntry) -> String {
     }
 
     // Priority 2: Extract binary name from URL (if provided)
-    if let Some(url) = &tool_entry.url {
-        if let Some(url_binary_name) = extract_binary_name_from_url(url) {
-            // Only use URL binary name if it's different from the tool name
-            if url_binary_name != tool_entry.name {
-                log_debug!(
-                    "[SDB::Tools::GoInstaller] Using binary name from URL: {} (tool name: {})",
-                    url_binary_name,
-                    tool_entry.name
-                );
-                return url_binary_name;
-            }
-        }
+    if let Some(url) = &tool_entry.url
+        && let Some(url_binary_name) = extract_binary_name_from_url(url)
+        && url_binary_name != tool_entry.name
+    {
+        log_debug!(
+            "[SDB::Tools::GoInstaller] Using binary name from URL: {} (tool name: {})",
+            url_binary_name,
+            tool_entry.name
+        );
+        return url_binary_name;
     }
 
     // Priority 3: Use tool name as fallback
@@ -561,27 +559,26 @@ fn try_alternative_names(tool_entry: &ToolEntry, expected_path: &std::path::Path
     }
 
     // If no alternatives found, check what's actually in the bin directory
-    if let Some(bin_dir) = expected_path.parent() {
-        if let Ok(entries) = std::fs::read_dir(bin_dir) {
-            let installed_binaries: Vec<String> = entries
-                .filter_map(|entry| entry.ok())
-                .filter(|entry| {
-                    if let Ok(metadata) = entry.metadata() {
-                        metadata.is_file() && is_executable(&entry.path())
-                    } else {
-                        false
-                    }
-                })
-                .filter_map(|entry| entry.file_name().into_string().ok())
-                .collect();
+    if let Some(bin_dir) = expected_path.parent()
+        && let Ok(entries) = std::fs::read_dir(bin_dir)
+    {
+        let installed_binaries: Vec<String> = entries
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                entry
+                    .metadata()
+                    .map(|m| m.is_file() && is_executable(&entry.path()))
+                    .unwrap_or(false)
+            })
+            .filter_map(|entry| entry.file_name().into_string().ok())
+            .collect();
 
-            if !installed_binaries.is_empty() {
-                log_info!(
-                    "[SDB::Tools::GoInstaller] Installed binaries in {}: {}",
-                    bin_dir.display(),
-                    installed_binaries.join(", ").cyan()
-                );
-            }
+        if !installed_binaries.is_empty() {
+            log_info!(
+                "[SDB::Tools::GoInstaller] Installed binaries in {}: {}",
+                bin_dir.display(),
+                installed_binaries.join(", ").cyan()
+            );
         }
     }
 }
@@ -602,12 +599,11 @@ fn generate_alternative_names(tool_entry: &ToolEntry) -> Vec<String> {
     }
 
     // Alternative 2: URL binary name (if we were using tool name before)
-    if let Some(url) = &tool_entry.url {
-        if let Some(url_name) = extract_binary_name_from_url(url) {
-            if url_name != tool_entry.name {
-                alternatives.push(url_name);
-            }
-        }
+    if let Some(url) = &tool_entry.url
+        && let Some(url_name) = extract_binary_name_from_url(url)
+        && url_name != tool_entry.name
+    {
+        alternatives.push(url_name);
     }
 
     // Alternative 3: Common variations

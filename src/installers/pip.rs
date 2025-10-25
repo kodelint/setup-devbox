@@ -276,10 +276,10 @@ fn validate_package_configuration(tool_entry: &ToolEntry) -> bool {
     }
 
     // Validate version format if specified
-    if let Some(version) = &tool_entry.version {
-        if version.trim().is_empty() {
-            log_warn!("[SDB::Tools::PipInstaller] Empty version specified, using latest available");
-        }
+    if let Some(version) = &tool_entry.version
+        && version.trim().is_empty()
+    {
+        log_warn!("[SDB::Tools::PipInstaller] Empty version specified, using latest available");
     }
 
     true
@@ -618,12 +618,10 @@ fn get_user_installation_path(package_name: &str, pip_variant: &PipVariant) -> O
         .args(["-c", "import site; print(site.USER_BASE)"])
         .output()
     {
-        if output.status.success() {
-            let user_base = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !user_base.is_empty() {
-                log_debug!("[SDB::Tools::PipInstaller] Found user base: {}", user_base);
-                return Some(PathBuf::from(user_base).join("bin").join(package_name));
-            }
+        let user_base = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if output.status.success() && !user_base.is_empty() {
+            log_debug!("[SDB::Tools::PipInstaller] Found user base: {}", user_base);
+            return Some(PathBuf::from(user_base).join("bin").join(package_name));
         }
     }
 
@@ -658,17 +656,13 @@ fn get_system_installation_path(package_name: &str, pip_variant: &PipVariant) ->
         .args(["-c", "import sys; print(next((p for p in sys.path if 'site-packages' in p and 'local' in p), ''))"])
         .output()
     {
-        if output.status.success() {
-            let site_packages = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !site_packages.is_empty() {
-                // Convert site-packages path to bin path
-                let mut path = PathBuf::from(&site_packages);
-                // Go up from site-packages to find the bin directory
-                if path.pop() && path.pop() && path.pop() {
-                    let bin_path = path.join("bin").join(package_name);
-                    log_debug!("[SDB::Tools::PipInstaller] Found system bin path: {}", bin_path.display());
-                    return Some(bin_path);
-                }
+        let site_packages = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if output.status.success() && !site_packages.is_empty() {
+            let mut path = PathBuf::from(&site_packages);
+            if path.pop() && path.pop() && path.pop() {
+                let bin_path = path.join("bin").join(package_name);
+                log_debug!("[SDB::Tools::PipInstaller] Found system bin path: {}", bin_path.display());
+                return Some(bin_path);
             }
         }
     }

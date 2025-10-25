@@ -388,7 +388,8 @@ fn prepare_cargo_based_install_command(command_args: &mut Vec<String>, tool_entr
 
     // Handle version specification
     if let Some(version) = &tool_entry.version {
-        if !version.trim().is_empty() {
+        let trimmed = version.trim();
+        if !trimmed.is_empty() {
             command_args.push("--version".to_string());
             command_args.push(version.clone());
             log_debug!(
@@ -466,16 +467,16 @@ fn prepare_git_based_install_command(command_args: &mut Vec<String>, tool_entry:
     command_args.push(tool_entry.name.clone());
 
     // Handle version as git tag if no explicit git options are present
-    if !has_branch && !has_tag && !has_rev {
-        if let Some(version) = &tool_entry.version {
-            if !version.trim().is_empty() {
-                command_args.push("--tag".to_string());
-                command_args.push(version.clone());
-                log_debug!(
-                    "[Cargo Installer] Using version as git tag: {}",
-                    version.cyan()
-                );
-            }
+    if !has_branch && !has_tag && !has_rev && tool_entry.version.is_some() {
+        let version = tool_entry.version.as_ref().unwrap();
+        let trimmed = version.trim();
+        if !trimmed.is_empty() {
+            command_args.push("--tag".to_string());
+            command_args.push(version.clone());
+            log_debug!(
+                "[Cargo Installer] Using version as git tag: {}",
+                version.cyan()
+            );
         }
     }
 }
@@ -674,7 +675,8 @@ fn get_cargo_install_path(tool_name: &str) -> Option<PathBuf> {
 fn determine_installed_version(tool_entry: &ToolEntry, is_it_already_installed: bool) -> String {
     // Priority 1: Use version from configuration if specified
     if let Some(version) = &tool_entry.version {
-        if !version.trim().is_empty() {
+        let trimmed = version.trim();
+        if !trimmed.is_empty() {
             return version.clone();
         }
     }
@@ -684,53 +686,46 @@ fn determine_installed_version(tool_entry: &ToolEntry, is_it_already_installed: 
         "[SDB::Tools::CargoInstaller] Checking if other indexes were used to install {}",
         tool_entry.name.bold()
     );
-    if is_it_already_installed {
-        if let Some(options) = &tool_entry.options {
-            // Check for --tag first (highest priority for Git)
-            if let Some(tag_opt) = options.iter().find(|opt| opt.starts_with("--tag")) {
-                if let Some(tag_value) = tag_opt.split('=').nth(1) {
-                    return tag_value.to_string();
-                } else if let Some(pos) = options.iter().position(|opt| opt == "--tag") {
-                    if let Some(tag_value) = options.get(pos + 1) {
-                        return tag_value.clone();
-                    }
-                }
-            }
+    if is_it_already_installed && tool_entry.options.is_some() {
+        let options = tool_entry.options.as_ref().unwrap();
 
-            // Check for --branch next (medium priority for Git)
-            if let Some(branch_opt) = options.iter().find(|opt| opt.starts_with("--branch")) {
-                if let Some(branch_value) = branch_opt.split('=').nth(1) {
-                    return format!("branch-{branch_value}");
-                } else if let Some(pos) = options.iter().position(|opt| opt == "--branch") {
-                    if let Some(branch_value) = options.get(pos + 1) {
-                        return format!("branch-{branch_value}");
-                    }
-                }
-            }
+        // Check for --tag first (highest priority for Git)
+        if let Some(tag_value) = extract_option_value(options, "--tag") {
+            return tag_value;
+        }
 
-            // Check for --rev last (lowest priority for Git, only first 7 characters for brevity)
-            if let Some(rev_opt) = options.iter().find(|opt| opt.starts_with("--rev")) {
-                if let Some(rev_value) = rev_opt.split('=').nth(1) {
-                    let short_rev = if rev_value.len() > 7 {
-                        &rev_value[..7]
-                    } else {
-                        rev_value
-                    };
-                    return format!("rev-{short_rev}");
-                } else if let Some(pos) = options.iter().position(|opt| opt == "--rev") {
-                    if let Some(rev_value) = options.get(pos + 1) {
-                        let short_rev = if rev_value.len() > 7 {
-                            &rev_value[..7]
-                        } else {
-                            rev_value
-                        };
-                        return format!("rev-{short_rev}");
-                    }
-                }
-            }
+        // Check for --branch next (medium priority for Git)
+        if let Some(branch_value) = extract_option_value(options, "--branch") {
+            return format!("branch-{branch_value}");
+        }
+
+        // Check for --rev last (lowest priority for Git, only first 7 characters for brevity)
+        if let Some(rev_value) = extract_option_value(options, "--rev") {
+            let short_rev: &str = if rev_value.len() > 7 {
+                &rev_value[..7]
+            } else {
+                &rev_value
+            };
+            return format!("rev-{short_rev}");
         }
     }
 
     // Priority 3: Fallback to "latest" when no version information is available
     "latest".to_string()
+}
+
+fn extract_option_value(options: &[String], flag: &str) -> Option<String> {
+    // Check for --flag=value format
+    options
+        .iter()
+        .find(|opt| opt.starts_with(flag))
+        .and_then(|opt| opt.split('=').nth(1))
+        .map(|value| value.to_string())
+        .or_else(|| {
+            // Check for --flag value format
+            options
+                .iter()
+                .position(|opt| opt == flag)
+                .and_then(|pos| options.get(pos + 1).cloned())
+        })
 }

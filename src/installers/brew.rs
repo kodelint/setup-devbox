@@ -649,10 +649,8 @@ fn get_common_brew_paths(bin_name: &str) -> Option<PathBuf> {
 /// 3. **Fallback**: Returns "latest" if no version information can be determined
 fn determine_installed_version(tool_entry: &ToolEntry) -> String {
     // Priority 1: Use version from configuration if specified
-    if let Some(version) = &tool_entry.version {
-        if !version.trim().is_empty() {
-            return version.clone();
-        }
+    if let Some(version) = &tool_entry.version.as_ref().filter(|v| !v.trim().is_empty()) {
+        return version.to_string();
     }
 
     // Priority 2: Try to get actual installed version from Homebrew
