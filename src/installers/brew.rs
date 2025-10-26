@@ -59,11 +59,11 @@ use colored::Colorize;
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
 use crate::schemas::state_file::ToolState;
-use crate::schemas::tools::ToolEntry;
+use crate::schemas::tools::types::ToolEntry;
 // Custom logging macros for structured output.
 use crate::{log_debug, log_error, log_info, log_warn};
 // Post-installation hook execution functionality.
-use crate::libs::tool_installer::execute_post_installation_hooks;
+use crate::libs::tools::execute_post_installation_hooks;
 
 /// Installs a tool using the Homebrew package manager with comprehensive error handling.
 ///
@@ -649,10 +649,8 @@ fn get_common_brew_paths(bin_name: &str) -> Option<PathBuf> {
 /// 3. **Fallback**: Returns "latest" if no version information can be determined
 fn determine_installed_version(tool_entry: &ToolEntry) -> String {
     // Priority 1: Use version from configuration if specified
-    if let Some(version) = &tool_entry.version {
-        if !version.trim().is_empty() {
-            return version.clone();
-        }
+    if let Some(version) = &tool_entry.version.as_ref().filter(|v| !v.trim().is_empty()) {
+        return version.to_string();
     }
 
     // Priority 2: Try to get actual installed version from Homebrew

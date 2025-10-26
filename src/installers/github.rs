@@ -42,7 +42,7 @@
 use colored::Colorize;
 
 // Utility imports
-use crate::libs::tool_installer::execute_post_installation_hooks;
+use crate::libs::tools::execute_post_installation_hooks;
 use crate::libs::utilities::assets;
 use crate::libs::utilities::{
     assets::detect_file_type,
@@ -52,7 +52,7 @@ use crate::libs::utilities::{
 // Schema imports
 use crate::schemas::common::{Release, ReleaseAsset};
 use crate::schemas::state_file::ToolState;
-use crate::schemas::tools::ToolEntry;
+use crate::schemas::tools::types::ToolEntry;
 
 // Custom logging macros
 use crate::{log_debug, log_error, log_info};

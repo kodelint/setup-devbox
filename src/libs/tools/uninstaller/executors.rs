@@ -206,7 +206,7 @@ impl ToolUninstaller for RustupUninstaller {
 
 /// Removes Go packages installed via `go install`.
 ///
-/// Go doesn't provide a built-in uninstall command, so we manually locate
+/// Go doesn't provide a built-in uninstallation command, so we manually locate
 /// and delete the binary from $GOPATH/bin.
 pub(crate) struct GoUninstaller;
 

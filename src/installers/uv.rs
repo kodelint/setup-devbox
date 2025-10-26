@@ -34,14 +34,27 @@
 //! - **Warn**: Non-fatal issues or warnings during installation
 //! - **Error**: Installation failures with specific error codes and messages
 
-use crate::libs::tool_installer::execute_post_installation_hooks;
-use crate::schemas::state_file::ToolState;
-use crate::schemas::tools::ToolEntry;
-use crate::{log_debug, log_error, log_info, log_warn};
-use colored::Colorize;
-use serde_json::Value;
+// Standard Library Imports
 use std::path::PathBuf;
 use std::process::{Command, Output};
+// External Crate Imports
+// The `colored` crate allows us to make log messages and other terminal output more readable
+// by applying colors (e.g., `.blue()`, `.green()`, `.red()`).
+use colored::Colorize;
+use serde_json::Value;
+// Internal Module Imports
+// These macros (`log_debug`, `log_error`, `log_info`, `log_warn`) provide
+// a standardized way to output messages to the console with different severity levels,
+// making it easier to track the application's flow and diagnose issues.
+use crate::{log_debug, log_error, log_info, log_warn};
+// For executing external commands and capturing their output.
+// `std::process::Command` is used to run commands/hooks.
+// `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
+use crate::libs::tools::execute_post_installation_hooks;
+// `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
+// `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
+use crate::schemas::state_file::ToolState;
+use crate::schemas::tools::types::ToolEntry;
 
 /// Installs a Python package using `uv` with comprehensive validation and error handling.
 ///
@@ -243,14 +256,14 @@ fn validate_uv_configuration(tool_entry: &ToolEntry) -> bool {
     // Validate version for python mode
     if let Some(options) = &tool_entry.options {
         for opt in options {
-            if let Some(mode) = opt.strip_prefix("--mode=") {
-                if mode == "python" && tool_entry.version.is_none() {
-                    log_error!(
-                        "[SDB::Tools::UVInstaller] Python installation mode requires a version to be specified for tool '{}'",
-                        tool_entry.name.red()
-                    );
-                    return false;
-                }
+            if let Some("python") = opt.strip_prefix("--mode=")
+                && tool_entry.version.is_none()
+            {
+                log_error!(
+                    "[SDB::Tools::UVInstaller] Python installation mode requires a version to be specified for tool '{}'",
+                    tool_entry.name.red()
+                );
+                return false;
             }
         }
     }
@@ -583,17 +596,19 @@ fn get_python_installation_path(package_name: &str) -> Option<String> {
     let installations: Vec<Value> = serde_json::from_str(&output_str).ok()?;
 
     for installation in installations {
-        if let Some(key) = installation.get("key").and_then(|k| k.as_str()) {
-            if key.contains(package_name) {
-                if let Some(path) = installation.get("path").and_then(|p| p.as_str()) {
-                    log_debug!(
-                        "[SDB::Tools::UVInstaller] Found Python installation for {}: {}",
-                        package_name,
-                        path
-                    );
-                    return Some(path.to_string());
-                }
+        match (
+            installation.get("key").and_then(|k| k.as_str()),
+            installation.get("path").and_then(|p| p.as_str()),
+        ) {
+            (Some(key), Some(path)) if key.contains(package_name) => {
+                log_debug!(
+                    "[SDB::Tools::UVInstaller] Found Python installation for {}: {}",
+                    package_name,
+                    path
+                );
+                return Some(path.to_string());
             }
+            _ => continue,
         }
     }
 
@@ -685,13 +700,14 @@ pub fn validate_uv_options(tool_entry: &ToolEntry) -> bool {
 
     // Mode-specific validations
     if install_mode == "python" {
-        if let Some(version) = &tool_entry.version {
-            if !is_valid_python_version(version) {
+        match &tool_entry.version {
+            Some(version) if !is_valid_python_version(version) => {
                 log_warn!(
                     "[SDB::Tools::UVInstaller] '{}' doesn't look like a valid Python version (expected format like '3.11', '3.12.1', etc.)",
                     version.bright_yellow()
                 );
             }
+            _ => {}
         }
     }
 

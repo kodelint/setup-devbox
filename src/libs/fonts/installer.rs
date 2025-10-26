@@ -14,7 +14,7 @@ use crate::installers::fonts;
 use crate::schemas::fonts::FontConfig;
 use crate::schemas::state_file::DevBoxState;
 // Imports the function to save the `DevBoxState`.
-use crate::libs::state_management::save_devbox_state;
+use crate::libs::state::manager::save_devbox_state;
 
 /// Installs fonts based on the provided configuration and updates the application state.
 ///

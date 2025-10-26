@@ -39,7 +39,7 @@
 //! - Tracks installation sources for proper update methods
 //! - Stores original parameters for reinstallation scenarios
 
-use crate::libs::configuration_manager::ConfigurationManagerState;
+use crate::libs::tools::configuration::processor::ConfigurationManagerState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

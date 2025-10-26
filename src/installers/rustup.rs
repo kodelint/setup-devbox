@@ -41,31 +41,27 @@
 //! - **Warn**: Non-fatal issues or verification warnings
 //! - **Error**: Installation failures with specific error codes and messages
 
-// For getting environment variables, like HOME.
-// `std::env` is used to find the user's home directory to determine rustup's installation path.
-// Internal module imports:
-// `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
-// `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
-use crate::schemas::state_file::ToolState;
-use crate::schemas::tools::ToolEntry;
-// Imports custom logging macros from the crate root.
+// Standard Library Imports
+use std::env;
+use std::path::PathBuf;
+use std::process::Command;
+// External Crate Imports
+// The `colored` crate allows us to make log messages and other terminal output more readable
+// by applying colors (e.g., `.blue()`, `.green()`, `.red()`).
+use colored::Colorize;
+// Internal Module Imports
 // These macros (`log_debug`, `log_error`, `log_info`, `log_warn`) provide
 // a standardized way to output messages to the console with different severity levels,
 // making it easier to track the application's flow and diagnose issues.
 use crate::{log_debug, log_error, log_info, log_warn};
-// For adding color to terminal output.
-// The `colored` crate allows us to make log messages and other terminal output more readable
-// by applying colors (e.g., `.blue()`, `.green()`, `.red()`).
-use colored::Colorize;
-use std::env;
-// For working with file paths, specifically to construct installation paths.
-// `PathBuf` provides an OS-agnostic way to build and manipulate file paths.
-use std::path::PathBuf;
 // For executing external commands and capturing their output.
-// `std::process::Command` is used to run `rustup` commands.
+// `std::process::Command` is used to run commands/hooks.
 // `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
-use crate::libs::tool_installer::execute_post_installation_hooks;
-use std::process::Command;
+use crate::libs::tools::execute_post_installation_hooks;
+// `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
+// `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
+use crate::schemas::state_file::ToolState;
+use crate::schemas::tools::types::ToolEntry;
 
 /// Installs a Rust toolchain and optionally its components using `rustup`.
 ///
@@ -190,10 +186,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
     }
 
     // 4. Install components if specified - adds additional tools to the toolchain
-    if let Some(components) = &tool_entry.options {
-        if !install_components(components, &toolchain_name) {
-            return None;
-        }
+    if let Some(components) = &tool_entry.options
+        && !install_components(components, &toolchain_name)
+    {
+        return None;
     }
 
     // 5. Verify the complete installation - ensure everything was installed correctly
@@ -589,10 +585,10 @@ fn verify_toolchain_installation(toolchain_name: &str, components: Option<&Vec<S
     }
 
     // 2. Verify components if any were specified - check each component is installed
-    if let Some(component_list) = components {
-        if !verify_components_installed(component_list, toolchain_name) {
-            return false;
-        }
+    if let Some(component_list) = components
+        && !verify_components_installed(component_list, toolchain_name)
+    {
+        return false;
     }
 
     log_debug!("[SDB::Tools::RustUpInstaller] Installation verification completed successfully");
@@ -866,13 +862,12 @@ fn get_actual_toolchain_version(toolchain_name: &str) -> Option<String> {
         Ok(output) if output.status.success() => {
             let version_output = String::from_utf8_lossy(&output.stdout);
             // Parse "rustc 1.70.0 (90c541806 2023-05-31)" format
-            if let Some(first_line) = version_output.lines().next() {
-                if let Some(version_start) = first_line.find("rustc ") {
-                    let version_part = &first_line[version_start + 6..];
-                    if let Some(space_pos) = version_part.find(' ') {
-                        return Some(version_part[..space_pos].to_string());
-                    }
-                }
+            if let Some(first_line) = version_output.lines().next()
+                && let Some(version_start) = first_line.find("rustc ")
+                && let Some(space_pos) = first_line[version_start + 6..].find(' ')
+            {
+                let version_part = &first_line[version_start + 6..];
+                return Some(version_part[..space_pos].to_string());
             }
         }
         _ => {}

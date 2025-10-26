@@ -23,7 +23,7 @@ use colored::Colorize;
 //                              INTERNAL IMPORTS                               //
 // ===========================================================================
 
-use crate::libs::state_management::save_devbox_state;
+use crate::libs::state::manager::save_devbox_state;
 use crate::schemas::os_settings::SettingsConfig;
 use crate::schemas::state_file::{DevBoxState, SettingState};
 use crate::{log_debug, log_error, log_info, log_warn};

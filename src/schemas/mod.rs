@@ -1,5 +1,5 @@
 pub mod common;
-pub mod configuration_management;
+pub mod config_manager;
 pub mod fonts;
 pub mod help;
 pub mod os_settings;

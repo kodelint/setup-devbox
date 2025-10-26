@@ -30,9 +30,9 @@ use colored::Colorize;
 // =========================================================================== //
 
 use crate::libs::utilities::timestamps::current_timestamp;
-use crate::schemas::configuration_management::ConfigurationManagerState;
+use crate::schemas::config_manager::ConfigurationManagerState;
 use crate::schemas::state_file::{DevBoxState, ToolState};
-use crate::schemas::tools::ToolEntry;
+use crate::schemas::tools::types::ToolEntry;
 use crate::{log_debug, log_error, log_info, log_warn};
 
 /// Loads the application's state from `state.json` or initializes a new one.
