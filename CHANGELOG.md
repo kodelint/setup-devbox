@@ -2,12 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.1] - 2025-10-26
+
+### ♻️ Refactor
+
+- Code placements ([1b3925e](https://github.com/kodelint/setup-devbox/commit/1b3925e288e82e7ba12245acdae75f5ba438bf10))(by kodelint)
+- Schema and lib functions ([f87b9aa](https://github.com/kodelint/setup-devbox/commit/f87b9aa735c82f781cbc441735b4769d5baef3d7))(by kodelint)
+
+### 🏠 Miscellaneous Tasks
+
+- Logging on console arranged ([a6054e0](https://github.com/kodelint/setup-devbox/commit/a6054e0ae65d77d830b3e67e238a895443fd6654))(by kodelint)
+
+### 🐛 Bug Fixes
+
+- Replacing the manual map_err with inspect_err for get_font_installation_dir function ([52756cb](https://github.com/kodelint/setup-devbox/commit/52756cbb4d4de82cde7530f5adcebb7e6ab80627))(by kodelint)
+- Collapsed nested if into a single compound condition ([d565697](https://github.com/kodelint/setup-devbox/commit/d5656970d35b039f10955a36fd75a23197f0cf8b))(by kodelint)
+- Collapsed nested if, clippy’s collapsible_if lint without violating ownership ([ed6d0fb](https://github.com/kodelint/setup-devbox/commit/ed6d0fb67d96051352a500abacb192ed66313f1c))(by kodelint)
+- Avoids invalid syntax while satisfying Clippy’s collapsible_if lint ([a481cdc](https://github.com/kodelint/setup-devbox/commit/a481cdcb7b68a74a371aa7defc1bbfbff79ca390))(by kodelint)
+- Fully satisfies Clippy’s collapsible_if lint for find_executable ([99445bc](https://github.com/kodelint/setup-devbox/commit/99445bc65918afeba622f195ecab68d347a664b5))(by kodelint)
+- Improving readability and aligning with Clippy's recommendation ([5a08000](https://github.com/kodelint/setup-devbox/commit/5a08000c7b8399abe177257592b6d90872af196a))(by kodelint)
+- Clippy complient ([b52f1ee](https://github.com/kodelint/setup-devbox/commit/b52f1eedeb9acae3a41765ced428c8ea0d2632f9))(by kodelint)
+- Clippy complient if condition ([505553c](https://github.com/kodelint/setup-devbox/commit/505553c0c25180c1f767afbd9aaaf45c8f48354c))(by kodelint)
+
 ## [0.6.0] - 2025-10-24
 
 ### 🏠 Miscellaneous Tasks
 
 - Clippy Compliant ([3c23766](https://github.com/kodelint/setup-devbox/commit/3c23766e9b8455253ccbf0eebce2be72ec2dd35c))(by kodelint)
 - Cargo formatting ([11f0a7f](https://github.com/kodelint/setup-devbox/commit/11f0a7f99c18792dce884fc36284f0dcd7a254b0))(by kodelint)
+- **release**: 0.6.0 [skip ci] ([d70a08a](https://github.com/kodelint/setup-devbox/commit/d70a08a9685198bb6aae64faefdbf4f41a95b6d9))(by github-actions[bot])
 
 ### 🚀 Features
 
