@@ -119,12 +119,12 @@ fn handle_state_edit() {
 
         log_debug!("[Edit] User chose to create state file, creating parent directories");
         // Create parent directories if they don't exist
-        if let Some(parent) = state_file_path.parent() {
-            if let Err(e) = fs::create_dir_all(parent) {
-                log_error!("[Edit] Failed to create directories: {:?}", e);
-                log_error!("Error creating directories: {}", e.to_string().yellow());
-                std::process::exit(1);
-            }
+        if let Some(parent) = state_file_path.parent()
+            && let Err(e) = fs::create_dir_all(parent)
+        {
+            log_error!("[Edit] Failed to create directories: {:?}", e);
+            log_error!("Error creating directories: {}", e.to_string().yellow());
+            std::process::exit(1);
         }
     }
 
