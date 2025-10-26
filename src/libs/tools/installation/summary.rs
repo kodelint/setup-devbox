@@ -15,10 +15,10 @@
 //! The orchestrator follows a structured pipeline for each tool:
 //! 1. **Reporting**: Categorize and display results to the user
 
-use crate::schemas::tools::{InstallationSummary, ToolProcessingResult};
+use crate::schemas::tools::enums::ToolProcessingResult;
+use crate::schemas::tools::types::InstallationSummary;
 use crate::{log_error, log_info};
 use colored::Colorize;
-
 // ============================================================================
 // INSTALLATION SUMMARY IMPLEMENTATION
 // ============================================================================

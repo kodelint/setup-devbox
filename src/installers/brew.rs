@@ -59,7 +59,7 @@ use colored::Colorize;
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
 use crate::schemas::state_file::ToolState;
-use crate::schemas::tools::ToolEntry;
+use crate::schemas::tools::types::ToolEntry;
 // Custom logging macros for structured output.
 use crate::{log_debug, log_error, log_info, log_warn};
 // Post-installation hook execution functionality.

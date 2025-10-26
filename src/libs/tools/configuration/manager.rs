@@ -1,6 +1,6 @@
 use crate::libs::utilities::timestamps::parse_duration;
-use crate::schemas::configuration_management::{ConfigurationManager, ConfigurationManagerState};
-use crate::schemas::tools::{InstallationConfiguration, ToolConfig};
+use crate::schemas::config_manager::{ConfigurationManager, ConfigurationManagerState};
+use crate::schemas::tools::types::{InstallationConfiguration, ToolConfig};
 use chrono::Duration;
 // ============================================================================
 // INSTALLATION CONFIGURATION IMPLEMENTATION

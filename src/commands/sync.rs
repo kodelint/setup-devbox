@@ -28,13 +28,13 @@
 //! - `shellrc.yaml`: Shell initialization template (not tracked in state)
 
 use crate::libs::tools::configuration::processor::ConfigurationManagerState;
-use crate::schemas::configuration_management::ConfigurationManager;
+use crate::schemas::config_manager::ConfigurationManager;
 use crate::schemas::fonts::FontEntry;
 use crate::schemas::os_settings::{OsSpecificSettings, SettingEntry, SettingsConfig};
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::shell_configuration::AliasEntry;
 use crate::schemas::state_file::{FontState, SettingState, ToolState};
-use crate::schemas::tools::ToolEntry;
+use crate::schemas::tools::types::ToolEntry;
 use crate::{log_debug, log_error, log_info};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};

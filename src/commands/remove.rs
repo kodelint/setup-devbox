@@ -45,7 +45,7 @@ use crate::libs::state::manager::{load_or_initialize_state, save_state_to_file};
 use crate::libs::tools::uninstaller::executors::{
     ConfigurationCleaner, RemovalResult, RemovalSummary,
 };
-use crate::libs::tools::uninstaller::orchestrator::RemovalOrchestrator;
+use crate::schemas::common::RemovalOrchestrator;
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::state_file::DevBoxState;
 use crate::{log_debug, log_error, log_info, log_warn};

@@ -28,15 +28,17 @@ use crate::libs::utilities::platform::check_installer_command_available;
 // Import logging macros
 use crate::libs::utilities::timestamps::format_duration;
 use crate::libs::utilities::timestamps::{is_timestamp_older_than, time_since};
-use crate::schemas::configuration_management::{
+use crate::schemas::config_manager::{
     ConfigurationEvaluationResult, ConfigurationManagerProcessor,
 };
 use crate::schemas::path_resolver::PathResolver;
 // Import data schemas and the configuration processor
 use crate::schemas::state_file::{DevBoxState, ToolState};
-use crate::schemas::tools::{
-    ConfigurationAction, InstallationConfiguration, ToolAction, ToolEntry,
-    ToolInstallationOrchestrator, ToolProcessingResult, VersionAction,
+use crate::schemas::tools::enums::{
+    ConfigurationAction, ToolAction, ToolProcessingResult, VersionAction,
+};
+use crate::schemas::tools::types::{
+    InstallationConfiguration, ToolEntry, ToolInstallationOrchestrator,
 };
 use crate::{log_debug, log_error, log_info, log_warn};
 use colored::Colorize;

@@ -17,6 +17,7 @@
 //! JSON and YAML serialization/deserialization, enabling easy configuration file handling
 //! and API response parsing.
 
+use crate::schemas::state_file::DevBoxState;
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
@@ -259,4 +260,32 @@ pub struct ConfigPaths {
     /// After processing the main configuration, this contains the absolute
     /// path to the fonts.yaml file that will be used for font installation.
     pub(crate) fonts: String,
+}
+
+// =========================================================================== //
+//                           REMOVAL ORCHESTRATOR                              //
+// =========================================================================== //
+
+/// Orchestrates the complete removal process for tools and fonts.
+///
+/// The orchestrator coordinates multiple steps:
+/// 1. Finding the item in the state file
+/// 2. Running the appropriate uninstaller
+/// 3. Cleaning up configuration files
+/// 4. Updating the state file
+/// 5. Removing the item from configuration YAML
+///
+/// ## Design Philosophy
+///
+/// The orchestrator follows the Orchestrator pattern, acting as a high-level
+/// coordinator that delegates specific tasks to specialized components:
+/// - ToolUninstaller implementations handle installation-specific removal
+/// - ConfigurationCleaner handles YAML file manipulation
+/// - The orchestrator focuses on workflow and error handling
+pub struct RemovalOrchestrator<'a> {
+    /// Mutable reference to the application state
+    pub state: &'a mut DevBoxState,
+
+    /// Configuration file manager
+    pub cleaner: crate::libs::tools::uninstaller::executors::ConfigurationCleaner,
 }

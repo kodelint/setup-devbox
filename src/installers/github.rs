@@ -52,7 +52,7 @@ use crate::libs::utilities::{
 // Schema imports
 use crate::schemas::common::{Release, ReleaseAsset};
 use crate::schemas::state_file::ToolState;
-use crate::schemas::tools::ToolEntry;
+use crate::schemas::tools::types::ToolEntry;
 
 // Custom logging macros
 use crate::{log_debug, log_error, log_info};

@@ -2,7 +2,7 @@ use crate::libs::state::manager::save_state_to_file;
 use crate::libs::utilities::platform::execute_hooks;
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::state_file::DevBoxState;
-use crate::schemas::tools::{
+use crate::schemas::tools::types::{
     InstallationConfiguration, InstallationSummary, ToolConfig, ToolEntry,
     ToolInstallationOrchestrator,
 };

@@ -1,4 +1,4 @@
-use crate::schemas::tools::ToolEntry;
+use crate::schemas::tools::types::ToolEntry;
 // Our custom logging macros to give us nicely formatted (and colored!) output
 // for debugging, general information, and errors.
 use crate::{log_debug, log_error, log_warn};

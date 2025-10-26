@@ -30,7 +30,7 @@ use crate::schemas::fonts::FontConfig;
 use crate::schemas::os_settings::SettingsConfig;
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::shell_configuration::ShellConfig;
-use crate::schemas::tools::{ToolConfig, ToolEntry};
+use crate::schemas::tools::types::{ToolConfig, ToolEntry};
 
 /// A composite struct designed to hold all the parsed configuration data.
 ///

@@ -66,7 +66,7 @@ use crate::libs::utilities::{assets, assets::detect_file_type};
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
 use crate::schemas::state_file::ToolState;
-use crate::schemas::tools::ToolEntry;
+use crate::schemas::tools::types::ToolEntry;
 
 /// Installs a software tool by downloading and processing assets from a direct URL.
 ///

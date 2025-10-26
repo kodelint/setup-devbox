@@ -22,7 +22,7 @@ use crate::libs::utilities::compression;
 #[cfg(target_os = "macos")]
 use crate::libs::utilities::osx_pkg::{install_dmg, install_pkg};
 use crate::schemas::path_resolver::PathResolver;
-use crate::schemas::tools::ToolEntry;
+use crate::schemas::tools::types::ToolEntry;
 use crate::{log_debug, log_error, log_info, log_warn};
 
 /// Downloads the asset from the URL to a temporary location.

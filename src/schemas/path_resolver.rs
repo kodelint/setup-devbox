@@ -15,7 +15,7 @@ use colored::Colorize;
 //                              INTERNAL IMPORTS                               //
 // =========================================================================== //
 
-use crate::schemas::tools::ToolEntry;
+use crate::schemas::tools::types::ToolEntry;
 use crate::{log_debug, log_error, log_info, log_warn};
 
 /// # PathResolver

@@ -20,7 +20,7 @@
 //! - Only processes files when actual changes are detected
 //! - Efficient format conversion with minimal intermediate representations
 
-pub(crate) use crate::schemas::configuration_management::{
+pub(crate) use crate::schemas::config_manager::{
     ConfigurationEvaluationResult, ConfigurationManager, ConfigurationManagerProcessor,
     ConfigurationManagerState,
 };

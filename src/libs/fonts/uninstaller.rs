@@ -12,7 +12,7 @@ use colored::Colorize;
 //                              INTERNAL IMPORTS                               //
 // =========================================================================== //
 use crate::libs::tools::uninstaller::executors::RemovalResult;
-use crate::libs::tools::uninstaller::orchestrator::RemovalOrchestrator;
+use crate::schemas::common::RemovalOrchestrator;
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::state_file::FontState;
 use crate::{log_debug, log_error, log_info, log_warn};

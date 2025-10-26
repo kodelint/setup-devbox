@@ -16,8 +16,8 @@
 use crate::now;
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::{
-    configuration_management::ConfigurationManager, fonts::FontEntry, os_settings::SettingEntry,
-    shell_configuration::AliasEntry, tools::ToolEntry,
+    config_manager::ConfigurationManager, fonts::FontEntry, os_settings::SettingEntry,
+    shell_configuration::AliasEntry, tools::types::ToolEntry,
 };
 use crate::{log_debug, log_error, log_info, log_warn};
 use colored::Colorize;

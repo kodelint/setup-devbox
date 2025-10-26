@@ -26,7 +26,7 @@ use crate::libs::tools::execute_post_installation_hooks;
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
 use crate::schemas::state_file::ToolState;
-use crate::schemas::tools::ToolEntry;
+use crate::schemas::tools::types::ToolEntry;
 
 /// Represents the type of pip executable detected
 #[derive(Debug, Clone)]

@@ -15,8 +15,8 @@ use colored::Colorize;
 //                              INTERNAL IMPORTS                               //
 // =========================================================================== //
 use crate::libs::tools::uninstaller::executors::{ItemToBeRemoved, RemovalResult, RemovalSummary};
-use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::state_file::{DevBoxState, ToolState};
+use crate::schemas::{common::RemovalOrchestrator, path_resolver::PathResolver};
 use crate::{log_debug, log_error, log_info, log_warn};
 
 // =========================================================================== //
@@ -39,14 +39,6 @@ use crate::{log_debug, log_error, log_info, log_warn};
 /// - ToolUninstaller implementations handle installation-specific removal
 /// - ConfigurationCleaner handles YAML file manipulation
 /// - The orchestrator focuses on workflow and error handling
-pub struct RemovalOrchestrator<'a> {
-    /// Mutable reference to the application state
-    pub state: &'a mut DevBoxState,
-
-    /// Configuration file manager
-    pub cleaner: crate::libs::tools::uninstaller::executors::ConfigurationCleaner,
-}
-
 impl<'a> RemovalOrchestrator<'a> {
     /// Creates a new RemovalOrchestrator instance.
     ///
