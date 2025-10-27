@@ -51,6 +51,8 @@ commit_parsers = [
     # Explicitly capture breaking changes and place them at the top.
     { body = ".*BREAKING CHANGE:.*", group = "💥 Breaking Changes" },
     { message = "^feat", group = "🚀 Features" },
+    # Support both 'fix:' and 'bug:' prefixes for bug fixes
+    { message = "^fix", group = "🐛 Bug Fixes" },
     { message = "^bug", group = "🐛 Bug Fixes" },
     { message = "^doc", group = "📚 Documentation" },
     { message = "^perf", group = "⚡ Performance" },

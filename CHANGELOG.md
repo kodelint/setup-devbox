@@ -21,8 +21,8 @@ All notable changes to this project will be documented in this file.
 - Avoids invalid syntax while satisfying Clippy’s collapsible_if lint ([a481cdc](https://github.com/kodelint/setup-devbox/commit/a481cdcb7b68a74a371aa7defc1bbfbff79ca390))(by kodelint)
 - Fully satisfies Clippy’s collapsible_if lint for find_executable ([99445bc](https://github.com/kodelint/setup-devbox/commit/99445bc65918afeba622f195ecab68d347a664b5))(by kodelint)
 - Improving readability and aligning with Clippy's recommendation ([5a08000](https://github.com/kodelint/setup-devbox/commit/5a08000c7b8399abe177257592b6d90872af196a))(by kodelint)
-- Clippy complient ([b52f1ee](https://github.com/kodelint/setup-devbox/commit/b52f1eedeb9acae3a41765ced428c8ea0d2632f9))(by kodelint)
-- Clippy complient if condition ([505553c](https://github.com/kodelint/setup-devbox/commit/505553c0c25180c1f767afbd9aaaf45c8f48354c))(by kodelint)
+- Clippy compliant ([b52f1ee](https://github.com/kodelint/setup-devbox/commit/b52f1eedeb9acae3a41765ced428c8ea0d2632f9))(by kodelint)
+- Clippy compliant if condition ([505553c](https://github.com/kodelint/setup-devbox/commit/505553c0c25180c1f767afbd9aaaf45c8f48354c))(by kodelint)
 
 ## [0.6.0] - 2025-10-24
 

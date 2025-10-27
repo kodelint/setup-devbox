@@ -193,35 +193,175 @@ pre-pr-with-linux: quality test build check-linux
 # RELEASE COMMANDS (standalone - don't run these casually!)
 # ============================================================================
 
-# Analyze what version bump is needed
+# Analyze what version bump is needed (now supports both 'fix:' and 'bug:')
 analyze-version:
     #!/usr/bin/env bash
     set -euo pipefail
 
     current_version=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-    echo "Current version: $current_version"
+    echo "📦 Current version: $current_version"
+    echo ""
 
     last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
     if [[ -z "$last_tag" ]]; then
-        echo "No previous tags found - this will be initial release"
-        echo "Suggested: minor bump"
+        echo "ℹ️  No previous tags found - this will be initial release"
+        echo "✨ Suggested: minor bump"
         exit 0
     fi
 
-    echo "Last tag: $last_tag"
+    echo "🏷️  Last tag: $last_tag"
     echo ""
-    echo "Commits since last release:"
+    echo "📝 All commits since last release:"
+    echo "════════════════════════════════════════"
     git log ${last_tag}..HEAD --oneline
+    echo "════════════════════════════════════════"
     echo ""
 
+    # Check for release-worthy commits (matching the workflow logic)
+    release_commits=$(git log ${last_tag}..HEAD --oneline --grep="^feat:" --grep="^fix:" --grep="^bug:" --grep="^build:" --grep="^perf:" --grep="^refactor:" --grep="BREAKING CHANGE" || echo "")
+
+    if [[ -z "$release_commits" ]]; then
+        echo "⚠️  No release-worthy commits found"
+        echo ""
+        echo "Commits must follow conventional commit format:"
+        echo "  • feat: - New features (minor bump)"
+        echo "  • fix: or bug: - Bug fixes (patch bump)"
+        echo "  • BREAKING CHANGE: - Breaking changes (major bump)"
+        echo "  • build:, perf:, refactor: - Also trigger patch bumps"
+        echo ""
+        echo "💡 You can still create a manual release if needed:"
+        echo "   just release patch|minor|major"
+        exit 0
+    fi
+
+    echo "✅ Release-worthy commits found:"
+    echo "════════════════════════════════════════"
+    echo "$release_commits"
+    echo "════════════════════════════════════════"
+    echo ""
+
+    # Determine bump type
     if git log ${last_tag}..HEAD --grep="BREAKING CHANGE" | grep -q "BREAKING CHANGE"; then
-        echo "⚠️  Breaking changes detected → MAJOR bump needed"
-    elif git log ${last_tag}..HEAD --oneline | grep -q "feat:"; then
+        echo "💥 Breaking changes detected → MAJOR bump needed"
+        recommended="major"
+    elif echo "$release_commits" | grep -q "^[a-f0-9]* feat:"; then
         echo "✨ Features detected → MINOR bump suggested"
-    elif git log ${last_tag}..HEAD --oneline | grep -qE "fix:|perf:|refactor:"; then
-        echo "🐛 Patches/fixes detected → PATCH bump suggested"
+        recommended="minor"
     else
-        echo "ℹ️  No conventional commits found"
+        echo "🐛 Patches/fixes/refactors detected → PATCH bump suggested"
+        recommended="patch"
+    fi
+
+    echo ""
+    echo "🎯 Recommended action: just release $recommended"
+
+# Explain why a release would or wouldn't be created
+explain-release:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "🔍 Release Decision Analysis"
+    echo "══════════════════════════════════════════════════════════"
+    echo ""
+
+    # Check current branch
+    branch=$(git rev-parse --abbrev-ref HEAD)
+    echo "📍 Current branch: $branch"
+
+    if [[ "$branch" != "main" && "$branch" != "development" ]]; then
+        echo "⚠️  Releases only trigger from 'main' or 'development' branches"
+        echo ""
+        echo "Current branch type: $(if [[ "$branch" == feature/* ]] || [[ "$branch" == hotfix/* ]] || [[ "$branch" == bugfix/* ]]; then echo "feature branch"; else echo "other"; fi)"
+        echo ""
+        echo "What happens on different branches:"
+        echo "  • main → stable releases (e.g., 1.2.3)"
+        echo "  • development → pre-releases (e.g., 1.2.3-beta.1)"
+        echo "  • feature/* → build artifacts only, no releases"
+        echo ""
+        if [[ "$branch" == feature/* ]] || [[ "$branch" == hotfix/* ]] || [[ "$branch" == bugfix/* ]]; then
+            echo "✅ Your changes will be built and available as artifacts"
+            echo "   but won't create a GitHub release until merged to main/development"
+        fi
+        exit 0
+    fi
+
+    echo "✅ Branch supports releases"
+    echo ""
+
+    # Check for commits since last tag
+    last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+    if [[ -z "$last_tag" ]]; then
+        echo "📦 No previous tags found"
+        echo "   → First push to this branch will create initial release"
+        exit 0
+    fi
+
+    echo "🏷️  Last tag: $last_tag"
+    echo ""
+
+    # Get all commits and release-worthy commits
+    all_commits=$(git log ${last_tag}..HEAD --oneline || echo "")
+    release_commits=$(git log ${last_tag}..HEAD --oneline --grep="^feat:" --grep="^fix:" --grep="^bug:" --grep="^build:" --grep="^perf:" --grep="^refactor:" --grep="BREAKING CHANGE" || echo "")
+
+    if [[ -z "$all_commits" ]]; then
+        echo "⚠️  No commits since last release"
+        echo "   → No release will be created"
+        exit 0
+    fi
+
+    commit_count=$(echo "$all_commits" | wc -l | tr -d ' ')
+    echo "📝 Total commits since last tag: $commit_count"
+    echo ""
+
+    if [[ -z "$release_commits" ]]; then
+        echo "❌ NO RELEASE WILL BE CREATED"
+        echo ""
+        echo "Reason: None of the $commit_count commits match conventional commit patterns"
+        echo ""
+        echo "Recent commits:"
+        echo "────────────────────────────────────────"
+        echo "$all_commits" | head -5
+        if [[ $commit_count -gt 5 ]]; then
+            echo "... and $((commit_count - 5)) more"
+        fi
+        echo "────────────────────────────────────────"
+        echo ""
+        echo "Valid commit patterns that trigger releases:"
+        echo "  ✅ feat: - New features (minor bump)"
+        echo "  ✅ fix: or bug: - Bug fixes (patch bump)"
+        echo "  ✅ BREAKING CHANGE: - Breaking changes (major bump)"
+        echo "  ✅ build:, perf:, refactor: - Infrastructure (patch bump)"
+        echo ""
+        echo "Examples:"
+        echo "  feat: add new command for setup"
+        echo "  bug: fix help text formatting"
+        echo "  fix: resolve configuration loading issue"
+        echo ""
+        echo "💡 Options:"
+        echo "  1. Update your commit message to use conventional format"
+        echo "  2. Create a manual release: just release patch|minor|major"
+        echo "  3. Wait until you have qualifying commits"
+    else
+        release_count=$(echo "$release_commits" | wc -l | tr -d ' ')
+        echo "✅ RELEASE WILL BE CREATED"
+        echo ""
+        echo "Found $release_count qualifying commit(s):"
+        echo "────────────────────────────────────────"
+        echo "$release_commits"
+        echo "────────────────────────────────────────"
+        echo ""
+
+        # Determine bump type
+        if git log ${last_tag}..HEAD --grep="BREAKING CHANGE" | grep -q "BREAKING CHANGE"; then
+            echo "💥 Release type: MAJOR (breaking changes detected)"
+        elif echo "$release_commits" | grep -q "^[a-f0-9]* feat:"; then
+            echo "✨ Release type: MINOR (features detected)"
+        else
+            echo "🐛 Release type: PATCH (fixes/improvements detected)"
+        fi
+        echo ""
+        echo "🚀 Next push to $branch will trigger automatic release"
     fi
 
 # Create a new release (YOU MUST SPECIFY: just release major|minor|patch)
