@@ -16,7 +16,7 @@ pub fn add_supported_installers(output: &mut String) {
     const INSTALLERS: [(&str, &str, &str); 10] = [
         ("Brew", "Package manager for macOS/Linux (Homebrew)", ""),
         ("Cargo", "Rust package manager for crates and binaries.", ""),
-        ("Fonts", "Nerd Fonts installer from GitHub releases.", ""),
+        ("Fonts", "Fonts installer from GitHub Repository.", ""),
         ("Github", "Download tools from GitHub releases.", ""),
         ("Go", "Go package installer using", "go install"),
         ("Pip", "Python package installer using pip.", ""),

@@ -383,7 +383,10 @@ impl InstallerRegistry {
                 "source: brew (required)",
                 "version: Specific version or 'latest'",
                 "options: List of brew-specific flags (--cask, --head, etc.)",
-                "additional_cmd: List of commands to run after installation (optional)",
+                "post_installation_hooks: List of commands/hooks to run after installation (optional)",
+                "configuration_manager: If the tool support any configuration and managed by SDB",
+                "configuration_manager.enabled: true or false (default is false)",
+                "configuration_manager.tools_configuration_paths: List of configuration file path with filename",
             ],
         }
     }
@@ -420,7 +423,10 @@ impl InstallerRegistry {
                 "source: cargo (required)",
                 "version: Specific version or 'latest'",
                 "options: List of cargo install flags (--git, --features, etc.)",
-                "additional_cmd: List of commands to run after installation (optional)",
+                "post_installation_hooks: List of commands/hooks to run after installation (optional)",
+                "configuration_manager: If the tool support any configuration and managed by SDB",
+                "configuration_manager.enabled: true or false (default is false)",
+                "configuration_manager.tools_configuration_paths: List of configuration file path with filename",
             ],
         }
     }
@@ -432,7 +438,7 @@ impl InstallerRegistry {
     fn fonts_installer() -> InstallerInfo {
         InstallerInfo {
             name: "Fonts",
-            description: "Nerd Fonts installer from GitHub releases. Downloads and installs programming fonts with icons.\
+            description: "Fonts installer from GitHub Repository. Downloads and installs programming fonts with icons.\
             Presently only GitHub is supported.",
             env_variables: None,
             examples_fn: || {
@@ -451,8 +457,6 @@ impl InstallerRegistry {
                 "repo: GitHub repository (required)",
                 "tag: GitHub Release tag (optional)",
                 "install_only: Only install the mentioned font style, default: all",
-                "options: Font-specific installation options",
-                "additional_cmd: List of commands to run after installation (optional)",
             ],
         }
     }
@@ -473,16 +477,24 @@ impl InstallerRegistry {
   repo: helix-editor/helix
   tag: 25.07.1
   rename_to: hx
-  additional_cmd:
-    - mkdir -p $HOME/.config/helix
-    - cp -r runtime $HOME/.config/helix
+  post_installation_hooks:
+    - mv contrib $HOME/.config/helix/
+    - mv runtime $HOME/.config/helix/
+  configuration_manager:
+    enabled: true
+    tools_configuration_paths:
+      - $HOME/.config/helix/config.toml
 
 - name: zed
   version: 0.200.1-pre
   source: github
   repo: zed-industries/zed
   tag: v0.200.1-pre
-  rename_to: zed"#
+  rename_to: zed
+  configuration_manager:
+    enabled: true
+    tools_configuration_paths:
+      - $HOME/.config/zed/settings.json"#
                     .to_string()
             },
             options: &[
@@ -492,7 +504,10 @@ impl InstallerRegistry {
                 "version: Release version",
                 "tag: Specific git tag or 'latest'",
                 "rename_to: Rename binary after installation",
-                "additional_cmd: List of commands to run after installation (optional)",
+                "post_installation_hooks: List of commands/hooks to run after installation (optional)",
+                "configuration_manager: If the tool support any configuration and managed by SDB",
+                "configuration_manager.enabled: true or false (default is false)",
+                "configuration_manager.tools_configuration_paths: List of configuration file path with filename",
             ],
         }
     }
@@ -528,7 +543,10 @@ impl InstallerRegistry {
                 "source: go (required)",
                 "url: Go package import path (required)",
                 "version: Package version (@latest, @v1.2.3, etc.)",
-                "additional_cmd: List of commands to run after installation (optional)",
+                "post_installation_hooks: List of commands/hooks to run after installation (optional)",
+                "configuration_manager: If the tool support any configuration and managed by SDB",
+                "configuration_manager.enabled: true or false (default is false)",
+                "configuration_manager.tools_configuration_paths: List of configuration file path with filename",
             ],
         }
     }
@@ -566,7 +584,10 @@ impl InstallerRegistry {
                 "source: pip (required)",
                 "version: Specific version or 'latest'",
                 "options: List of pip install flags (--user, --upgrade, etc.)",
-                "additional_cmd: List of commands to run after installation (optional)",
+                "post_installation_hooks: List of commands/hooks to run after installation (optional)",
+                "configuration_manager: If the tool support any configuration and managed by SDB",
+                "configuration_manager.enabled: true or false (default is false)",
+                "configuration_manager.tools_configuration_paths: List of configuration file path with filename",
             ],
         }
     }
@@ -603,7 +624,10 @@ impl InstallerRegistry {
                 "source: rustup (required)",
                 "version: Rust toolchain (stable, beta, nightly, or specific version)",
                 "options: List of components to install (rust-src, clippy, rustfmt, etc.)",
-                "additional_cmd: List of commands to run after installation (optional)",
+                "post_installation_hooks: List of commands/hooks to run after installation (optional)",
+                "configuration_manager: If the tool support any configuration and managed by SDB",
+                "configuration_manager.enabled: true or false (default is false)",
+                "configuration_manager.tools_configuration_paths: List of configuration file path with filename",
             ],
         }
     }
@@ -770,7 +794,10 @@ aliases:
                 "url: Download URL (required)",
                 "version: Version identifier (optional)",
                 "options: Installation flags (--script, --binary, --checksum, etc.) (optional)",
-                "additional_cmd: List of commands to run after installation (optional)",
+                "post_installation_hooks: List of commands/hooks to run after installation (optional)",
+                "configuration_manager: If the tool support any configuration and managed by SDB",
+                "configuration_manager.enabled: true or false (default is false)",
+                "configuration_manager.tools_configuration_paths: List of configuration file path with filename",
             ],
         }
     }
@@ -812,7 +839,10 @@ aliases:
                 "source: uv (required)",
                 "version: Version or Python version (required)",
                 "options: UV mode flags (--mode=tool/pip/python) (required)",
-                "additional_cmd: Commands to run after installation (optional)",
+                "post_installation_hooks: List of commands/hooks to run after installation (optional)",
+                "configuration_manager: If the tool support any configuration and managed by SDB",
+                "configuration_manager.enabled: true or false (default is false)",
+                "configuration_manager.tools_configuration_paths: List of configuration file path with filename",
             ],
         }
     }
