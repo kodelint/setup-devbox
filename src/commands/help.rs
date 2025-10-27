@@ -157,10 +157,21 @@ fn add_environment_variables(output: &mut String) {
     .unwrap();
 
     let env_vars = [
-        ("SDB_CONFIG_DIR", "Path for SDB Configuration directory."),
+        (
+            "SDB_CONFIG_PATH",
+            "Path for SDB Configuration directory. (default $HOME/.setup-devbox)",
+        ),
         (
             "SDB_RESET_SHELLRC_FILE",
             "\"true\" or \"false\" (see: \"setup-devbox help installers\" more details)",
+        ),
+        (
+            "SDB_STATE_FILE_PATH",
+            "Path for SDB State file. (default $HOME/.setup-devbox)",
+        ),
+        (
+            "SDB_TOOLS_SOURCE_CONFIG_PATH",
+            "Path for tools source configuration files. (default $HOME/.setup-devbox/configs/tools)",
         ),
     ];
 
@@ -200,6 +211,7 @@ fn add_usage_info(output: &mut String) {
     // A constant array for commands and their descriptions.
     let commands = [
         ("add", "Add tool, font, setting or alias"),
+        ("remove", "Remove tool, font, setting or alias"),
         ("generate", "Generates default configuration files"),
         (
             "now",
@@ -287,6 +299,7 @@ fn add_detailed_help_info(output: &mut String) {
     writeln!(output, "{}", "Available Help Topics:".bold().white()).unwrap();
     let topics = [
         ("add", "Show help for command 'add'"),
+        ("remove", "Show help for command 'remove'"),
         (
             "installers",
             "Show all supported installers and their details",
