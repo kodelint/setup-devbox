@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.2] - 2025-10-27
+
+### 🐛 Bug Fixes
+
+- Documented help details ([fe3630f](https://github.com/kodelint/setup-devbox/commit/fe3630f925c9a5e4d36d619350ea00ec6f7628f1))(by kodelint)
+
+### 🔧 Continuous Integration
+
+- Workflow changes ([44c247c](https://github.com/kodelint/setup-devbox/commit/44c247c2c08fad0d3466e3291f48bd8a5e9a8fc4))(by kodelint)
+
 ## [0.6.1] - 2025-10-26
 
 ### ♻️ Refactor
@@ -12,6 +22,7 @@ All notable changes to this project will be documented in this file.
 ### 🏠 Miscellaneous Tasks
 
 - Logging on console arranged ([a6054e0](https://github.com/kodelint/setup-devbox/commit/a6054e0ae65d77d830b3e67e238a895443fd6654))(by kodelint)
+- **release**: 0.6.1 [skip ci] ([9bafff6](https://github.com/kodelint/setup-devbox/commit/9bafff6ed9de12c5a11636db56f1b18369f42682))(by github-actions[bot])
 
 ### 🐛 Bug Fixes
 
@@ -21,8 +32,8 @@ All notable changes to this project will be documented in this file.
 - Avoids invalid syntax while satisfying Clippy’s collapsible_if lint ([a481cdc](https://github.com/kodelint/setup-devbox/commit/a481cdcb7b68a74a371aa7defc1bbfbff79ca390))(by kodelint)
 - Fully satisfies Clippy’s collapsible_if lint for find_executable ([99445bc](https://github.com/kodelint/setup-devbox/commit/99445bc65918afeba622f195ecab68d347a664b5))(by kodelint)
 - Improving readability and aligning with Clippy's recommendation ([5a08000](https://github.com/kodelint/setup-devbox/commit/5a08000c7b8399abe177257592b6d90872af196a))(by kodelint)
-- Clippy compliant ([b52f1ee](https://github.com/kodelint/setup-devbox/commit/b52f1eedeb9acae3a41765ced428c8ea0d2632f9))(by kodelint)
-- Clippy compliant if condition ([505553c](https://github.com/kodelint/setup-devbox/commit/505553c0c25180c1f767afbd9aaaf45c8f48354c))(by kodelint)
+- Clippy complient ([b52f1ee](https://github.com/kodelint/setup-devbox/commit/b52f1eedeb9acae3a41765ced428c8ea0d2632f9))(by kodelint)
+- Clippy complient if condition ([505553c](https://github.com/kodelint/setup-devbox/commit/505553c0c25180c1f767afbd9aaaf45c8f48354c))(by kodelint)
 
 ## [0.6.0] - 2025-10-24
 
@@ -121,10 +132,6 @@ All notable changes to this project will be documented in this file.
 
 ## [0.3.2] - 2025-09-30
 
-### Fix
-
-- **release**: Correct cliff.toml template error for changelog generation ([fbdb791](https://github.com/kodelint/setup-devbox/commit/fbdb7918d73d33306c181b7043203b442f5e041c))(by kodelint)
-
 ### ♻️ Refactor
 
 - All installers and documentations ([0a08ede](https://github.com/kodelint/setup-devbox/commit/0a08edeaebc36a1c28b50a4c160ce075360e4394))(by kodelint)
@@ -137,6 +144,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 - Store actual executed hooks in state file ([373ba16](https://github.com/kodelint/setup-devbox/commit/373ba1600019f5a1b74fae689114b9d4be2a75cf))(by kodelint)
+- **release**: Correct cliff.toml template error for changelog generation ([fbdb791](https://github.com/kodelint/setup-devbox/commit/fbdb7918d73d33306c181b7043203b442f5e041c))(by kodelint)
 
 ### 📚 Documentation
 
