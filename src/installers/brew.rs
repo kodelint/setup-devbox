@@ -1,4 +1,3 @@
-
 //! # Homebrew Installer Module
 //!
 //! This module provides a robust, production-grade installer for software tools
