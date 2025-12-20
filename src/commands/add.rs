@@ -168,7 +168,7 @@ impl ConfigurationUpdater {
             // Perform deep merge to preserve existing fields not in new_item
             deep_merge_values(&mut merged, &new_value);
             // Clean up null values after merge
-            remove_nulls(&mut merged);
+            config_sanitization(&mut merged);
 
             // Replace the existing item with merged version
             items[idx] = merged;
@@ -184,7 +184,7 @@ impl ConfigurationUpdater {
             let mut new_value = serde_yaml::to_value(new_item)
                 .map_err(|e| format!("Failed to serialize new item: {}", e.to_string().red()))?;
             // Clean up null values before adding
-            remove_nulls(&mut new_value);
+            config_sanitization(&mut new_value);
 
             items.push(new_value);
             false // Indicates this was an add operation
@@ -275,7 +275,7 @@ impl ConfigurationUpdater {
 
             // Merge existing setting with new values
             deep_merge_values(&mut merged, &new_value);
-            remove_nulls(&mut merged);
+            config_sanitization(&mut merged);
 
             macos_items[idx] = merged;
             true
@@ -289,7 +289,7 @@ impl ConfigurationUpdater {
 
             let mut new_value = serde_yaml::to_value(setting)
                 .map_err(|e| format!("Failed to serialize setting: {}", e.to_string().red()))?;
-            remove_nulls(&mut new_value);
+            config_sanitization(&mut new_value);
 
             macos_items.push(new_value);
             false
@@ -710,7 +710,7 @@ fn deep_merge_values(target: &mut Value, source: &Value) {
 ///
 /// # Arguments
 /// * `value` - The YAML value to clean (modified in-place)
-fn remove_nulls(value: &mut Value) {
+fn config_sanitization(value: &mut Value) {
     match value {
         Value::Mapping(map) => {
             // First pass: remove all null values
@@ -718,25 +718,18 @@ fn remove_nulls(value: &mut Value) {
 
             // Special handling: remove configuration_manager if enabled is false
             // This cleans up configuration manager sections that are disabled
-            if let Some(config_mgr_key) = map
-                .keys()
-                .find(|k| k.as_str() == Some("configuration_manager"))
-                .cloned()
+            if let Some(config_mgr) = map.get("configuration_manager")
+                && let Some(enabled) = config_mgr.get("enabled")
+                && enabled.as_bool() == Some(false)
             {
-                if let Some(config_mgr) = map.get(&config_mgr_key) {
-                    if let Some(enabled) = config_mgr.get("enabled") {
-                        if enabled.as_bool() == Some(false) {
-                            map.remove(&config_mgr_key);
-                        }
-                    }
-                }
+                map.remove("configuration_manager");
             }
 
             // Second pass: recursively process remaining values and mark empty containers for removal
             let mut keys_to_remove = Vec::new();
             for (k, v) in map.iter_mut() {
                 // Recursively clean nested structures
-                remove_nulls(v);
+                config_sanitization(v);
 
                 // Mark empty sequences and mappings for removal
                 if v.as_sequence().is_some_and(|s| s.is_empty())
@@ -754,7 +747,7 @@ fn remove_nulls(value: &mut Value) {
         Value::Sequence(seq) => {
             // Recursively clean all items in the sequence
             for item in seq.iter_mut() {
-                remove_nulls(item);
+                config_sanitization(item);
             }
         }
         _ => {
