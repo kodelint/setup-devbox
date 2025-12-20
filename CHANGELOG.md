@@ -2,7 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.3] - 2025-12-20
+
+### 🐛 Bug Fixes
+
+- Minor big fixes ([62a1a55](https://github.com/kodelint/setup-devbox/commit/62a1a55b9e1e34c1a14fc35530d836198735b1ac))(by kodelint)
+- Formatting fix ([8f9400e](https://github.com/kodelint/setup-devbox/commit/8f9400ed92a9f66396c4a51689f4449b2bcd0f5f))(by kodelint)
+
+### 🔧 Continuous Integration
+
+- Run continuous integration ([ea8fcd4](https://github.com/kodelint/setup-devbox/commit/ea8fcd4293c70c2e887ea737432b9163bfa6be0b))(by kodelint)
+
 ## [0.6.2] - 2025-10-27
+
+### 🏠 Miscellaneous Tasks
+
+- **release**: 0.6.2 [skip ci] ([344bedf](https://github.com/kodelint/setup-devbox/commit/344bedf93ce3fbf11d9dc062260dcb4deb681f2a))(by github-actions[bot])
 
 ### 🐛 Bug Fixes
 
