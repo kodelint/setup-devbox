@@ -257,11 +257,8 @@ fn detect_install_source(tool_entry: &ToolEntry) -> bool {
     }
 }
 
-/// Checks if a crate is already installed to avoid unnecessary reinstallation.
-///
 /// This function runs `cargo install --list` and parses the output to determine
-/// if the specified crate is already installed. This helps optimize installation
-/// by skipping already installed crates.
+/// if the specified crate is installed.
 ///
 /// # Arguments
 /// * `tool_name` - The name of the crate to check
@@ -276,10 +273,28 @@ fn check_if_installed(tool_name: &str) -> bool {
     match Command::new("cargo").args(["install", "--list"]).output() {
         Ok(output) if output.status.success() => {
             let installed_crates = String::from_utf8_lossy(&output.stdout);
-            installed_crates
-                .lines()
-                .filter(|line| line.starts_with(char::is_whitespace)) // Only indented binary lines
-                .any(|line| line.trim() == tool_name) // Exact match
+
+            installed_crates.lines().any(|line| {
+                let trimmed = line.trim();
+
+                // Case 1: Check Package Name (Unindented line)
+                // Format: "package-name v1.2.3: ..."
+                if !line.starts_with(char::is_whitespace) {
+                    // Extract just the name part before the version/space
+                    if let Some(pkg_name) = line.split_whitespace().next() {
+                        return pkg_name == tool_name;
+                    }
+                }
+
+                // Case 2: Check Binary Name (Indented line)
+                // Format: "    binary-name"
+                // This acts as a fallback if the tool_name provided was actually the binary name
+                if line.starts_with(char::is_whitespace) {
+                    return trimmed == tool_name;
+                }
+
+                false
+            })
         }
         _ => false,
     }

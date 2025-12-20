@@ -431,19 +431,21 @@ fn unmount_dmg(mount_path: &Path, tool_source: &str) -> io::Result<()> {
 /// * `Option<String>`: The mounted path as a `String` if found, otherwise `None`.
 #[cfg(target_os = "macos")]
 fn extract_mounted_path_from_hdiutil_plist(plist_output: &str) -> Option<String> {
-    // A simple line-by-line search for the mount-point key and its subsequent string value.
-    // For more complex plist structures, using a dedicated plist parser crate would be ideal.
-    let mut lines = plist_output.lines().map(|s| s.trim());
-    while let Some("<key>mount-point</key>") = lines.next() {
-        match lines.next() {
-            Some(path_line)
-                if path_line.starts_with("<string>") && path_line.ends_with("</string>") =>
-            {
-                return Some(path_line[8..path_line.len() - 9].to_string());
-            }
-            _ => continue,
-        }
-    }
+    // Parse the entire XML string into a strictly typed Value
+    let xml_cursor = std::io::Cursor::new(plist_output.as_bytes());
+    let value: plist::Value = plist::from_reader(xml_cursor).ok()?;
 
-    None
+    // Navigate: dict -> system-entities (array) -> dict -> mount-point (string)
+    value
+        .as_dictionary()
+        .and_then(|root| root.get("system-entities"))
+        .and_then(|entities| entities.as_array())?
+        .iter()
+        .find_map(|entity| {
+            entity
+                .as_dictionary()
+                .and_then(|d| d.get("mount-point"))
+                .and_then(|v| v.as_string())
+                .map(|s| s.to_string())
+        })
 }

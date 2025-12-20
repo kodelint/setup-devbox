@@ -284,6 +284,7 @@ aliases:
     /// # Returns
     ///
     /// A formatted string containing the main config template with actual paths
+    #[allow(clippy::needless_raw_string_hashes)]
     pub fn config(configs_dir: &Path) -> String {
         format!(
             r#"# Main Configuration File
