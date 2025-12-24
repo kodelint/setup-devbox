@@ -158,9 +158,8 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         };
 
         if let Some(cmd) = cmd_to_check {
-            check_installer_command_available(cmd).map_err(|error| {
-                format!("[SDB::Tools] Installer '{cmd}' not available: {error}")
-            })
+            check_installer_command_available(cmd)
+                .map_err(|error| format!("[SDB::Tools] Installer '{cmd}' not available: {error}"))
         } else {
             Ok(())
         }

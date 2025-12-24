@@ -337,7 +337,11 @@ impl ToolEntry {
     /// # Returns
     ///
     /// `None` for GitHub sources (URL is redundant), otherwise the state's URL
-    fn resolve_url_for_source(source: &SourceType, url: &Option<String>, name: &str) -> Option<String> {
+    fn resolve_url_for_source(
+        source: &SourceType,
+        url: &Option<String>,
+        name: &str,
+    ) -> Option<String> {
         match source {
             SourceType::Github => {
                 log_debug!("[Sync::Tool] Omitting URL for GitHub tool: {}", name);

@@ -2,17 +2,16 @@
 // It provides macros for different log levels (INFO, WARN, ERROR, DEBUG)
 // and handles conditional output via tracing-subscriber.
 
-pub use tracing::{debug, error, info, warn};
 use colored::Colorize;
-use tracing::{Event, Subscriber};
 use tracing::field::{Field, Visit};
+use tracing::{Event, Subscriber};
+pub use tracing::{debug, error, info, warn};
 use tracing_subscriber::fmt::format::Writer;
 use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
 use tracing_subscriber::registry::LookupSpan;
 
 /// Provides convenient logging macros that forward to tracing.
 /// `#[macro_export]` makes these macros globally available within the crate.
-
 // `log_info!` for general application progress and informational messages.
 #[macro_export]
 macro_rules! log_info {
@@ -63,7 +62,9 @@ where
         write!(writer, "{} ", level_str)?;
 
         // Write message using custom visitor
-        let mut visitor = MessageVisitor { writer: &mut writer };
+        let mut visitor = MessageVisitor {
+            writer: &mut writer,
+        };
         event.record(&mut visitor);
 
         writeln!(writer)
