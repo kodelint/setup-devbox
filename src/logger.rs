@@ -1,46 +1,89 @@
-// This file implements the application's logging system.
+// This file implements the application's logging system using tracing.
 // It provides macros for different log levels (INFO, WARN, ERROR, DEBUG)
-// and handles conditional output, especially for debug messages, with colored terminal output.
+// and handles conditional output via tracing-subscriber.
 
-// Used for adding color to log messages.
+pub use tracing::{debug, error, info, warn};
 use colored::Colorize;
-use std::sync::OnceLock;
-// For thread-safe, atomic control of the debug flag.
-use std::sync::atomic::{AtomicBool, Ordering};
+use tracing::{Event, Subscriber};
+use tracing::field::{Field, Visit};
+use tracing_subscriber::fmt::format::Writer;
+use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
+use tracing_subscriber::registry::LookupSpan;
 
-/// Provides convenient logging macros.
+/// Provides convenient logging macros that forward to tracing.
 /// `#[macro_export]` makes these macros globally available within the crate.
+
 // `log_info!` for general application progress and informational messages.
 #[macro_export]
 macro_rules! log_info {
-    ($($arg:tt)*) => (eprintln!("{} {}", "[INFO]".bright_green(), format!($($arg)*)));
+    ($($arg:tt)*) => ($crate::logger::info!($($arg)*));
 }
 
 // `log_warn!` for non-critical issues or noteworthy conditions.
 #[macro_export]
 macro_rules! log_warn {
-    ($($arg:tt)*) => (eprintln!("{} {}", "[WARN]".bright_yellow(), format!($($arg)*)));
+    ($($arg:tt)*) => ($crate::logger::warn!($($arg)*));
 }
 
 // `log_error!` for critical errors requiring immediate attention.
 #[macro_export]
 macro_rules! log_error {
-    ($($arg:tt)*) => (eprintln!("{} {}", "[ERROR]".bright_red(), format!($($arg)*)));
+    ($($arg:tt)*) => ($crate::logger::error!($($arg)*));
 }
 
 // `log_debug!` for detailed internal application tracing.
-// Messages are only printed if debug mode is enabled via `is_debug_enabled()`.
 #[macro_export]
 macro_rules! log_debug {
-    ($($arg:tt)*) => {
-        if $crate::logger::is_debug_enabled() {
-           eprintln!("{} {}", "[DEBUG]".dimmed(), format!($($arg)*));
-        }
-    };
+    ($($arg:tt)*) => ($crate::logger::debug!($($arg)*));
 }
 
-// Global flag to control debug logging, ensured to be initialized once.
-static DEBUG_ENABLED: OnceLock<AtomicBool> = OnceLock::new();
+struct SimpleFormatter;
+
+impl<S, N> FormatEvent<S, N> for SimpleFormatter
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+    N: for<'a> FormatFields<'a> + 'static,
+{
+    fn format_event(
+        &self,
+        _ctx: &FmtContext<'_, S, N>,
+        mut writer: Writer<'_>,
+        event: &Event<'_>,
+    ) -> std::fmt::Result {
+        let level = *event.metadata().level();
+        let level_str = match level {
+            tracing::Level::TRACE => "[TRACE]".dimmed(),
+            tracing::Level::DEBUG => "[DEBUG]".dimmed(),
+            tracing::Level::INFO => "[INFO]".bright_green(),
+            tracing::Level::WARN => "[WARN]".bright_yellow(),
+            tracing::Level::ERROR => "[ERROR]".bright_red(),
+        };
+
+        // Write level
+        write!(writer, "{} ", level_str)?;
+
+        // Write message using custom visitor
+        let mut visitor = MessageVisitor { writer: &mut writer };
+        event.record(&mut visitor);
+
+        writeln!(writer)
+    }
+}
+
+struct MessageVisitor<'a> {
+    // Use dyn Write to avoid double borrow/lifetime issues with specific Writer type
+    writer: &'a mut dyn std::fmt::Write,
+}
+
+impl<'a> Visit for MessageVisitor<'a> {
+    fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+        if field.name() == "message" {
+            // Debug implementation for fmt::Arguments (which is what message is)
+            // simply writes the formatted string, preserving ANSI codes.
+            let _ = write!(self.writer, "{:?}", value);
+        }
+    }
+}
 
 /// Initializes the logger, setting the global debug mode.
 /// This function should be called once at application startup.
@@ -48,23 +91,15 @@ static DEBUG_ENABLED: OnceLock<AtomicBool> = OnceLock::new();
 /// # Arguments
 /// * `debug`: If `true`, enables debug logging; otherwise, only info, warn, and error messages are printed.
 pub fn init(debug: bool) {
-    DEBUG_ENABLED
-        .get_or_init(|| AtomicBool::new(debug)) // Initialize if not already set.
-        .store(debug, Ordering::Relaxed); // Update the flag with the provided debug value.
+    let filter = if debug {
+        tracing_subscriber::filter::LevelFilter::DEBUG
+    } else {
+        tracing_subscriber::filter::LevelFilter::INFO
+    };
 
-    if debug {
-        log_debug!("Logger initialized in DEBUG mode");
-    }
-}
-
-/// Checks if debug logging is currently enabled.
-/// Used primarily by the `log_debug!` macro.
-///
-/// # Returns
-/// * `true` if debug logging is enabled, `false` otherwise.
-pub fn is_debug_enabled() -> bool {
-    DEBUG_ENABLED
-        .get() // Attempt to retrieve the AtomicBool.
-        .map(|f| f.load(Ordering::Relaxed)) // Load its value if present.
-        .unwrap_or(false) // Default to false if `init` was never called.
+    tracing_subscriber::fmt()
+        .with_max_level(filter)
+        .event_format(SimpleFormatter)
+        .with_writer(std::io::stderr)
+        .init();
 }

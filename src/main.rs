@@ -109,6 +109,7 @@ mod schemas;
 // EXTERNAL DEPENDENCIES
 // ============================================================================
 
+use anyhow::Result;
 use clap::Parser;
 use colored::Colorize;
 
@@ -128,52 +129,17 @@ use commands::{generate, now, sync, version};
 /// Main entry point of the application.
 ///
 /// This function serves as the application's starting point and performs:
-/// 1. Custom help flag handling for context-aware help
-/// 2. Parses command-line arguments
-/// 3. Initializes the logging system
-/// 4. Routes to the appropriate subcommand handler
-/// 5. Handles global error conditions
+/// 1. Parses command-line arguments using clap
+/// 2. Initializes the logging system
+/// 3. Routes to the appropriate subcommand handler
+/// 4. Handles global error conditions
 ///
 /// # Returns
 /// * `Ok(())` if the application completes successfully
-/// * `Err(Box<dyn std::error::Error>)` if any error occurs during execution
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// * `Err(anyhow::Error)` if any error occurs during execution
+fn main() -> Result<()> {
     // ========================================================================
-    // STEP 1: CUSTOM HELP FLAG HANDLING
-    // ========================================================================
-    // Collect all command-line arguments for preprocessing before clap parsing.
-    // This allows us to implement custom help handling logic.
-    let args: Vec<String> = std::env::args().collect();
-
-    // Check if --help or -h appears anywhere in the arguments.
-    // We do this before clap parsing to provide enhanced, context-aware help.
-    if let Some(help_index) = args.iter().position(|arg| arg == "--help" || arg == "-h") {
-        // Initialize logger without debug mode for help display
-        logger::init(false);
-
-        // Determine if help is requested for a specific topic/subcommand.
-        // If --help appears after a subcommand name, we show help for that subcommand.
-        // Example: `setup-devbox now --help` should show help for the 'now' command.
-        let topic = if help_index > 1 {
-            // Check if there's a subcommand before the help flag
-            let potential_topic = &args[help_index - 1];
-            if !potential_topic.starts_with('-') && potential_topic != "help" {
-                Some(potential_topic.clone())
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        log_debug!("[SDB] Help flag detected, topic: {:?}", topic);
-        // Display help and exit immediately
-        help::run(topic, false, None);
-        std::process::exit(0);
-    }
-
-    // ========================================================================
-    // STEP 2: PARSE COMMAND-LINE ARGUMENTS
+    // STEP 1: PARSE COMMAND-LINE ARGUMENTS
     // ========================================================================
     // Use clap to parse the arguments into our structured Cli type.
     // This handles validation, type conversion, and error messages for
@@ -182,7 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     // ========================================================================
-    // STEP 3: INITIALIZE LOGGING SYSTEM
+    // STEP 2: INITIALIZE LOGGING SYSTEM
     // ========================================================================
     // Set up the logger based on the --debug flag.
     logger::init(cli.debug);
@@ -190,7 +156,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     log_debug!("[SDB] Debug mode requested: {}", cli.debug);
 
     // ========================================================================
-    // STEP 4: COMMAND DISPATCH
+    // STEP 3: COMMAND DISPATCH
     // ========================================================================
     // Route to the appropriate subcommand handler based on parsed command.
     // Each match arm handles a different subcommand with its specific arguments.
@@ -237,14 +203,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     log_debug!("[SDB] Enable config manager: {}", enable_config_manager);
                     log_debug!("[SDB] Config paths: {:?}", config_paths);
 
-                    // Convert SourceType enum to String for the add_tool function
-                    let source_string = source.to_string();
-
                     // Call the add_tool function with all collected parameters
                     add::add_tool(
                         name,
                         version,
-                        source_string,
+                        source, // Passed directly as SourceType
                         url,
                         repo,
                         tag,
@@ -353,7 +316,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             log_debug!("[SDB] 'Generate' subcommand detected.");
 
             // Initialize path resolver with command overrides for custom file locations
-            let paths = PathResolver::new(config, state)?;
+            let paths = PathResolver::new(config, state).map_err(|e| anyhow::anyhow!(e))?;
 
             log_debug!(
                 "[SDB] 'Generate' subcommand using config dir: {}",
@@ -394,7 +357,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             log_debug!("[SDB] 'Now' subcommand detected.");
 
             // Initialize path resolver with command overrides for custom file locations
-            let paths = PathResolver::new(config, state)?;
+            let paths = PathResolver::new(config, state).map_err(|e| anyhow::anyhow!(e))?;
 
             log_debug!(
                 "[SDB] 'Now' subcommand using config file: {}",
@@ -415,7 +378,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // ====================================================================
         Commands::SyncConfig { state, output_dir } => {
             log_debug!("[SDB] 'SyncConfig' subcommand detected.");
-            let paths = PathResolver::new(output_dir, state)?;
+            let paths = PathResolver::new(output_dir, state).map_err(|e| anyhow::anyhow!(e))?;
             sync::run(paths);
         }
 
@@ -430,5 +393,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     log_debug!("[SDB] Command execution completed. Exiting application.");
-    Ok(())
+    std::process::exit(0);
 }
