@@ -202,11 +202,11 @@ fn os_aliases(os: &str) -> Vec<String> {
 ///   - `Some(String)` containing the detected architecture as a canonical string
 ///     (e.g., "`arm64`" for "`aarch64`", "`x86_64`" for "`amd64`").
 ///   - `None` if detection somehow fails, though `std::env::consts::ARCH` is generally reliable.
-pub fn detect_architecture() -> Option<String> {
+pub fn detect_architecture() -> String {
     // `std::env::consts::ARCH` provides the target architecture Rust was compiled for
     // (e.g., "aarch64", "x86_64"). This is highly reliable for the running binary.
     // We then pass it to `normalize_arch` to get a consistent string format.
-    Some(normalize_arch(std::env::consts::ARCH).to_string())
+    normalize_arch(std::env::consts::ARCH)
 }
 
 /// Detects the current operating system (e.g., "`macos`", "`linux`", "`windows`").
@@ -214,15 +214,13 @@ pub fn detect_architecture() -> Option<String> {
 /// assets that are built for the specific OS.
 ///
 /// # Returns
-/// * `Option<String>`:
-///   - `Some(String)` containing the detected OS as a canonical string
-///     (e.g., "`macOS`" for "`darwin`", "`windows`" for "`win32`").
-///   - `None` if detection somehow fails, though `std::env::consts::OS` is generally reliable.
-pub fn detect_os() -> Option<String> {
+/// * `String`: The detected OS as a canonical string
+///   (e.g., "`macOS`" for "`darwin`", "`windows`" for "`win32`").
+pub fn detect_os() -> String {
     // `std::env::consts::OS` provides the target operating system Rust was compiled for
     // (e.g., "macOS", "linux", "windows").
     // We then pass it to `normalize_os` to get a consistent string format.
-    Some(normalize_os(std::env::consts::OS).to_string())
+    normalize_os(std::env::consts::OS)
 }
 
 /// Normalizes various input strings for operating systems into a consistent, lowercase format.

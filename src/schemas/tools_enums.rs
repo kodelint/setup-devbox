@@ -1,6 +1,6 @@
+use chrono::Duration;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use chrono::Duration;
 
 // ============================================================================
 // DURATION PARSING
@@ -54,14 +54,18 @@ fn parse_duration(s: &str) -> Result<Duration, String> {
     }
     let unit = s.chars().last().ok_or("Missing unit")?;
     let value_str = &s[..s.len() - 1];
-    let value: i64 = value_str.parse().map_err(|_| "Invalid number in duration")?;
+    let value: i64 = value_str
+        .parse()
+        .map_err(|_| "Invalid number in duration")?;
 
     match unit {
         's' => Ok(Duration::seconds(value)),
         'm' => Ok(Duration::minutes(value)),
         'h' => Ok(Duration::hours(value)),
         'd' => Ok(Duration::days(value)),
-        _ => Err(format!("Unknown duration unit '{unit}'. Use s, m, h, or d.")),
+        _ => Err(format!(
+            "Unknown duration unit '{unit}'. Use s, m, h, or d."
+        )),
     }
 }
 

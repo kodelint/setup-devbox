@@ -47,7 +47,11 @@ fn show_unknown_topic_error(topic: &str) {
         ("version", "Show help for the 'version' command"),
     ];
 
-    let max_width = TOPICS.iter().map(|(topic, _)| topic.len()).max().unwrap_or(0);
+    let max_width = TOPICS
+        .iter()
+        .map(|(topic, _)| topic.len())
+        .max()
+        .unwrap_or(0);
 
     for (topic, desc) in &TOPICS {
         println!("  • {:width$} - {}", topic.cyan(), desc, width = max_width);

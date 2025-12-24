@@ -1,6 +1,6 @@
 use crate::schemas::config_manager::ConfigurationManagerState;
-use crate::schemas::tools_types::{InstallationConfiguration, ToolConfig};
 use crate::schemas::tools_enums::SdbDuration;
+use crate::schemas::tools_types::{InstallationConfiguration, ToolConfig};
 use chrono::Duration;
 
 // ============================================================================

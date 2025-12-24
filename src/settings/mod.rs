@@ -23,9 +23,9 @@ use colored::Colorize;
 //                              INTERNAL IMPORTS                               //
 // ===========================================================================
 
-use crate::state::manager::save_devbox_state;
 use crate::schemas::os_settings::SettingsConfig;
 use crate::schemas::state_file::{DevBoxState, SettingState};
+use crate::state::manager::save_devbox_state;
 use crate::{log_debug, log_error, log_info, log_warn};
 
 /// Applies system settings based on the provided configuration and updates the application state.

@@ -169,14 +169,14 @@ pub fn add_configuration_examples(output: &mut String) {
     // Main config.yaml example
     writeln!(output, "{}:\n", "config.yaml".bold().cyan()).unwrap();
     writeln!(output, "{}", "```yaml".green()).unwrap();
-    let config_yaml = r#"# Tells SDB where to find the tools configuration
+    let config_yaml = r"# Tells SDB where to find the tools configuration
 tools: /Users/<<user>>/.config/setup-devbox/configs/tools.yaml
 # Tells SDB where to find the settings configuration
 settings: /Users/<<user>>/.config/setup-devbox/configs/settings.yaml
 # Tells SDB where to find the shell configuration
 shellrc: /Users/<<user>>/.config/setup-devbox/configs/shellrc.yaml
 # Tells SDB where to find the fonts configuration
-fonts: /Users/<<user>>/.config/setup-devbox/configs/fonts.yaml"#;
+fonts: /Users/<<user>>/.config/setup-devbox/configs/fonts.yaml";
     write!(output, "{}", format_yaml_content(config_yaml)).unwrap();
     writeln!(output, "{}\n", "```".green()).unwrap();
 

@@ -42,12 +42,12 @@
 use colored::Colorize;
 
 // Utility imports
-use crate::engine::execute_post_installation_hooks;
 use crate::core::assets;
 use crate::core::{
     assets::detect_file_type,
     platform::{asset_matches_platform, detect_architecture, detect_os},
 };
+use crate::engine::execute_post_installation_hooks;
 
 // Schema imports
 use crate::schemas::common::{Release, ReleaseAsset};
@@ -230,16 +230,10 @@ pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
 /// - `Some(("windows", "x86_64"))` - Windows on x86_64
 fn detect_platform() -> Option<(String, String)> {
     // Detect operating system (darwin, linux, windows, etc.)
-    let os = detect_os().or_else(|| {
-        log_error!("[SDB::Tools::GitHubInstaller] Unable to detect operating system");
-        None
-    })?;
+    let os = detect_os();
 
     // Detect CPU architecture (x86_64, arm64, aarch64, etc.)
-    let arch = detect_architecture().or_else(|| {
-        log_error!("[SDB::Tools::GitHubInstaller] Unable to detect architecture");
-        None
-    })?;
+    let arch = detect_architecture();
 
     log_info!(
         "[SDB::Tools::GitHubInstaller] Detected platform: {}{}{}",

@@ -10,15 +10,15 @@ use crate::{log_debug, log_info};
 use colored::Colorize;
 // For colored terminal output.
 
-use crate::engine::install_tools;
 use crate::config::{
     load_master_configs, // Loads configurations from `config.yaml`.
     load_single_config,  // Loads a single configuration file.
 };
+use crate::engine::install_tools;
 use crate::fonts::installer::install_fonts;
+use crate::schemas::path_resolver::PathResolver;
 use crate::settings::apply_system_settings;
 use crate::state::manager::load_or_initialize_state;
-use crate::schemas::path_resolver::PathResolver;
 
 /// Main entry point for the `now` command.
 ///

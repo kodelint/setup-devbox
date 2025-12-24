@@ -60,8 +60,8 @@ use crate::{log_debug, log_error, log_info, log_warn};
 // For executing external commands and capturing their output.
 // `std::process::Command` is used to run commands/hooks.
 // `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
-use crate::engine::execute_post_installation_hooks;
 use crate::core::{assets, assets::detect_file_type};
+use crate::engine::execute_post_installation_hooks;
 
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.

@@ -1,13 +1,13 @@
-use crate::shell::{
-    ensure_sections_exist, insert_into_section, is_command_update, log_section_stats,
-    normalize_command, parse_existing_sections, section_header_name,
-};
 use crate::core::manage_rc_files::{
     get_rc_file, read_rc_file, remove_rc_file, source_rc_file, write_rc_file,
 };
 use crate::core::platform::is_env_var_set;
 use crate::schemas::shell_configuration::{
     AliasEntry, ConfigSection, RunCommandEntry, ShellConfig,
+};
+use crate::shell::{
+    ensure_sections_exist, insert_into_section, is_command_update, log_section_stats,
+    normalize_command, parse_existing_sections, section_header_name,
 };
 use crate::{log_debug, log_error, log_info, log_warn};
 use colored::Colorize;

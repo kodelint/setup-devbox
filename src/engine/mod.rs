@@ -1,9 +1,8 @@
 pub mod configuration;
 pub mod installation;
-pub mod uninstaller;
 pub mod installers;
+pub mod uninstaller;
 
-use crate::state::manager::save_state_to_file;
 use crate::core::platform::execute_hooks;
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::state_file::DevBoxState;
@@ -11,13 +10,14 @@ use crate::schemas::tools_types::{
     InstallationConfiguration, InstallationSummary, ToolConfig, ToolEntry,
     ToolInstallationOrchestrator,
 };
+use crate::state::manager::save_state_to_file;
 use crate::{log_debug, log_info, log_warn};
 use colored::Colorize;
 use std::path::Path;
 
-// ============================================================================ 
+// ============================================================================
 // PUBLIC FUNCTIONS
-// ============================================================================ 
+// ============================================================================
 
 pub fn install_tools(
     tools_configuration: ToolConfig,

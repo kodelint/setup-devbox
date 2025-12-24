@@ -26,11 +26,7 @@ use crate::state::manager::save_devbox_state;
 /// * `fonts_cfg`: A `FontConfig` struct containing the list of fonts to install.
 /// * `state`: A mutable reference to the `DevBoxState` to update installed fonts.
 /// * `state_path_resolved`: The `PathBuf` to the `state.json` file for saving.
-pub fn install_fonts(
-    fonts_cfg: FontConfig,
-    state: &mut DevBoxState,
-    state_path_resolved: &Path,
-) {
+pub fn install_fonts(fonts_cfg: FontConfig, state: &mut DevBoxState, state_path_resolved: &Path) {
     eprintln!("\n");
     eprintln!("{}:", "FONTS".bright_yellow().bold());
     eprintln!("{}\n", "=".repeat(7).bright_yellow());

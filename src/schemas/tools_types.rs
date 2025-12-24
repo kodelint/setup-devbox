@@ -1,9 +1,9 @@
-use serde::{Deserialize, Serialize};
 use crate::engine::configuration::processor::{
     ConfigurationManager, ConfigurationManagerProcessor,
 };
 use crate::schemas::state_file::DevBoxState;
 use crate::schemas::tools_enums::{SdbDuration, ToolEntryError};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ToolConfig {

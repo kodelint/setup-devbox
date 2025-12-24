@@ -584,7 +584,10 @@ fn detect_installed_binary(formula_name: &str) -> Option<String> {
             for line in stdout.lines() {
                 let path = PathBuf::from(line);
                 // Check if the path contains "/bin/" and is a file
-                if line.contains("/bin/") && path.is_file() && let Some(file_name) = path.file_name() {
+                if line.contains("/bin/")
+                    && path.is_file()
+                    && let Some(file_name) = path.file_name()
+                {
                     return Some(file_name.to_string_lossy().to_string());
                 }
             }
@@ -593,7 +596,6 @@ fn detect_installed_binary(formula_name: &str) -> Option<String> {
         _ => None,
     }
 }
-
 
 /// Gets the Homebrew prefix using `brew --prefix`.
 ///

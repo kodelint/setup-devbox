@@ -91,14 +91,14 @@ mod commands;
 
 // Tool-specific installation logic
 
+mod config;
 /// Shared utility functions
 mod core;
-mod shell;
-mod state;
-mod config;
+mod engine;
 mod fonts;
 mod settings;
-mod engine;
+mod shell;
+mod state;
 
 /// Application logging system
 mod logger;

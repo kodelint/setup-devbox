@@ -417,7 +417,7 @@ pub fn process_asset_by_type(
                 downloaded_path,
                 &final_install_path,
                 tool_entry,
-                capitalize_first(&tool_entry.name),
+                tool_source.clone(),
             ) {
                 log_error!(
                     "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to move binary for {}: {}",
@@ -428,11 +428,8 @@ pub fn process_asset_by_type(
             }
 
             // Set executable permissions (chmod +x)
-            if let Err(err) = make_executable(
-                &final_install_path,
-                tool_entry,
-                capitalize_first(&tool_entry.source),
-            ) {
+            if let Err(err) = make_executable(&final_install_path, tool_entry, tool_source.clone())
+            {
                 log_error!(
                     "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to make binary executable for {}: {}",
                     tool_entry.name.red(),
@@ -476,7 +473,7 @@ pub fn process_asset_by_type(
                 &extracted_path,
                 &tool_entry.name,
                 tool_entry.rename_to.as_deref(),
-                capitalize_first(&tool_entry.name)
+                tool_source.clone()
             )
             .or_else(|| {
                 log_error!(
@@ -502,7 +499,7 @@ pub fn process_asset_by_type(
                 &executable_path,
                 &final_install_path,
                 tool_entry,
-                capitalize_first(&tool_entry.source.to_string()),
+                tool_source.clone(),
             ) {
                 log_error!(
                     "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to move extracted binary for {}: {}",
@@ -513,11 +510,8 @@ pub fn process_asset_by_type(
             }
 
             // Set executable permissions on the installed binary
-            if let Err(err) = make_executable(
-                &final_install_path,
-                tool_entry,
-                capitalize_first(&tool_entry.source.to_string()),
-            ) {
+            if let Err(err) = make_executable(&final_install_path, tool_entry, tool_source.clone())
+            {
                 log_error!(
                     "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to make extracted binary executable for {}: {}",
                     tool_entry.name.red(),
