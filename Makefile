@@ -200,7 +200,7 @@ check-linux: _check-docker
 	@echo "  → Pulling Rust Docker image..."
 	@docker pull rust:latest
 	@echo "  → Running cargo check on Linux..."
-	@docker run --rm -v $(pwd):/workspace -w /workspace rust:latest \
+	@docker run --rm -v $(CURDIR):/workspace -w /workspace rust:latest \
 		bash -c "cargo check --all-targets --all-features"
 	@echo "✅ Linux checks passed"
 
@@ -208,7 +208,7 @@ check-linux: _check-docker
 quality-linux: _check-docker
 	@echo "🐧 Running full quality suite on Linux..."
 	@docker pull rust:latest
-	@docker run --rm -v $(pwd):/workspace -w /workspace rust:latest \
+	@docker run --rm -v $(CURDIR):/workspace -w /workspace rust:latest \
 		bash -c "\
 			echo '🎨 Checking formatting...' && \
 			cargo fmt -- --check && \
