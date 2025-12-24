@@ -40,6 +40,7 @@ use std::process::Command;
 
 // Post-installation hook execution functionality.
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::traits::Installer;
 // Internal module imports:
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
@@ -51,182 +52,192 @@ use crate::{log_debug, log_error, log_info, log_warn};
 //   Library for adding color to terminal output for better readability.
 use colored::Colorize;
 
-/// Installs a Go tool using the `go install` command with comprehensive error handling.
-///
-/// This function provides a robust installer for Go tools that mirrors the quality and
-/// reliability of the official Go toolchain. It includes validation, verification, and
-/// accurate state tracking.
-///
-/// # Workflow:
-/// 1. **Environment Validation**: Verifies `go` is installed and accessible
-/// 2. **Source Determination**: Chooses between URL and module name sources
-/// 3. **Command Preparation**: Constructs `go install` command with versioning
-/// 4. **Command Execution**: Runs installation with comprehensive error handling
-/// 5. **Installation Verification**: Confirms the tool was properly installed with smart binary name detection
-/// 6. **Path Resolution**: Accurately determines the installation path
-/// 7. **Post-installation Hooks**: Executes any additional setup commands
-/// 8. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
-///
-/// # Arguments:
-/// * `tool_entry`: A reference to the `ToolEntry` struct containing tool configuration
-///   - `tool_entry.name`: **Required** - The Go module name or tool name
-///   - `tool_entry.url`: Optional URL for custom repository installations
-///   - `tool_entry.version`: Optional version specification using Go module syntax
-///   - `tool_entry.options`: Optional list of go install options (-ldflags, etc.)
-///   - `tool_entry.rename_to`: Optional custom binary name
-///
-/// # Returns:
-/// An `Option<ToolState>`:
-/// * `Some(ToolState)` if installation was completely successful with accurate metadata
-/// * `None` if any step of the installation process fails
-///
-/// ## Examples - YAML
-///
-/// ```yaml
-/// ## `golangci-lint` - Fast linters runner for Go
-/// ## https://golangci-lint.run/
-/// - name: my-linter
-///   source: go
-///   version: v1.54.2
-///   url: github.com/golangci/golangci-lint/cmd/golangci-lint
-///   # Binary will be detected as 'golangci-lint' from URL, not 'my-linter'
-///
-/// ## `air` - Live reload for Go apps
-/// ## https://github.com/cosmtrek/air
-/// - name: air
-///   source: go
-///   version: latest
-///   options:
-///     - -ldflags=-s -w
-///
-/// ## Custom binary name
-/// - name: gopls
-///   source: go
-///   url: golang.org/x/tools/gopls
-///   rename_to: my-gopls
-///   # Binary will be installed as 'my-gopls'
-/// ```
-///
-/// ## Examples - Rust Code
-///
-/// ### Basic Installation
-/// ```rust
-/// let tool_entry = ToolEntry {
-///     name: "golang.org/x/tools/gopls".to_string(),
-///     version: None, // Install latest version
-///     url: None,
-///     options: None,
-///     rename_to: None,
-/// };
-/// install(&tool_entry);
-/// ```
-///
-/// ### Version-Specific Installation
-/// ```rust
-/// let tool_entry = ToolEntry {
-///     name: "my-tool".to_string(),
-///     version: Some("v1.54.2".to_string()),
-///     url: Some("github.com/golangci/golangci-lint/cmd/golangci-lint".to_string()),
-///     options: None,
-///     rename_to: None,
-/// };
-/// install(&tool_entry);
-/// ```
-///
-/// ### URL-Based Installation with Rename
-/// ```rust
-/// let tool_entry = ToolEntry {
-///     name: "custom-tool".to_string(),
-///     version: Some("v0.1.0".to_string()),
-///     url: Some("github.com/example/custom-tool".to_string()),
-///     options: Some(vec!["-ldflags=-s -w".to_string()]),
-///     rename_to: Some("my-custom-tool".to_string()),
-/// };
-/// install(&tool_entry);
-/// ```
+/// Struct representing the Go installer.
+pub struct GoInstaller;
+
+impl Installer for GoInstaller {
+    /// Installs a Go tool using the `go install` command with comprehensive error handling.
+    ///
+    /// This function provides a robust installer for Go tools that mirrors the quality and
+    /// reliability of the official Go toolchain. It includes validation, verification, and
+    /// accurate state tracking.
+    ///
+    /// # Workflow:
+    /// 1. **Environment Validation**: Verifies `go` is installed and accessible
+    /// 2. **Source Determination**: Chooses between URL and module name sources
+    /// 3. **Command Preparation**: Constructs `go install` command with versioning
+    /// 4. **Command Execution**: Runs installation with comprehensive error handling
+    /// 5. **Installation Verification**: Confirms the tool was properly installed with smart binary name detection
+    /// 6. **Path Resolution**: Accurately determines the installation path
+    /// 7. **Post-installation Hooks**: Executes any additional setup commands
+    /// 8. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
+    ///
+    /// # Arguments:
+    /// * `tool_entry`: A reference to the `ToolEntry` struct containing tool configuration
+    ///   - `tool_entry.name`: **Required** - The Go module name or tool name
+    ///   - `tool_entry.url`: Optional URL for custom repository installations
+    ///   - `tool_entry.version`: Optional version specification using Go module syntax
+    ///   - `tool_entry.options`: Optional list of go install options (-ldflags, etc.)
+    ///   - `tool_entry.rename_to`: Optional custom binary name
+    ///
+    /// # Returns:
+    /// An `Option<ToolState>`:
+    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
+    /// * `None` if any step of the installation process fails
+    ///
+    /// ## Examples - YAML
+    ///
+    /// ```yaml
+    /// ## `golangci-lint` - Fast linters runner for Go
+    /// ## https://golangci-lint.run/
+    /// - name: my-linter
+    ///   source: go
+    ///   version: v1.54.2
+    ///   url: github.com/golangci/golangci-lint/cmd/golangci-lint
+    ///   # Binary will be detected as 'golangci-lint' from URL, not 'my-linter'
+    ///
+    /// ## `air` - Live reload for Go apps
+    /// ## https://github.com/cosmtrek/air
+    /// - name: air
+    ///   source: go
+    ///   version: latest
+    ///   options:
+    ///     - -ldflags=-s -w
+    ///
+    /// ## Custom binary name
+    /// - name: gopls
+    ///   source: go
+    ///   url: golang.org/x/tools/gopls
+    ///   rename_to: my-gopls
+    ///   # Binary will be installed as 'my-gopls'
+    /// ```
+    ///
+    /// ## Examples - Rust Code
+    ///
+    /// ### Basic Installation
+    /// ```rust
+    /// let tool_entry = ToolEntry {
+    ///     name: "golang.org/x/tools/gopls".to_string(),
+    ///     version: None, // Install latest version
+    ///     url: None,
+    ///     options: None,
+    ///     rename_to: None,
+    /// };
+    /// install(&tool_entry);
+    /// ```
+    ///
+    /// ### Version-Specific Installation
+    /// ```rust
+    /// let tool_entry = ToolEntry {
+    ///     name: "my-tool".to_string(),
+    ///     version: Some("v1.54.2".to_string()),
+    ///     url: Some("github.com/golangci/golangci-lint/cmd/golangci-lint".to_string()),
+    ///     options: None,
+    ///     rename_to: None,
+    /// };
+    /// install(&tool_entry);
+    /// ```
+    ///
+    /// ### URL-Based Installation with Rename
+    /// ```rust
+    /// let tool_entry = ToolEntry {
+    ///     name: "custom-tool".to_string(),
+    ///     version: Some("v0.1.0".to_string()),
+    ///     url: Some("github.com/example/custom-tool".to_string()),
+    ///     options: Some(vec!["-ldflags=-s -w".to_string()]),
+    ///     rename_to: Some("my-custom-tool".to_string()),
+    /// };
+    /// install(&tool_entry);
+    /// ```
+    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
+        log_info!(
+            "[SDB::Tools::GoInstaller] Attempting to install Go tool: {}",
+            tool_entry.name.bold()
+        );
+        log_debug!(
+            "[SDB::Tools::GoInstaller] ToolEntry details: {:#?}",
+            tool_entry
+        );
+
+        // 1. Determine installation source - choose between URL and module name
+        let installation_source = determine_installation_source(tool_entry);
+        log_debug!(
+            "[SDB::Tools::GoInstaller] Installation source: {}",
+            installation_source.cyan()
+        );
+
+        // 2. Prepare and execute go install command
+        log_debug!(
+            "[SDB::Tools::GoInstaller] Prepare the command to install: {}",
+            tool_entry.name.bold()
+        );
+        let command_args = prepare_go_install_command(tool_entry, &installation_source);
+        if !execute_go_install_command(&command_args, tool_entry) {
+            return None;
+        }
+
+        // 3. Verify the installation was successful - ensure the binary is actually available
+        log_debug!(
+            "[SDB::Tools::GoInstaller] Verify if {} was actually installed",
+            tool_entry.name.bold()
+        );
+        if !verify_go_installation(tool_entry) {
+            return None;
+        }
+
+        // 4. Determine accurate installation path - where the binary was actually installed
+        let binary_name = determine_actual_binary_name(tool_entry);
+        let install_path = determine_go_installation_path(&binary_name);
+        log_debug!(
+            "[Go Installer] Determined installation path: {}",
+            install_path.display().to_string().cyan()
+        );
+
+        // 5. Execute post-installation hooks - run any additional setup commands
+        log_debug!(
+            "[Go Installer] Executing post installation hooks, post installing {}",
+            tool_entry.name.bold()
+        );
+
+        // 6. Execute post-installation hooks - run any additional setup commands
+        let executed_post_installation_hooks =
+            execute_post_installation_hooks("[SDB::Tools::GoInstaller]", tool_entry, &install_path);
+
+        log_info!(
+            "[SDB::Tools::GoInstaller] Successfully installed Go tool: {} (version: {}) as {}",
+            tool_entry.name.bold().green(),
+            tool_entry
+                .version
+                .as_ref()
+                .unwrap_or(&"latest".to_string())
+                .green(),
+            binary_name.green()
+        );
+
+        // 7. Return comprehensive ToolState for tracking
+        //
+        // Construct a `ToolState` object to record the details of this successful installation.
+        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+        // what tools are installed, where they are, and how they were installed.
+        Some(ToolState::new(
+            tool_entry,
+            &install_path,
+            "go-install".to_string(),
+            "go-module".to_string(),
+            tool_entry
+                .version
+                .clone()
+                .unwrap_or_else(|| "latest".to_string()),
+            tool_entry.url.clone(),
+            None,
+            executed_post_installation_hooks,
+        ))
+    }
+}
+
+/// Convenience wrapper to maintain backward compatibility and simple invocation.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_info!(
-        "[SDB::Tools::GoInstaller] Attempting to install Go tool: {}",
-        tool_entry.name.bold()
-    );
-    log_debug!(
-        "[SDB::Tools::GoInstaller] ToolEntry details: {:#?}",
-        tool_entry
-    );
-
-    // 1. Determine installation source - choose between URL and module name
-    let installation_source = determine_installation_source(tool_entry);
-    log_debug!(
-        "[SDB::Tools::GoInstaller] Installation source: {}",
-        installation_source.cyan()
-    );
-
-    // 2. Prepare and execute go install command
-    log_debug!(
-        "[SDB::Tools::GoInstaller] Prepare the command to install: {}",
-        tool_entry.name.bold()
-    );
-    let command_args = prepare_go_install_command(tool_entry, &installation_source);
-    if !execute_go_install_command(&command_args, tool_entry) {
-        return None;
-    }
-
-    // 3. Verify the installation was successful - ensure the binary is actually available
-    log_debug!(
-        "[SDB::Tools::GoInstaller] Verify if {} was actually installed",
-        tool_entry.name.bold()
-    );
-    if !verify_go_installation(tool_entry) {
-        return None;
-    }
-
-    // 4. Determine accurate installation path - where the binary was actually installed
-    let binary_name = determine_actual_binary_name(tool_entry);
-    let install_path = determine_go_installation_path(&binary_name);
-    log_debug!(
-        "[Go Installer] Determined installation path: {}",
-        install_path.display().to_string().cyan()
-    );
-
-    // 5. Execute post-installation hooks - run any additional setup commands
-    log_debug!(
-        "[Go Installer] Executing post installation hooks, post installing {}",
-        tool_entry.name.bold()
-    );
-
-    // 6. Execute post-installation hooks - run any additional setup commands
-    let executed_post_installation_hooks =
-        execute_post_installation_hooks("[SDB::Tools::GoInstaller]", tool_entry, &install_path);
-
-    log_info!(
-        "[SDB::Tools::GoInstaller] Successfully installed Go tool: {} (version: {}) as {}",
-        tool_entry.name.bold().green(),
-        tool_entry
-            .version
-            .as_ref()
-            .unwrap_or(&"latest".to_string())
-            .green(),
-        binary_name.green()
-    );
-
-    // 7. Return comprehensive ToolState for tracking
-    //
-    // Construct a `ToolState` object to record the details of this successful installation.
-    // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-    // what tools are installed, where they are, and how they were installed.
-    Some(ToolState::new(
-        tool_entry,
-        &install_path,
-        "go-install".to_string(),
-        "go-module".to_string(),
-        tool_entry
-            .version
-            .clone()
-            .unwrap_or_else(|| "latest".to_string()),
-        tool_entry.url.clone(),
-        None,
-        executed_post_installation_hooks,
-    ))
+    GoInstaller.install(tool_entry)
 }
 
 /// Determines the installation source for the Go tool.
@@ -268,6 +279,7 @@ fn determine_installation_source(tool_entry: &ToolEntry) -> String {
 ///   source: go
 ///   version: v1.54.2
 ///   url: github.com/golangci/golangci-lint/cmd/golangci-lint
+///   # Binary will be detected as 'golangci-lint' from URL, not 'my-linter'
 ///
 /// ## `air` - Live reload for Go apps
 /// ## https://github.com/cosmtrek/air

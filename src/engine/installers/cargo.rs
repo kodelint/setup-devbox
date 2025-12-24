@@ -44,6 +44,7 @@ use std::process::Command;
 
 // Post-installation hook execution functionality.
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::traits::Installer;
 // Internal module imports:
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
@@ -55,188 +56,144 @@ use crate::{log_debug, log_error, log_info, log_warn};
 //   Library for adding color to terminal output for better readability.
 use colored::Colorize;
 
-/// Installs a Rust tools using the `cargo install` command with comprehensive error handling.
-///
-/// This function provides a robust installer for Cargo based tool installation which
-/// includes validation, verification, and accurate state tracking.
-///
-/// # Workflow:
-/// 1. **Environment Validation**: Verifies `cargo` is installed and accessible
-/// 2. **Already Installed**: Determines if the tool was already install outside SDB
-/// 3. **Installation Source**: Determines how to install the tool
-/// 4. **Prepare and Execute Command**: Prepare the `cargo install` command
-/// 5. **Installation Verification**: Confirms the crate was properly installed
-/// 6. **Path Resolution**: Accurately determines the installation path
-/// 7. **Post-installation Hooks**: Executes any additional setup commands
-/// 8. **Get Version**: Determine the actual installed version
-/// 9. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
-///
-/// # Arguments:
-/// * `tool_entry`: A reference to the `ToolEntry` struct containing crate configuration
-///   - `tool_entry.name`: **Required** - The crate name to install
-///   - `tool_entry.version`: Optional version specification for crates.io installations
-///   - `tool_entry.options`: Optional list of cargo install options (--features, --git, etc.)
-///
-/// # Returns:
-/// An `Option<ToolState>`:
-/// * `Some(ToolState)` if installation was completely successful with accurate metadata
-/// * `None` if any step of the installation process fails
-///
-/// ## Examples - YAML
-///
-/// ```yaml
-/// ## `uv` - A single tool to replace pip, pip-tools, pipx, poetry, pyenv, twine, virtualenv, and more.
-/// ## https://docs.astral.sh/uv/
-/// - name: uv
-///   source: cargo
-///   version: 0.8.17
-///   options:
-///     - --git https://github.com/astral-sh/uv
-///   configuration_manager:
-///   enabled: true
-///   tools_configuration_paths:
-///     - $HOME/.config/uv/uv.toml
-///
-///  ## `cargo-deny` - cargo-deny is a cargo plugin that lets you lint your project's dependency
-///  ## graph to ensure all your dependencies conform to your expectations and requirements.
-/// - name: cargo-deny
-///   source: cargo
-///   version: 0.18.4
-/// ```
-///
-/// ## Examples - Rust Code
-///
-/// ### Basic Installation
-/// ```rust
-/// let tool_entry = ToolEntry {
-///     name: "cargo-deny".to_string(),
-///     version: None, // Install latest version
-///     options: None,
-/// };
-/// install(&tool_entry);
-/// ```
-///
-/// ### Version-Specific Installation
-/// ```rust
-/// let tool_entry = ToolEntry {
-///     name: "cargo-deny".to_string(),
-///     version: Some("0.18.4".to_string()),
-///     options: None,
-/// };
-/// install(&tool_entry);
-/// ```
-///
-/// ### Git-Based Installation
-/// ```rust
-/// let tool_entry = ToolEntry {
-///     name: "uv".to_string(),
-///     version: Some("0.8.17".to_string()), // Used as git tag
-///     options: Some(vec![
-///         "--git".to_string(),
-///         "https://github.com/astral-sh/uv".to_string()
-///     ]),
-/// };
-/// install(&tool_entry);
-/// ```
-pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_info!(
-        "[SDB::Tools::CargoInstaller] Attempting to install Tool: {}",
-        tool_entry.name.green().bold()
-    );
-    log_debug!(
-        "[SDB::Tools::CargoInstaller] ToolEntry details: {:#?}",
-        tool_entry
-    );
+/// Struct representing the Cargo installer.
+pub struct CargoInstaller;
 
-    // 1. Check if crate is already installed (optimization)
-    // There might be possibility that tool was already installed outside SDB
-    log_debug!(
-        "[SDB::Tools::CargoInstaller] Checking if {} is already installed",
-        tool_entry.name.bold()
-    );
-    if check_if_installed(&tool_entry.name) {
-        log_warn!(
-            "[SDB::Tools::CargoInstaller] Tool '{}' appears to be already installed, outside SDB",
-            tool_entry.name.green()
-        );
+impl Installer for CargoInstaller {
+    /// Installs a Rust tools using the `cargo install` command with comprehensive error handling.
+    ///
+    /// This function provides a robust installer for Cargo based tool installation which
+    /// includes validation, verification, and accurate state tracking.
+    ///
+    /// # Workflow:
+    /// 1. **Environment Validation**: Verifies `cargo` is installed and accessible
+    /// 2. **Already Installed**: Determines if the tool was already install outside SDB
+    /// 3. **Installation Source**: Determines how to install the tool
+    /// 4. **Prepare and Execute Command**: Prepare the `cargo install` command
+    /// 5. **Installation Verification**: Confirms the crate was properly installed
+    /// 6. **Path Resolution**: Accurately determines the installation path
+    /// 7. **Post-installation Hooks**: Executes any additional setup commands
+    /// 8. **Get Version**: Determine the actual installed version
+    /// 9. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
+    ///
+    /// # Arguments:
+    /// * `tool_entry`: A reference to the `ToolEntry` struct containing crate configuration
+    ///   - `tool_entry.name`: **Required** - The crate name to install
+    ///   - `tool_entry.version`: Optional version specification for crates.io installations
+    ///   - `tool_entry.options`: Optional list of cargo install options (--features, --git, etc.)
+    ///
+    /// # Returns:
+    /// An `Option<ToolState>`:
+    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
+    /// * `None` if any step of the installation process fails
+    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
         log_info!(
-            "[SDB::Tools::CargoInstaller] Updating SDB inventory for {}",
-            tool_entry.name.green()
+            "[SDB::Tools::CargoInstaller] Attempting to install Tool: {}",
+            tool_entry.name.green().bold()
         );
         log_debug!(
-            "[SDB::Tools::CargoInstaller] Proceeding with installation to ensure correct version/options"
+            "[SDB::Tools::CargoInstaller] ToolEntry details: {:#?}",
+            tool_entry
         );
-    }
 
-    // 2. Detect if cargo needs to install it using git url
-    let is_it_git_based_install = detect_install_source(tool_entry);
-    log_debug!(
-        "[SDB::Tools::CargoInstaller] Installation type: {}",
-        if is_it_git_based_install {
-            "Git Based".cyan()
-        } else {
-            "Cargo Index based".cyan()
+        // 1. Check if crate is already installed (optimization)
+        // There might be possibility that tool was already installed outside SDB
+        log_debug!(
+            "[SDB::Tools::CargoInstaller] Checking if {} is already installed",
+            tool_entry.name.bold()
+        );
+        if check_if_installed(&tool_entry.name) {
+            log_warn!(
+                "[SDB::Tools::CargoInstaller] Tool '{}' appears to be already installed, outside SDB",
+                tool_entry.name.green()
+            );
+            log_info!(
+                "[SDB::Tools::CargoInstaller] Updating SDB inventory for {}",
+                tool_entry.name.green()
+            );
+            log_debug!(
+                "[SDB::Tools::CargoInstaller] Proceeding with installation to ensure correct version/options"
+            );
         }
-    );
 
-    // 3. Prepare and execute cargo install command
-    log_debug!(
-        "[SDB::Tools::CargoInstaller] Prepare the command to install: {}",
-        tool_entry.name.bold()
-    );
-    let command_args = prepare_cargo_install_command(tool_entry, is_it_git_based_install);
-    if !execute_cargo_install_command(&command_args, tool_entry) {
-        return None;
+        // 2. Detect if cargo needs to install it using git url
+        let is_it_git_based_install = detect_install_source(tool_entry);
+        log_debug!(
+            "[SDB::Tools::CargoInstaller] Installation type: {}",
+            if is_it_git_based_install {
+                "Git Based".cyan()
+            } else {
+                "Cargo Index based".cyan()
+            }
+        );
+
+        // 3. Prepare and execute cargo install command
+        log_debug!(
+            "[SDB::Tools::CargoInstaller] Prepare the command to install: {}",
+            tool_entry.name.bold()
+        );
+        let command_args = prepare_cargo_install_command(tool_entry, is_it_git_based_install);
+        if !execute_cargo_install_command(&command_args, tool_entry) {
+            return None;
+        }
+
+        // 4. Verify the installation was successful - ensure the binary is actually available
+        log_debug!(
+            "[SDB::Tools::CargoInstaller] Verify if the {} actually installed",
+            tool_entry.name.bold()
+        );
+        if !check_if_installed(&tool_entry.name) {
+            return None;
+        }
+
+        // 5. Determine accurate installation path - where the binary was actually installed
+        let install_path = determine_cargo_installation_path(&tool_entry.name);
+        log_debug!(
+            "[SDB::Tools::CargoInstaller] Determined installation path: {}",
+            install_path.display().to_string().cyan()
+        );
+
+        // 6. Execute post-installation hooks - run any additional setup commands
+        log_debug!(
+            "[SDB::Tools::CargoInstaller] Executing post installation hooks, post installing {}",
+            tool_entry.name.bold()
+        );
+        let executed_post_installation_hooks = execute_post_installation_hooks(
+            "[SDB::Tools::CargoInstaller]",
+            tool_entry,
+            &install_path,
+        );
+
+        // 7. Get actual installed version for accurate tracking - important for state management
+        let actual_version = determine_installed_version(tool_entry, is_it_git_based_install);
+
+        log_info!(
+            "[SDB::Tools::CargoInstaller] Successfully installed tool: {} (version: {})",
+            tool_entry.name.bold().green(),
+            actual_version.green()
+        );
+
+        // 8. Return comprehensive ToolState for tracking
+        //
+        // Construct a `ToolState` object to record the details of this successful installation.
+        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+        // what tools are installed, where they are, and how they were installed.
+        Some(ToolState::new(
+            tool_entry,
+            &install_path,
+            "cargo-install".to_string(),
+            "rust-crate".to_string(),
+            actual_version,
+            None,
+            None,
+            executed_post_installation_hooks,
+        ))
     }
+}
 
-    // 4. Verify the installation was successful - ensure the binary is actually available
-    log_debug!(
-        "[SDB::Tools::CargoInstaller] Verify if the {} actually installed",
-        tool_entry.name.bold()
-    );
-    if !check_if_installed(&tool_entry.name) {
-        return None;
-    }
-
-    // 5. Determine accurate installation path - where the binary was actually installed
-    let install_path = determine_cargo_installation_path(&tool_entry.name);
-    log_debug!(
-        "[SDB::Tools::CargoInstaller] Determined installation path: {}",
-        install_path.display().to_string().cyan()
-    );
-
-    // 6. Execute post-installation hooks - run any additional setup commands
-    log_debug!(
-        "[SDB::Tools::CargoInstaller] Executing post installation hooks, post installing {}",
-        tool_entry.name.bold()
-    );
-    let executed_post_installation_hooks =
-        execute_post_installation_hooks("[SDB::Tools::CargoInstaller]", tool_entry, &install_path);
-
-    // 7. Get actual installed version for accurate tracking - important for state management
-    let actual_version = determine_installed_version(tool_entry, is_it_git_based_install);
-
-    log_info!(
-        "[SDB::Tools::CargoInstaller] Successfully installed tool: {} (version: {})",
-        tool_entry.name.bold().green(),
-        actual_version.green()
-    );
-
-    // 8. Return comprehensive ToolState for tracking
-    //
-    // Construct a `ToolState` object to record the details of this successful installation.
-    // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-    // what tools are installed, where they are, and how they were installed.
-    Some(ToolState::new(
-        tool_entry,
-        &install_path,
-        "cargo-install".to_string(),
-        "rust-crate".to_string(),
-        actual_version,
-        None,
-        None,
-        executed_post_installation_hooks,
-    ))
+/// Convenience wrapper to maintain backward compatibility and simple invocation.
+pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
+    CargoInstaller.install(tool_entry)
 }
 
 /// Detects if this is a git-based installation by checking for --git option.

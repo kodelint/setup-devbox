@@ -23,6 +23,7 @@ use crate::{log_debug, log_error, log_info, log_warn};
 // `std::process::Command` is used to run commands/hooks.
 // `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::traits::Installer;
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
 use crate::schemas::state_file::ToolState;
@@ -63,154 +64,164 @@ impl PipVariant {
     }
 }
 
-/// Installs a Python package using pip with comprehensive error handling.
-///
-/// This function provides a robust installer for Python packages that mirrors the quality and
-/// reliability of the other installers. It includes validation, verification, and accurate
-/// state tracking for pip installations.
-///
-/// # Workflow:
-/// 1. **Environment Validation**: Verifies pip/Python environment is available
-/// 2. **Pip Variant Detection**: Determines the best available pip executable
-/// 3. **Installation Mode Detection**: Determines user vs system installation
-/// 4. **Command Preparation**: Constructs appropriate pip install command arguments
-/// 5. **Pre-installation Check**: Verifies if package is already installed
-/// 6. **Package Installation**: Executes pip install with comprehensive error handling
-/// 7. **Installation Verification**: Confirms package was properly installed
-/// 8. **Path Resolution**: Accurately determines the installation path
-/// 9. **Version Detection**: Retrieves actual installed version for accurate tracking
-/// 10. **Post-installation Hooks**: Executes any additional setup commands
-/// 11. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
-///
-/// # Arguments
-/// * `tool_entry`: A reference to the `ToolEntry` struct containing package configuration
-///   - `tool_entry.name`: **Required** - The Python package name to install
-///   - `tool_entry.version`: Optional version specification (e.g., "package==1.0.0")
-///   - `tool_entry.options`: Optional list of pip install options (--user, --upgrade, etc.)
-///
-/// # Returns
-/// An `Option<ToolState>`:
-/// * `Some(ToolState)` if installation was completely successful with accurate metadata
-/// * `None` if any step of the installation process fails
-/// ## Examples - YAML
-///
-/// ```yaml
-/// # ########################
-/// # Example: PIP Installer #
-/// # ########################
-/// - name: pip
-///   source: pip
-///   version: 25.2
-///   options:
-///     - --upgrade
-/// ```
-pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_info!(
-        "[SDB::Tools::PipInstaller] Attempting to install Python package: {}",
-        tool_entry.name.bold()
-    );
-    log_debug!(
-        "[SDB::Tools::PipInstaller] ToolEntry details: {:#?}",
-        tool_entry
-    );
+/// Struct representing the Pip installer.
+pub struct PipInstaller;
 
-    // 1. Detect and validate pip executable
-    let pip_variant = detect_pip_variant()?;
-    log_debug!(
-        "[SDB::Tools::PipInstaller] Using pip variant: {:?}",
-        pip_variant
-    );
-
-    // 2. Validate package configuration
-    if !validate_package_configuration(tool_entry) {
-        return None;
-    }
-
-    // 3. Determine installation mode (user vs system)
-    let is_user_install = detect_installation_mode(tool_entry);
-    log_debug!(
-        "[SDB::Tools::PipInstaller] Installation mode: {}",
-        if is_user_install { "user" } else { "system" }.cyan()
-    );
-
-    // 4. Check if package is already installed (optimization)
-    if check_package_already_installed(&tool_entry.name, &pip_variant) {
+impl Installer for PipInstaller {
+    /// Installs a Python package using pip with comprehensive error handling.
+    ///
+    /// This function provides a robust installer for Python packages that mirrors the quality and
+    /// reliability of the other installers. It includes validation, verification, and accurate
+    /// state tracking for pip installations.
+    ///
+    /// # Workflow:
+    /// 1. **Environment Validation**: Verifies pip/Python environment is available
+    /// 2. **Pip Variant Detection**: Determines the best available pip executable
+    /// 3. **Installation Mode Detection**: Determines user vs system installation
+    /// 4. **Command Preparation**: Constructs appropriate pip install command arguments
+    /// 5. **Pre-installation Check**: Verifies if package is already installed
+    /// 6. **Package Installation**: Executes pip install with comprehensive error handling
+    /// 7. **Installation Verification**: Confirms package was properly installed
+    /// 8. **Path Resolution**: Accurately determines the installation path
+    /// 9. **Version Detection**: Retrieves actual installed version for accurate tracking
+    /// 10. **Post-installation Hooks**: Executes any additional setup commands
+    /// 11. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
+    ///
+    /// # Arguments
+    /// * `tool_entry`: A reference to the `ToolEntry` struct containing package configuration
+    ///   - `tool_entry.name`: **Required** - The Python package name to install
+    ///   - `tool_entry.version`: Optional version specification (e.g., "package==1.0.0")
+    ///   - `tool_entry.options`: Optional list of pip install options (--user, --upgrade, etc.)
+    ///
+    /// # Returns
+    /// An `Option<ToolState>`:
+    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
+    /// * `None` if any step of the installation process fails
+    /// ## Examples - YAML
+    ///
+    /// ```yaml
+    /// # ########################
+    /// # Example: PIP Installer #
+    /// # ########################
+    /// - name: pip
+    ///   source: pip
+    ///   version: 25.2
+    ///   options:
+    ///     - --upgrade
+    /// ```
+    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
         log_info!(
-            "[SDB::Tools::PipInstaller] Package '{}' appears to be already installed",
-            tool_entry.name.green()
+            "[SDB::Tools::PipInstaller] Attempting to install Python package: {}",
+            tool_entry.name.bold()
         );
-        // Continue with installation to ensure correct version and options
         log_debug!(
-            "[SDB::Tools::PipInstaller] Proceeding with installation to ensure correct version"
-        );
-    }
-
-    // 5. Prepare and execute pip install command
-    let command_args = prepare_pip_install_command(tool_entry, &pip_variant);
-    if !execute_pip_install_command(&pip_variant, &command_args, tool_entry) {
-        return None;
-    }
-
-    // 6. Verify the installation was successful
-    if !verify_pip_installation(&tool_entry.name, &pip_variant) {
-        return None;
-    }
-
-    // 7. Determine accurate installation path
-    let install_path =
-        determine_pip_installation_path(&tool_entry.name, is_user_install, &pip_variant);
-    log_debug!(
-        "[SDB::Tools::PipInstaller] Determined installation path: {}",
-        install_path.display().to_string().cyan()
-    );
-
-    // 8. Verify binary/package exists at expected path
-    if !verify_package_accessible(&tool_entry.name, &pip_variant) {
-        log_error!(
-            "[SDB::Tools::PipInstaller] Package '{}' is not accessible after installation",
-            tool_entry.name.red()
-        );
-        return None;
-    }
-
-    // 9. Execute post-installation hooks
-    let working_dir = install_path
-        .parent()
-        .unwrap_or(&PathBuf::from("/"))
-        .to_path_buf();
-    let executed_post_installation_hooks =
-        execute_post_installation_hooks("[Pip Installer]", tool_entry, &working_dir);
-
-    // 10. Get actual installed version for accurate tracking
-    let actual_version = determine_installed_version(&tool_entry.name, &pip_variant)
-        .unwrap_or_else(|| {
+            "[SDB::Tools::PipInstaller] ToolEntry details: {:#?}",
             tool_entry
-                .version
-                .clone()
-                .unwrap_or_else(|| "latest".to_string())
-        });
+        );
 
-    log_info!(
-        "[SDB::Tools::PipInstaller] Successfully installed Python package: {} (version: {})",
-        tool_entry.name.bold().green(),
-        actual_version.green()
-    );
+        // 1. Detect and validate pip executable
+        let pip_variant = detect_pip_variant()?;
+        log_debug!(
+            "[SDB::Tools::PipInstaller] Using pip variant: {:?}",
+            pip_variant
+        );
 
-    // 11. Return comprehensive ToolState for tracking
-    //
-    // Construct a `ToolState` object to record the details of this successful installation.
-    // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-    // what tools are installed, where they are, and how they were installed.
-    Some(ToolState::new(
-        tool_entry,
-        &install_path,
-        "pip".to_string(),
-        "python-package".to_string(),
-        actual_version,
-        None,
-        None,
-        executed_post_installation_hooks,
-    ))
+        // 2. Validate package configuration
+        if !validate_package_configuration(tool_entry) {
+            return None;
+        }
+
+        // 3. Determine installation mode (user vs system)
+        let is_user_install = detect_installation_mode(tool_entry);
+        log_debug!(
+            "[SDB::Tools::PipInstaller] Installation mode: {}",
+            if is_user_install { "user" } else { "system" }.cyan()
+        );
+
+        // 4. Check if package is already installed (optimization)
+        if check_package_already_installed(&tool_entry.name, &pip_variant) {
+            log_info!(
+                "[SDB::Tools::PipInstaller] Package '{}' appears to be already installed",
+                tool_entry.name.green()
+            );
+            // Continue with installation to ensure correct version and options
+            log_debug!(
+                "[SDB::Tools::PipInstaller] Proceeding with installation to ensure correct version"
+            );
+        }
+
+        // 5. Prepare and execute pip install command
+        let command_args = prepare_pip_install_command(tool_entry, &pip_variant);
+        if !execute_pip_install_command(&pip_variant, &command_args, tool_entry) {
+            return None;
+        }
+
+        // 6. Verify the installation was successful
+        if !verify_pip_installation(&tool_entry.name, &pip_variant) {
+            return None;
+        }
+
+        // 7. Determine accurate installation path
+        let install_path =
+            determine_pip_installation_path(&tool_entry.name, is_user_install, &pip_variant);
+        log_debug!(
+            "[SDB::Tools::PipInstaller] Determined installation path: {}",
+            install_path.display().to_string().cyan()
+        );
+
+        // 8. Verify binary/package exists at expected path
+        if !verify_package_accessible(&tool_entry.name, &pip_variant) {
+            log_error!(
+                "[SDB::Tools::PipInstaller] Package '{}' is not accessible after installation",
+                tool_entry.name.red()
+            );
+            return None;
+        }
+
+        // 9. Execute post-installation hooks
+        let working_dir = install_path
+            .parent()
+            .unwrap_or(&PathBuf::from("/"))
+            .to_path_buf();
+        let executed_post_installation_hooks =
+            execute_post_installation_hooks("[Pip Installer]", tool_entry, &working_dir);
+
+        // 10. Get actual installed version for accurate tracking
+        let actual_version = determine_installed_version(&tool_entry.name, &pip_variant)
+            .unwrap_or_else(|| {
+                tool_entry
+                    .version
+                    .clone()
+                    .unwrap_or_else(|| "latest".to_string())
+            });
+
+        log_info!(
+            "[SDB::Tools::PipInstaller] Successfully installed Python package: {} (version: {})",
+            tool_entry.name.bold().green(),
+            actual_version.green()
+        );
+
+        // 11. Return comprehensive ToolState for tracking
+        //
+        // Construct a `ToolState` object to record the details of this successful installation.
+        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+        // what tools are installed, where they are, and how they were installed.
+        Some(ToolState::new(
+            tool_entry,
+            &install_path,
+            "pip".to_string(),
+            "python-package".to_string(),
+            actual_version,
+            None,
+            None,
+            executed_post_installation_hooks,
+        ))
+    }
+}
+
+/// Convenience wrapper to maintain backward compatibility and simple invocation.
+pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
+    PipInstaller.install(tool_entry)
 }
 
 /// Detects the best available pip variant on the system.

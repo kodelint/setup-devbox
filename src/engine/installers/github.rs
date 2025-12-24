@@ -48,6 +48,7 @@ use crate::core::{
     platform::{asset_matches_platform, detect_architecture, detect_os},
 };
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::traits::Installer;
 
 // Schema imports
 use crate::schemas::common::{Release, ReleaseAsset};
@@ -57,156 +58,169 @@ use crate::schemas::tools_types::ToolEntry;
 // Custom logging macros
 use crate::{log_debug, log_error, log_info};
 
-/// Installs a software tool by fetching its release asset from GitHub releases.
-///
-/// This function provides a robust installer for GitHub-hosted tools that mirrors the quality
-/// and reliability of official package managers. It includes comprehensive validation,
-/// smart asset selection, and accurate state tracking.
-///
-/// # Workflow
-///
-/// 1. **Platform Detection**: Detects OS and architecture for asset selection
-/// 2. **Configuration Validation**: Validates required repository and tag fields
-/// 3. **GitHub API Integration**: Fetches release information from GitHub API
-/// 4. **Asset Selection**: Finds and prioritizes platform-appropriate assets
-/// 5. **Asset Download**: Downloads the selected asset to temporary location
-/// 6. **File Type Detection**: Determines installation strategy based on file type
-/// 7. **Asset Processing**: Handles extraction, installation, or direct binary placement
-/// 8. **Post-Installation Hooks**: Executes any additional setup commands
-/// 9. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
-///
-/// # Arguments
-///
-/// * `tool_entry` - A reference to the `ToolEntry` struct containing tool configuration
-///   - `tool_entry.name`: **Required** - The tool name
-///   - `tool_entry.repo`: **Required** - GitHub repository in "owner/repo" format
-///   - `tool_entry.tag`: **Required** - Release tag/version (e.g., "v1.0.0")
-///   - `tool_entry.rename_to`: Optional custom binary name
-///   - `tool_entry.options`: Optional additional configuration
-///
-/// # Returns
-///
-/// An `Option<ToolState>`:
-/// * `Some(ToolState)` if installation was completely successful with accurate metadata
-/// * `None` if any step of the installation process fails
-///
-/// # Examples - YAML Configuration
-///
-/// ```yaml
-/// # GitHub CLI tool
-/// # https://github.com/cli/cli
-/// - name: gh
-///   source: github
-///   repo: cli/cli
-///   tag: v2.50.0
-///
-/// # Kubernetes package manager with custom name
-/// # https://github.com/helm/helm
-/// - name: helm
-///   source: github
-///   repo: helm/helm
-///   tag: v3.17.0
-///   rename_to: helm3
-///
-/// # Static site generator
-/// # https://github.com/gohugoio/hugo
-/// - name: hugo
-///   source: github
-///   repo: gohugoio/hugo
-///   tag: v0.140.0
-/// ```
-///
-/// # Examples - Rust Code
-///
-/// ```rust
-/// // Basic installation
-/// let tool_entry = ToolEntry {
-///     name: "gh".to_string(),
-///     repo: Some("cli/cli".to_string()),
-///     tag: Some("v2.50.0".to_string()),
-///     rename_to: None,
-///     options: None,
-/// };
-/// install(&tool_entry);
-///
-/// // Installation with custom binary name
-/// let tool_entry = ToolEntry {
-///     name: "helm".to_string(),
-///     repo: Some("helm/helm".to_string()),
-///     tag: Some("v3.17.0".to_string()),
-///     rename_to: Some("helm3".to_string()),
-///     options: None,
-/// };
-/// install(&tool_entry);
-/// ```
+/// Struct representing the GitHub installer.
+pub struct GitHubInstaller;
+
+impl Installer for GitHubInstaller {
+    /// Installs a software tool by fetching its release asset from GitHub releases.
+    ///
+    /// This function provides a robust installer for GitHub-hosted tools that mirrors the quality
+    /// and reliability of official package managers. It includes comprehensive validation,
+    /// smart asset selection, and accurate state tracking.
+    ///
+    /// # Workflow
+    ///
+    /// 1. **Platform Detection**: Detects OS and architecture for asset selection
+    /// 2. **Configuration Validation**: Validates required repository and tag fields
+    /// 3. **GitHub API Integration**: Fetches release information from GitHub API
+    /// 4. **Asset Selection**: Finds and prioritizes platform-appropriate assets
+    /// 5. **Asset Download**: Downloads the selected asset to temporary location
+    /// 6. **File Type Detection**: Determines installation strategy based on file type
+    /// 7. **Asset Processing**: Handles extraction, installation, or direct binary placement
+    /// 8. **Post-Installation Hooks**: Executes any additional setup commands
+    /// 9. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
+    ///
+    /// # Arguments
+    ///
+    /// * `tool_entry` - A reference to the `ToolEntry` struct containing tool configuration
+    ///   - `tool_entry.name`: **Required** - The tool name
+    ///   - `tool_entry.repo`: **Required** - GitHub repository in "owner/repo" format
+    ///   - `tool_entry.tag`: **Required** - Release tag/version (e.g., "v1.0.0")
+    ///   - `tool_entry.rename_to`: Optional custom binary name
+    ///   - `tool_entry.options`: Optional additional configuration
+    ///
+    /// # Returns
+    ///
+    /// An `Option<ToolState>`:
+    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
+    /// * `None` if any step of the installation process fails
+    ///
+    /// # Examples - YAML Configuration
+    ///
+    /// ```yaml
+    /// # GitHub CLI tool
+    /// # https://github.com/cli/cli
+    /// - name: gh
+    ///   source: github
+    ///   repo: cli/cli
+    ///   tag: v2.50.0
+    ///
+    /// # Kubernetes package manager with custom name
+    /// # https://github.com/helm/helm
+    /// - name: helm
+    ///   source: github
+    ///   repo: helm/helm
+    ///   tag: v3.17.0
+    ///   rename_to: helm3
+    ///
+    /// # Static site generator
+    /// # https://github.com/gohugoio/hugo
+    /// - name: hugo
+    ///   source: github
+    ///   repo: gohugoio/hugo
+    ///   tag: v0.140.0
+    /// ```
+    ///
+    /// # Examples - Rust Code
+    ///
+    /// ```rust
+    /// // Basic installation
+    /// let tool_entry = ToolEntry {
+    ///     name: "gh".to_string(),
+    ///     repo: Some("cli/cli".to_string()),
+    ///     tag: Some("v2.50.0".to_string()),
+    ///     rename_to: None,
+    ///     options: None,
+    /// };
+    /// install(&tool_entry);
+    ///
+    /// // Installation with custom binary name
+    /// let tool_entry = ToolEntry {
+    ///     name: "helm".to_string(),
+    ///     repo: Some("helm/helm".to_string()),
+    ///     tag: Some("v3.17.0".to_string()),
+    ///     rename_to: Some("helm3".to_string()),
+    ///     options: None,
+    /// };
+    /// install(&tool_entry);
+    /// ```
+    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
+        log_info!(
+            "[SDB::Tools::GitHubInstaller] Attempting to install tool: {}",
+            tool_entry.name.bold()
+        );
+        log_debug!(
+            "[SDB::Tools::GitHubInstaller] ToolEntry details: {:#?}",
+            tool_entry
+        );
+
+        // Step 1: Detect platform (OS and architecture) for asset selection
+        let (os, arch) = detect_platform()?;
+
+        // Step 2: Validate GitHub configuration - ensure required fields are present
+        let (repo, tag) = validate_github_configuration(tool_entry)?;
+
+        // Step 3: Fetch release information from GitHub API
+        log_debug!("[SDB::Tools::GitHubInstaller] Fetching release information for {repo}/{tag}");
+        let release = fetch_github_release(repo, tag)?;
+
+        // Step 4: Select appropriate asset for the detected platform
+        log_debug!("[SDB::Tools::GitHubInstaller] Selecting asset for {os}-{arch}");
+        let asset = select_platform_asset(&release, &os, &arch)?;
+
+        // Step 5: Download asset to temporary location
+        log_debug!(
+            "[SDB::Tools::GitHubInstaller] Downloading asset: {}",
+            asset.name.bold()
+        );
+        let (temp_dir, downloaded_path) =
+            assets::download_url_asset(tool_entry, &asset.browser_download_url)?;
+
+        // Step 6: Detect file type and determine installation strategy
+        let file_type = detect_file_type(&downloaded_path);
+        log_debug!(
+            "[SDB::Tools::GitHubInstaller] Detected file type: {}",
+            file_type.to_string().magenta()
+        );
+
+        // Step 7: Process asset based on file type (binary, archive, or macOS package)
+        let (package_type, final_install_path, working_dir) =
+            assets::process_asset_by_type(tool_entry, &downloaded_path, &file_type, &temp_dir)?;
+
+        // Step 8: Execute any post-installation hooks defined in tool configuration
+        log_debug!(
+            "[SDB::Tools::GitHubInstaller] Executing post-installation hooks for {}",
+            tool_entry.name.bold()
+        );
+        let executed_post_installation_hooks = execute_post_installation_hooks(
+            "[SDB::Tools::GitHubInstaller]",
+            tool_entry,
+            &working_dir,
+        );
+
+        log_info!(
+            "[SDB::Tools::GitHubInstaller] Successfully installed tool: {} (version: {})",
+            tool_entry.name.bold().green(),
+            tag.green()
+        );
+
+        // Step 9: Return comprehensive ToolState for state tracking and persistence
+        Some(ToolState::new(
+            tool_entry,
+            &final_install_path,
+            "github".to_string(),
+            package_type,
+            tool_entry.version.clone()?.to_string(),
+            Some(asset.browser_download_url.clone()),
+            None,
+            executed_post_installation_hooks,
+        ))
+    }
+}
+
+/// Convenience wrapper to maintain backward compatibility and simple invocation.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_info!(
-        "[SDB::Tools::GitHubInstaller] Attempting to install tool: {}",
-        tool_entry.name.bold()
-    );
-    log_debug!(
-        "[SDB::Tools::GitHubInstaller] ToolEntry details: {:#?}",
-        tool_entry
-    );
-
-    // Step 1: Detect platform (OS and architecture) for asset selection
-    let (os, arch) = detect_platform()?;
-
-    // Step 2: Validate GitHub configuration - ensure required fields are present
-    let (repo, tag) = validate_github_configuration(tool_entry)?;
-
-    // Step 3: Fetch release information from GitHub API
-    log_debug!("[SDB::Tools::GitHubInstaller] Fetching release information for {repo}/{tag}");
-    let release = fetch_github_release(repo, tag)?;
-
-    // Step 4: Select appropriate asset for the detected platform
-    log_debug!("[SDB::Tools::GitHubInstaller] Selecting asset for {os}-{arch}");
-    let asset = select_platform_asset(&release, &os, &arch)?;
-
-    // Step 5: Download asset to temporary location
-    log_debug!(
-        "[SDB::Tools::GitHubInstaller] Downloading asset: {}",
-        asset.name.bold()
-    );
-    let (temp_dir, downloaded_path) =
-        assets::download_url_asset(tool_entry, &asset.browser_download_url)?;
-
-    // Step 6: Detect file type and determine installation strategy
-    let file_type = detect_file_type(&downloaded_path);
-    log_debug!(
-        "[SDB::Tools::GitHubInstaller] Detected file type: {}",
-        file_type.to_string().magenta()
-    );
-
-    // Step 7: Process asset based on file type (binary, archive, or macOS package)
-    let (package_type, final_install_path, working_dir) =
-        assets::process_asset_by_type(tool_entry, &downloaded_path, &file_type, &temp_dir)?;
-
-    // Step 8: Execute any post-installation hooks defined in tool configuration
-    log_debug!(
-        "[SDB::Tools::GitHubInstaller] Executing post-installation hooks for {}",
-        tool_entry.name.bold()
-    );
-    let executed_post_installation_hooks =
-        execute_post_installation_hooks("[SDB::Tools::GitHubInstaller]", tool_entry, &working_dir);
-
-    log_info!(
-        "[SDB::Tools::GitHubInstaller] Successfully installed tool: {} (version: {})",
-        tool_entry.name.bold().green(),
-        tag.green()
-    );
-
-    // Step 9: Return comprehensive ToolState for state tracking and persistence
-    Some(ToolState::new(
-        tool_entry,
-        &final_install_path,
-        "github".to_string(),
-        package_type,
-        tool_entry.version.clone()?.to_string(),
-        Some(asset.browser_download_url.clone()),
-        None,
-        executed_post_installation_hooks,
-    ))
+    GitHubInstaller.install(tool_entry)
 }
 
 /// Detects the current platform (OS and architecture).

@@ -58,185 +58,199 @@ use crate::{log_debug, log_error, log_info, log_warn};
 // `std::process::Command` is used to run commands/hooks.
 // `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::traits::Installer;
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
 use crate::schemas::state_file::ToolState;
 use crate::schemas::tools_types::ToolEntry;
 
-/// Installs a Rust toolchain and optionally its components using `rustup`.
-///
-/// This function acts as the installer module for `rustup`-managed Rust environments with
-/// comprehensive error handling, verification, and accurate path detection.
-///
-/// # Workflow:
-/// 1. **Environment Validation**: Verifies `rustup` is installed and accessible
-/// 2. **Toolchain Validation**: Ensures the toolchain version is specified and valid
-/// 3. **Pre-installation Check**: Verifies if toolchain is already installed
-/// 4. **Toolchain Installation**: Installs the specified Rust toolchain with proper error handling
-/// 5. **Component Installation**: Installs all specified components with individual validation
-/// 6. **Installation Verification**: Confirms toolchain and components are properly installed
-/// 7. **Path Resolution**: Accurately determines the installation path
-/// 8. **Version Detection**: Gets actual installed version for accurate tracking
-/// 9. **Post-installation Hooks**: Executes any additional setup commands
-/// 10. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
-///
-/// # Arguments
-/// * `tool_entry`: A reference to the `ToolEntry` struct containing toolchain configuration
-///   - `tool_entry.name`: **Required** - The name identifier for the toolchain
-///   - `tool_entry.version`: **Required** - The Rust toolchain name (e.g., "stable", "nightly", "1.70.0")
-///   - `tool_entry.options`: Optional list of rustup components to install (e.g., ["rustfmt", "clippy"])
-///
-/// # Returns
-/// An `Option<ToolState>`:
-/// * `Some(ToolState)` if installation was completely successful with accurate metadata
-/// * `None` if any step of the installation process fails
-///
-/// # Examples - YAML
-///
-/// ```yaml
-/// # ###########################
-/// # Example: RUSTUP Installer #
-/// # ###########################
-/// # Install rust and other rust tools
-/// - name: rust
-///   source: rustup
-///   version: stable
-///   options:
-///     - rust-src
-///     - clippy
-///     - rustfmt
-///     - rust-analyzer
-/// ```
-///
-/// ## Toolchain with Components
-/// ```rust
-/// let tool_entry = ToolEntry {
-///     name: "rust-full".to_string(),
-///     version: Some("nightly".to_string()),
-///     options: Some(vec![
-///         "rustfmt".to_string(),
-///         "clippy".to_string(),
-///         "rust-src".to_string()
-///     ]),
-/// };
-/// install(&tool_entry);
-/// ```
-pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_info!(
-        "[SDB::Tools::RustUpInstaller] Attempting to install Rust toolchain: {}",
-        tool_entry.name.bold()
-    );
-    log_debug!(
-        "[SDB::Tools::RustUpInstaller] ToolEntry details: {:#?}",
-        tool_entry
-    );
+/// Struct representing the Rustup installer.
+pub struct RustupInstaller;
 
-    // 1. Validate and extract toolchain name - ensure version is specified and valid
-    let toolchain_name = validate_toolchain_version(tool_entry)?;
-
-    log_debug!(
-        "[SDB::Tools::RustUpInstaller] Installing toolchain: {}",
-        toolchain_name.cyan()
-    );
-
-    // 2. Check if toolchain already exists and handle accordingly
-    // This optimization avoids reinstalling existing toolchains
-    let toolchain_status = check_toolchain_status(&toolchain_name);
-    match toolchain_status {
-        ToolchainStatus::AlreadyInstalled => {
-            log_info!(
-                "[SDB::Tools::RustUpInstaller] Toolchain '{}' is already installed",
-                toolchain_name.green()
-            );
-        }
-        ToolchainStatus::NotInstalled => {
-            // 4. Install the toolchain - only if not already present
-            if !install_toolchain(&toolchain_name) {
-                return None;
-            }
-        }
-        ToolchainStatus::CheckFailed => {
-            log_warn!(
-                "[SDB::Tools::RustUpInstaller] Could not verify toolchain status, proceeding with installation attempt"
-            );
-            if !install_toolchain(&toolchain_name) {
-                return None;
-            }
-        }
-    }
-
-    log_debug!(
-        "[SDB::Tools::RustUpInstaller] Checking if component: {} is already installed",
-        tool_entry.name.bold()
-    );
-
-    // 3. Check if component is already Installed
-    if check_if_installed(&tool_entry.name) {
-        log_warn!(
-            "[SDB::Tools::RustUpInstaller] Component '{}' appears to be already installed, outside SDB",
-            tool_entry.name.green()
-        );
+impl Installer for RustupInstaller {
+    /// Installs a Rust toolchain and optionally its components using `rustup`.
+    ///
+    /// This function acts as the installer module for `rustup`-managed Rust environments with
+    /// comprehensive error handling, verification, and accurate path detection.
+    ///
+    /// # Workflow:
+    /// 1. **Environment Validation**: Verifies `rustup` is installed and accessible
+    /// 2. **Toolchain Validation**: Ensures the toolchain version is specified and valid
+    /// 3. **Pre-installation Check**: Verifies if toolchain is already installed
+    /// 4. **Toolchain Installation**: Installs the specified Rust toolchain with proper error handling
+    /// 5. **Component Installation**: Installs all specified components with individual validation
+    /// 6. **Installation Verification**: Confirms toolchain and components are properly installed
+    /// 7. **Path Resolution**: Accurately determines the installation path
+    /// 8. **Version Detection**: Gets actual installed version for accurate tracking
+    /// 9. **Post-installation Hooks**: Executes any additional setup commands
+    /// 10. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
+    ///
+    /// # Arguments
+    /// * `tool_entry`: A reference to the `ToolEntry` struct containing toolchain configuration
+    ///   - `tool_entry.name`: **Required** - The name identifier for the toolchain
+    ///   - `tool_entry.version`: **Required** - The Rust toolchain name (e.g., "stable", "nightly", "1.70.0")
+    ///   - `tool_entry.options`: Optional list of rustup components to install (e.g., ["rustfmt", "clippy"])
+    ///
+    /// # Returns
+    /// An `Option<ToolState>`:
+    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
+    /// * `None` if any step of the installation process fails
+    ///
+    /// # Examples - YAML
+    ///
+    /// ```yaml
+    /// # ###########################
+    /// # Example: RUSTUP Installer #
+    /// # ###########################
+    /// # Install rust and other rust tools
+    /// - name: rust
+    ///   source: rustup
+    ///   version: stable
+    ///   options:
+    ///     - rust-src
+    ///     - clippy
+    ///     - rustfmt
+    ///     - rust-analyzer
+    /// ```
+    ///
+    /// ## Toolchain with Components
+    /// ```rust
+    /// let tool_entry = ToolEntry {
+    ///     name: "rust-full".to_string(),
+    ///     version: Some("nightly".to_string()),
+    ///     options: Some(vec![
+    ///         "rustfmt".to_string(),
+    ///         "clippy".to_string(),
+    ///         "rust-src".to_string()
+    ///     ]),
+    /// };
+    /// install(&tool_entry);
+    /// ```
+    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
         log_info!(
-            "[SDB::Tools::RustUpInstaller] Updating SDB inventory for {}",
-            tool_entry.name.green()
+            "[SDB::Tools::RustUpInstaller] Attempting to install Rust toolchain: {}",
+            tool_entry.name.bold()
         );
         log_debug!(
-            "[SDB::Tools::RustUpInstaller] Proceeding with installation to ensure correct version/options"
+            "[SDB::Tools::RustUpInstaller] ToolEntry details: {:#?}",
+            tool_entry
         );
+
+        // 1. Validate and extract toolchain name - ensure version is specified and valid
+        let toolchain_name = validate_toolchain_version(tool_entry)?;
+
+        log_debug!(
+            "[SDB::Tools::RustUpInstaller] Installing toolchain: {}",
+            toolchain_name.cyan()
+        );
+
+        // 2. Check if toolchain already exists and handle accordingly
+        // This optimization avoids reinstalling existing toolchains
+        let toolchain_status = check_toolchain_status(&toolchain_name);
+        match toolchain_status {
+            ToolchainStatus::AlreadyInstalled => {
+                log_info!(
+                    "[SDB::Tools::RustUpInstaller] Toolchain '{}' is already installed",
+                    toolchain_name.green()
+                );
+            }
+            ToolchainStatus::NotInstalled => {
+                // 4. Install the toolchain - only if not already present
+                if !install_toolchain(&toolchain_name) {
+                    return None;
+                }
+            }
+            ToolchainStatus::CheckFailed => {
+                log_warn!(
+                    "[SDB::Tools::RustUpInstaller] Could not verify toolchain status, proceeding with installation attempt"
+                );
+                if !install_toolchain(&toolchain_name) {
+                    return None;
+                }
+            }
+        }
+
+        log_debug!(
+            "[SDB::Tools::RustUpInstaller] Checking if component: {} is already installed",
+            tool_entry.name.bold()
+        );
+
+        // 3. Check if component is already Installed
+        if check_if_installed(&tool_entry.name) {
+            log_warn!(
+                "[SDB::Tools::RustUpInstaller] Component '{}' appears to be already installed, outside SDB",
+                tool_entry.name.green()
+            );
+            log_info!(
+                "[SDB::Tools::RustUpInstaller] Updating SDB inventory for {}",
+                tool_entry.name.green()
+            );
+            log_debug!(
+                "[SDB::Tools::RustUpInstaller] Proceeding with installation to ensure correct version/options"
+            );
+        }
+
+        // 4. Install components if specified - adds additional tools to the toolchain
+        if let Some(components) = &tool_entry.options
+            && !install_components(components, &toolchain_name)
+        {
+            return None;
+        }
+
+        // 5. Verify the complete installation - ensure everything was installed correctly
+        if !verify_toolchain_installation(&toolchain_name, tool_entry.options.as_ref()) {
+            return None;
+        }
+
+        // 6. Determine accurate installation path - where the toolchain binaries are located
+        let install_path = determine_rustup_installation_path(&toolchain_name);
+        log_debug!(
+            "[SDB::Tools::RustUpInstaller] Determined installation path: {}",
+            install_path.display().to_string().cyan()
+        );
+
+        // 7. Get actual installed version for accurate tracking - important for state management
+        let actual_version =
+            get_actual_toolchain_version(&toolchain_name).unwrap_or_else(|| toolchain_name.clone());
+
+        log_info!(
+            "[SDB::Tools::RustUpInstaller] Successfully installed Rust toolchain: {} (version: {})",
+            tool_entry.name.bold().green(),
+            actual_version.green()
+        );
+
+        // 8. Execute post-installation hooks - run any additional setup commands
+        log_debug!(
+            "[SDB::Tools::RustUpInstaller] Executing post installation hooks, post installing {}",
+            tool_entry.name.bold()
+        );
+        let executed_post_installation_hooks = execute_post_installation_hooks(
+            "[SDB::Tools::RustUpInstaller]",
+            tool_entry,
+            &install_path,
+        );
+
+        // 9. Return comprehensive ToolState for tracking
+        //
+        // Construct a `ToolState` object to record the details of this successful installation.
+        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+        // what tools are installed, where they are, and how they were installed.
+        Some(ToolState::new(
+            tool_entry,
+            &install_path,
+            "rustup".to_string(),
+            "rust-toolchain".to_string(),
+            actual_version,
+            None,
+            None,
+            executed_post_installation_hooks,
+        ))
     }
+}
 
-    // 4. Install components if specified - adds additional tools to the toolchain
-    if let Some(components) = &tool_entry.options
-        && !install_components(components, &toolchain_name)
-    {
-        return None;
-    }
-
-    // 5. Verify the complete installation - ensure everything was installed correctly
-    if !verify_toolchain_installation(&toolchain_name, tool_entry.options.as_ref()) {
-        return None;
-    }
-
-    // 6. Determine accurate installation path - where the toolchain binaries are located
-    let install_path = determine_rustup_installation_path(&toolchain_name);
-    log_debug!(
-        "[SDB::Tools::RustUpInstaller] Determined installation path: {}",
-        install_path.display().to_string().cyan()
-    );
-
-    // 7. Get actual installed version for accurate tracking - important for state management
-    let actual_version =
-        get_actual_toolchain_version(&toolchain_name).unwrap_or_else(|| toolchain_name.clone());
-
-    log_info!(
-        "[SDB::Tools::RustUpInstaller] Successfully installed Rust toolchain: {} (version: {})",
-        tool_entry.name.bold().green(),
-        actual_version.green()
-    );
-
-    // 8. Execute post-installation hooks - run any additional setup commands
-    log_debug!(
-        "[SDB::Tools::RustUpInstaller] Executing post installation hooks, post installing {}",
-        tool_entry.name.bold()
-    );
-    let executed_post_installation_hooks =
-        execute_post_installation_hooks("[SDB::Tools::RustUpInstaller]", tool_entry, &install_path);
-
-    // 9. Return comprehensive ToolState for tracking
-    //
-    // Construct a `ToolState` object to record the details of this successful installation.
-    // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-    // what tools are installed, where they are, and how they were installed.
-    Some(ToolState::new(
-        tool_entry,
-        &install_path,
-        "rustup".to_string(),
-        "rust-toolchain".to_string(),
-        actual_version,
-        None,
-        None,
-        executed_post_installation_hooks,
-    ))
+/// Convenience wrapper to maintain backward compatibility and simple invocation.
+pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
+    RustupInstaller.install(tool_entry)
 }
 
 /// Represents the status of a toolchain installation check.
@@ -437,9 +451,9 @@ fn check_if_installed(component_name: &str) -> bool {
             let component_prefix = format!("{component_name}-");
 
             installed_components.lines().any(|line| {
-                let trimmed_line = line.trim();
+                let trimmed = line.trim();
                 // Exact match or prefix match
-                trimmed_line == component_name || trimmed_line.starts_with(&component_prefix)
+                trimmed == component_name || trimmed.starts_with(&component_prefix)
             })
         }
         _ => false,

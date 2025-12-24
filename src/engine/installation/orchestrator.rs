@@ -35,7 +35,7 @@ use crate::schemas::path_resolver::PathResolver;
 // Import data schemas and the configuration processor
 use crate::schemas::state_file::{DevBoxState, ToolState};
 use crate::schemas::tools_enums::{
-    ConfigurationAction, ToolAction, ToolProcessingResult, VersionAction,
+    ConfigurationAction, SourceType, ToolAction, ToolProcessingResult, VersionAction,
 };
 use crate::schemas::tools_types::{
     InstallationConfiguration, ToolEntry, ToolInstallationOrchestrator,
@@ -147,18 +147,21 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     /// ## Returns
     /// `Ok(())` if installer is available, `Err(String)` with error message if not
     fn validate_installer_availability(&self, tool: &ToolEntry) -> Result<(), String> {
-        let installer_name = tool.source.to_string().to_lowercase();
+        let cmd_to_check = match tool.source {
+            SourceType::Brew => Some("brew"),
+            SourceType::Go => Some("go"),
+            SourceType::Cargo => Some("cargo"),
+            SourceType::Rustup => Some("rustup"),
+            SourceType::Pip => Some("pip3"), // Explicitly check for pip3 as usually preferred
+            SourceType::Uv => Some("uv"),
+            _ => None,
+        };
 
-        // Only validate installers that require a system command to be present.
-        if matches!(
-            installer_name.as_str(),
-            "brew" | "go" | "cargo" | "rustup" | "pip3" | "uv"
-        ) {
-            check_installer_command_available(&installer_name).map_err(|error| {
-                format!("[SDB::Tools] Installer '{installer_name}' not available: {error}")
+        if let Some(cmd) = cmd_to_check {
+            check_installer_command_available(cmd).map_err(|error| {
+                format!("[SDB::Tools] Installer '{cmd}' not available: {error}")
             })
         } else {
-            // Installers like `github` or `url` don't require a pre-existing command.
             Ok(())
         }
     }
@@ -444,23 +447,15 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     /// ## Returns
     /// `Some(ToolState)` if installation succeeded, `None` if it failed
     fn invoke_appropriate_installer(&self, tool: &ToolEntry) -> Option<ToolState> {
-        match tool.source.to_string().to_lowercase().as_str() {
-            "github" => github::install(tool),
-            "brew" => brew::install(tool),
-            "go" => go::install(tool),
-            "cargo" => cargo::install(tool),
-            "rustup" => rustup::install(tool),
-            "pip" => pip::install(tool),
-            "uv" => uv::install(tool),
-            "url" => url::install(tool),
-            unsupported_installer => {
-                log_warn!(
-                    "[SDB::Tools] Unsupported installer: {} for tool: {}",
-                    unsupported_installer.yellow(),
-                    tool.name.bold()
-                );
-                None
-            }
+        match tool.source {
+            SourceType::Github => github::install(tool),
+            SourceType::Brew => brew::install(tool),
+            SourceType::Go => go::install(tool),
+            SourceType::Cargo => cargo::install(tool),
+            SourceType::Rustup => rustup::install(tool),
+            SourceType::Pip => pip::install(tool),
+            SourceType::Uv => uv::install(tool),
+            SourceType::Url => url::install(tool),
         }
     }
 

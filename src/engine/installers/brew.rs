@@ -64,134 +64,127 @@ use crate::schemas::tools_types::ToolEntry;
 use crate::{log_debug, log_error, log_info, log_warn};
 // Post-installation hook execution functionality.
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::traits::Installer;
 
-/// Installs a tool using the Homebrew package manager with comprehensive error handling.
-///
-/// This function provides a robust installer for Homebrew formulae that mirrors the quality.
-/// It includes validation, verification and accurate state tracking.
-///
-/// # Workflow:
-/// 1. **Environment Validation**: Verifies `brew` is installed and accessible
-/// 2. **Pre-installation Check**: Verifies if formula is already installed
-/// 3. **Formula Installation**: Executes `brew install` with comprehensive error handling
-/// 4. **Installation Verification**: Confirms the formula was properly installed
-/// 5. **Path Resolution**: Accurately determines the installation path using `brew --prefix`
-/// 6. **Binary Verification**: Confirms the binary exists at the expected path
-/// 7. **Post-installation Hooks**: Executes any additional setup commands
-/// 8. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
-///
-/// # Arguments
-/// * `tool_entry`: A reference to the `ToolEntry` struct containing Homebrew configuration
-///   - `tool_entry.name`: **Required** - The Homebrew formula name to install
-///   - `tool_entry.version`: Optional version specification (e.g., "formula@version")
-///   - `tool_entry.rename_to`: Optional binary rename specification
-///
-/// # Returns
-/// An `Option<ToolState>`:
-/// * `Some(ToolState)` if installation was completely successful with accurate metadata
-/// * `None` if any step of the installation process fails
-///
-/// ## Examples - YAML
-///
-/// ```yaml
-///  - name: pyenv
-///    source: brew
-///    options:
-///      - --head
-/// ```
-/// ## Examples - Rust Code
-///
-/// ### Basic Installation
-/// ```rust
-/// let tool_entry = ToolEntry {
-///     name: "pyenv".to_string(),
-///     version: None, // Install latest version
-///     options: ["--head"]
-/// };
-/// install(&tool_entry);
-/// ```
-///
-pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_info!(
-        "[SDB::Tools::BrewInstaller] Attempting to install Homebrew formula: {}",
-        tool_entry.name.bold()
-    );
-    log_debug!(
-        "[SDB::Tools::BrewInstaller] ToolEntry details: {:#?}",
-        tool_entry
-    );
+/// Struct representing the Homebrew installer.
+pub struct BrewInstaller;
 
-    // 1. Check if formula is already installed (optimization)
-    if check_formula_already_installed(&tool_entry.name) {
+impl Installer for BrewInstaller {
+    /// Installs a tool using the Homebrew package manager with comprehensive error handling.
+    ///
+    /// This function provides a robust installer for Homebrew formulae that mirrors the quality.
+    /// It includes validation, verification and accurate state tracking.
+    ///
+    /// # Workflow:
+    /// 1. **Environment Validation**: Verifies `brew` is installed and accessible
+    /// 2. **Pre-installation Check**: Verifies if formula is already installed
+    /// 3. **Formula Installation**: Executes `brew install` with comprehensive error handling
+    /// 4. **Installation Verification**: Confirms the formula was properly installed
+    /// 5. **Path Resolution**: Accurately determines the installation path using `brew --prefix`
+    /// 6. **Binary Verification**: Confirms the binary exists at the expected path
+    /// 7. **Post-installation Hooks**: Executes any additional setup commands
+    /// 8. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
+    ///
+    /// # Arguments
+    /// * `tool_entry`: A reference to the `ToolEntry` struct containing Homebrew configuration
+    ///   - `tool_entry.name`: **Required** - The Homebrew formula name to install
+    ///   - `tool_entry.version`: Optional version specification (e.g., "formula@version")
+    ///   - `tool_entry.rename_to`: Optional binary rename specification
+    ///
+    /// # Returns
+    /// An `Option<ToolState>`:
+    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
+    /// * `None` if any step of the installation process fails
+    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
         log_info!(
-            "[SDB::Tools::BrewInstaller] Formula '{}' appears to be already installed",
-            tool_entry.name.green()
+            "[SDB::Tools::BrewInstaller] Attempting to install Homebrew formula: {}",
+            tool_entry.name.bold()
         );
-        // Continue with installation to ensure correct version and options
         log_debug!(
-            "[SDB::Tools::BrewInstaller] Proceeding with installation to ensure correct version"
+            "[SDB::Tools::BrewInstaller] ToolEntry details: {:#?}",
+            tool_entry
         );
-    }
 
-    // 2. Prepare and execute brew install command
-    let command_args = prepare_brew_install_command(tool_entry);
-    if !execute_brew_install_command(&command_args, tool_entry) {
-        return None;
-    }
+        // 1. Check if formula is already installed (optimization)
+        if check_formula_already_installed(&tool_entry.name) {
+            log_info!(
+                "[SDB::Tools::BrewInstaller] Formula '{}' appears to be already installed",
+                tool_entry.name.green()
+            );
+            // Continue with installation to ensure correct version and options
+            log_debug!(
+                "[SDB::Tools::BrewInstaller] Proceeding with installation to ensure correct version"
+            );
+        }
 
-    // 3. Verify the installation was successful
-    if !verify_brew_installation(&tool_entry.name) {
-        return None;
-    }
+        // 2. Prepare and execute brew install command
+        let command_args = prepare_brew_install_command(tool_entry);
+        if !execute_brew_install_command(&command_args, tool_entry) {
+            return None;
+        }
 
-    // 4. Determine accurate installation path
-    let install_path = determine_brew_installation_path(tool_entry);
-    log_debug!(
-        "[SDB::Tools::BrewInstaller] Determined installation path: {}",
-        install_path.display().to_string().cyan()
-    );
+        // 3. Verify the installation was successful
+        if !verify_brew_installation(&tool_entry.name) {
+            return None;
+        }
 
-    // 5. Verify binary exists at expected path
-    if !verify_binary_exists(install_path.clone()) {
-        log_error!(
-            "[SDB::Tools::BrewInstaller] Binary not found at expected path: {}",
-            install_path.display().to_string().red()
+        // 4. Determine accurate installation path
+        let install_path = determine_brew_installation_path(tool_entry);
+        log_debug!(
+            "[SDB::Tools::BrewInstaller] Determined installation path: {}",
+            install_path.display().to_string().cyan()
         );
-        return None;
+
+        // 5. Verify binary exists at expected path
+        if !verify_binary_exists(install_path.clone()) {
+            log_error!(
+                "[SDB::Tools::BrewInstaller] Binary not found at expected path: {}",
+                install_path.display().to_string().red()
+            );
+            return None;
+        }
+
+        // 6. Execute post-installation hooks
+        let working_dir = install_path
+            .parent()
+            .unwrap_or(&PathBuf::from("/"))
+            .to_path_buf();
+        let executed_post_installation_hooks = execute_post_installation_hooks(
+            "[SDB::Tools::BrewInstaller]",
+            tool_entry,
+            &working_dir,
+        );
+
+        // 7. Get actual installed version for accurate tracking
+        let actual_version = determine_installed_version(tool_entry);
+
+        log_info!(
+            "[SDB::Tools::BrewInstaller] Successfully installed Homebrew formula: {} (version: {})",
+            tool_entry.name.bold().green(),
+            actual_version.green()
+        );
+
+        // 8. Return comprehensive ToolState for tracking
+        //
+        // Construct a `ToolState` object to record the details of this successful installation.
+        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+        // what tools are installed, where they are, and how they were installed.
+        Some(ToolState::new(
+            tool_entry,
+            &install_path,
+            "brew".to_string(),
+            "binary-by-brew".to_string(),
+            actual_version,
+            None,
+            None,
+            executed_post_installation_hooks,
+        ))
     }
+}
 
-    // 6. Execute post-installation hooks
-    let working_dir = install_path
-        .parent()
-        .unwrap_or(&PathBuf::from("/"))
-        .to_path_buf();
-    let executed_post_installation_hooks =
-        execute_post_installation_hooks("[SDB::Tools::BrewInstaller]", tool_entry, &working_dir);
-
-    // 7. Get actual installed version for accurate tracking
-    let actual_version = determine_installed_version(tool_entry);
-
-    log_info!(
-        "[SDB::Tools::BrewInstaller] Successfully installed Homebrew formula: {} (version: {})",
-        tool_entry.name.bold().green(),
-        actual_version.green()
-    );
-
-    // 8. Return comprehensive ToolState for tracking
-    //
-    // Construct a `ToolState` object to record the details of this successful installation.
-    // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-    // what tools are installed, where they are, and how they were installed.
-    Some(ToolState::new(
-        tool_entry,
-        &install_path,
-        "brew".to_string(),
-        "binary-by-brew".to_string(),
-        actual_version,
-        None,
-        None,
-        executed_post_installation_hooks,
-    ))
+/// Convenience wrapper to maintain backward compatibility and simple invocation.
+pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
+    BrewInstaller.install(tool_entry)
 }
 
 /// Checks if a formula is already installed to avoid unnecessary reinstallation.

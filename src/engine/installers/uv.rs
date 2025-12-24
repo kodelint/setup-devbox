@@ -51,174 +51,185 @@ use crate::{log_debug, log_error, log_info, log_warn};
 // `std::process::Command` is used to run commands/hooks.
 // `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::traits::Installer;
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
 use crate::schemas::state_file::ToolState;
 use crate::schemas::tools_types::ToolEntry;
 
-/// Installs a Python package using `uv` with comprehensive validation and error handling.
-///
-/// This function provides a robust UV-based installation flow that mirrors the quality and
-/// reliability of the official `uv` installer. It includes extensive validation, verification,
-/// and accurate state tracking.
-///
-/// # Workflow:
-/// 1. **Environment Validation**: Verifies `uv` is installed and functional
-/// 2. **Configuration Validation**: Validates tool entry and installation options
-/// 3. **Mode Detection**: Determines correct installation mode (tool/pip/python)
-/// 4. **Command Construction**: Builds the complete uv command with proper arguments
-/// 5. **Command Execution**: Runs the command with comprehensive error handling
-/// 6. **Installation Verification**: Validates installation success and captures output
-/// 7. **Path Resolution**: Accurately determines installation path based on mode
-/// 8. **Post-Installation Hooks**: Executes additional setup commands if specified
-/// 9. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
-///
-/// # Installation Modes:
-/// - `tool`: Uses `uv tool install` for global CLI tools (default mode)
-/// - `pip`: Uses `uv pip install` for Python library packages
-/// - `python`: Uses `uv python install` for Python interpreters
-///
-/// # Arguments:
-/// * `tool_entry`: A reference to the `ToolEntry` struct containing package configuration
-///   - `tool_entry.name`: **Required** - The package name to install
-///   - `tool_entry.version`: Optional version specification (required for python mode)
-///   - `tool_entry.options`: Optional list of uv install options (--mode, --features, etc.)
-///
-/// # Returns:
-/// An `Option<ToolState>`:
-/// * `Some(ToolState)` if installation was completely successful with accurate metadata
-/// * `None` if any step of the installation process fails
-///
-/// ## Examples - YAML
-///
-/// ```yaml
-/// ## `ruff` - An extremely fast Python linter and code formatter, written in Rust.
-/// ## https://docs.astral.sh/ruff/
-/// - name: ruff
-///   source: uv
-///   version: 0.1.0
-///   options:
-///     - --mode=tool
-///   configuration_manager:
-///   enabled: true
-///   tools_configuration_paths:
-///     - $HOME/.config/ruff/ruff.toml
-///
-/// ## `black` - The uncompromising Python code formatter.
-/// - name: black
-///   source: uv
-///   version: 23.11.0
-///   options:
-///     - --mode=pip
-///
-/// ## Python Interpreter Installation
-/// - name: python
-///   source: uv
-///   version: 3.11.0
-///   options:
-///     - --mode=python
-/// ```
-///
-/// ## Examples - Rust Code
-///
-/// ### Tool Mode Installation
-/// ```rust
-/// let tool_entry = ToolEntry {
-///     name: "ruff".to_string(),
-///     version: Some("0.1.0".to_string()),
-///     options: Some(vec!["--mode=tool".to_string()]),
-/// };
-/// install(&tool_entry);
-/// ```
-///
-/// ### Pip Mode Installation
-/// ```rust
-/// let tool_entry = ToolEntry {
-///     name: "black".to_string(),
-///     version: Some("23.11.0".to_string()),
-///     options: Some(vec!["--mode=pip".to_string()]),
-/// };
-/// install(&tool_entry);
-/// ```
-///
-/// ### Python Interpreter Installation
-/// ```rust
-/// let tool_entry = ToolEntry {
-///     name: "python".to_string(),
-///     version: Some("3.11.0".to_string()),
-///     options: Some(vec!["--mode=python".to_string()]),
-/// };
-/// install(&tool_entry);
-/// ```
+/// Struct representing the UV installer.
+pub struct UvInstaller;
+
+impl Installer for UvInstaller {
+    /// Installs a Python package using `uv` with comprehensive validation and error handling.
+    ///
+    /// This function provides a robust UV-based installation flow that mirrors the quality and
+    /// reliability of the official `uv` installer. It includes extensive validation, verification,
+    /// and accurate state tracking.
+    ///
+    /// # Workflow:
+    /// 1. **Environment Validation**: Verifies `uv` is installed and functional
+    /// 2. **Configuration Validation**: Validates tool entry and installation options
+    /// 3. **Mode Detection**: Determines correct installation mode (tool/pip/python)
+    /// 4. **Command Construction**: Builds the complete uv command with proper arguments
+    /// 5. **Command Execution**: Runs the command with comprehensive error handling
+    /// 6. **Installation Verification**: Validates installation success and captures output
+    /// 7. **Path Resolution**: Accurately determines installation path based on mode
+    /// 8. **Post-Installation Hooks**: Executes additional setup commands if specified
+    /// 9. **State Creation**: Creates comprehensive `ToolState` with all relevant metadata
+    ///
+    /// # Installation Modes:
+    /// - `tool`: Uses `uv tool install` for global CLI tools (default mode)
+    /// - `pip`: Uses `uv pip install` for Python library packages
+    /// - `python`: Uses `uv python install` for Python interpreters
+    ///
+    /// # Arguments:
+    /// * `tool_entry`: A reference to the `ToolEntry` struct containing package configuration
+    ///   - `tool_entry.name`: **Required** - The package name to install
+    ///   - `tool_entry.version`: Optional version specification (required for python mode)
+    ///   - `tool_entry.options`: Optional list of uv install options (--mode, --features, etc.)
+    ///
+    /// # Returns:
+    /// An `Option<ToolState>`:
+    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
+    /// * `None` if any step of the installation process fails
+    ///
+    /// ## Examples - YAML
+    ///
+    /// ```yaml
+    /// ## `ruff` - An extremely fast Python linter and code formatter, written in Rust.
+    /// ## https://docs.astral.sh/ruff/
+    /// - name: ruff
+    ///   source: uv
+    ///   version: 0.1.0
+    ///   options:
+    ///     - --mode=tool
+    ///   configuration_manager:
+    ///   enabled: true
+    ///   tools_configuration_paths:
+    ///     - $HOME/.config/ruff/ruff.toml
+    ///
+    /// ## `black` - The uncompromising Python code formatter.
+    /// - name: black
+    ///   source: uv
+    ///   version: 23.11.0
+    ///   options:
+    ///     - --mode=pip
+    ///
+    /// ## Python Interpreter Installation
+    /// - name: python
+    ///   source: uv
+    ///   version: 3.11.0
+    ///   options:
+    ///     - --mode=python
+    /// ```
+    ///
+    /// ## Examples - Rust Code
+    ///
+    /// ### Tool Mode Installation
+    /// ```rust
+    /// let tool_entry = ToolEntry {
+    ///     name: "ruff".to_string(),
+    ///     version: Some("0.1.0".to_string()),
+    ///     options: Some(vec!["--mode=tool".to_string()]),
+    /// };
+    /// install(&tool_entry);
+    /// ```
+    ///
+    /// ### Pip Mode Installation
+    /// ```rust
+    /// let tool_entry = ToolEntry {
+    ///     name: "black".to_string(),
+    ///     version: Some("23.11.0".to_string()),
+    ///     options: Some(vec!["--mode=pip".to_string()]),
+    /// };
+    /// install(&tool_entry);
+    /// ```
+    ///
+    /// ### Python Interpreter Installation
+    /// ```rust
+    /// let tool_entry = ToolEntry {
+    ///     name: "python".to_string(),
+    ///     version: Some("3.11.0".to_string()),
+    ///     options: Some(vec!["--mode=python".to_string()]),
+    /// };
+    /// install(&tool_entry);
+    /// ```
+    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
+        log_info!(
+            "[SDB::Tools::UVInstaller] Attempting to install Python package: {}",
+            tool_entry.name.bold()
+        );
+        log_debug!(
+            "[SDB::Tools::UVInstaller] ToolEntry details: {:#?}",
+            tool_entry
+        );
+
+        // 1. Validate configuration - check tool entry and options for correctness
+        if !validate_uv_configuration(tool_entry) {
+            return None;
+        }
+
+        // 2. Determine installation mode - detect whether to use tool, pip, or python mode
+        let (subcommand, base_args) = determine_installation_mode(tool_entry);
+        log_debug!(
+            "[SDB::Tools::UVInstaller] Using installation mode: {}",
+            subcommand.cyan().bold()
+        );
+
+        // 3. Build complete command - construct appropriate uv command arguments
+        let command_args = build_command_args(&subcommand, &base_args, tool_entry)?;
+
+        // 4. Execute installation - run the uv command with error handling
+        let output = execute_uv_command(&subcommand, &command_args, tool_entry)?;
+
+        // 5. Verify installation success - ensure the package was properly installed
+        if !verify_installation_success(&output, &subcommand, tool_entry) {
+            return None;
+        }
+
+        // 6. Determine installation path - where the package was actually installed
+        let install_path = determine_install_path(&subcommand, &tool_entry.name);
+        log_debug!(
+            "[SDB::Tools::UVInstaller] Determined installation path: {}",
+            install_path.display().to_string().cyan()
+        );
+
+        // 7. Execute post-installation hooks - run any additional setup commands
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let executed_hooks =
+            execute_post_installation_hooks("[UV Installer]", tool_entry, &working_dir);
+
+        log_info!(
+            "[SDB::Tools::UVInstaller] Successfully installed: {} using uv {}",
+            tool_entry.name.bold().green(),
+            subcommand.green()
+        );
+
+        // 8. Return comprehensive ToolState for tracking
+        //
+        // Construct a `ToolState` object to record the details of this successful installation.
+        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
+        // what tools are installed, where they are, and how they were installed.
+        Some(ToolState::new(
+            tool_entry,
+            &install_path,
+            format!("uv-{subcommand}"),
+            match subcommand.as_str() {
+                "python" => "python-interpreter".to_string(),
+                _ => "python-package".to_string(),
+            },
+            tool_entry.version.clone()?.to_string(),
+            None,
+            None,
+            executed_hooks,
+        ))
+    }
+}
+
+/// Convenience wrapper to maintain backward compatibility and simple invocation.
 pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    log_info!(
-        "[SDB::Tools::UVInstaller] Attempting to install Python package: {}",
-        tool_entry.name.bold()
-    );
-    log_debug!(
-        "[SDB::Tools::UVInstaller] ToolEntry details: {:#?}",
-        tool_entry
-    );
-
-    // 1. Validate configuration - check tool entry and options for correctness
-    if !validate_uv_configuration(tool_entry) {
-        return None;
-    }
-
-    // 2. Determine installation mode - detect whether to use tool, pip, or python mode
-    let (subcommand, base_args) = determine_installation_mode(tool_entry);
-    log_debug!(
-        "[SDB::Tools::UVInstaller] Using installation mode: {}",
-        subcommand.cyan().bold()
-    );
-
-    // 3. Build complete command - construct appropriate uv command arguments
-    let command_args = build_command_args(&subcommand, &base_args, tool_entry)?;
-
-    // 4. Execute installation - run the uv command with error handling
-    let output = execute_uv_command(&subcommand, &command_args, tool_entry)?;
-
-    // 5. Verify installation success - ensure the package was properly installed
-    if !verify_installation_success(&output, &subcommand, tool_entry) {
-        return None;
-    }
-
-    // 6. Determine installation path - where the package was actually installed
-    let install_path = determine_install_path(&subcommand, &tool_entry.name);
-    log_debug!(
-        "[SDB::Tools::UVInstaller] Determined installation path: {}",
-        install_path.display().to_string().cyan()
-    );
-
-    // 7. Execute post-installation hooks - run any additional setup commands
-    let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let executed_hooks =
-        execute_post_installation_hooks("[UV Installer]", tool_entry, &working_dir);
-
-    log_info!(
-        "[SDB::Tools::UVInstaller] Successfully installed: {} using uv {}",
-        tool_entry.name.bold().green(),
-        subcommand.green()
-    );
-
-    // 8. Return comprehensive ToolState for tracking
-    //
-    // Construct a `ToolState` object to record the details of this successful installation.
-    // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-    // what tools are installed, where they are, and how they were installed.
-    Some(ToolState::new(
-        tool_entry,
-        &install_path,
-        format!("uv-{subcommand}"),
-        match subcommand.as_str() {
-            "python" => "python-interpreter".to_string(),
-            _ => "python-package".to_string(),
-        },
-        tool_entry.version.clone()?.to_string(),
-        None,
-        None,
-        executed_hooks,
-    ))
+    UvInstaller.install(tool_entry)
 }
 
 /// Validates the UV configuration for the tool entry.

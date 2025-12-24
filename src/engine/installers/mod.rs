@@ -6,6 +6,8 @@
 // methods are supported by `setup-devbox` and allowing for easy extension
 // with new installer types in the future.
 
+pub mod traits;
+
 /// Declares the `GitHub` module, responsible for installing tools
 /// distributed as GitHub releases. This includes logic for fetching
 /// release assets, downloading, extracting, and placing binaries.
