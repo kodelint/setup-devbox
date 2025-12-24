@@ -1,6 +1,8 @@
 use chrono::Duration;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
+use thiserror::Error;
 
 // ============================================================================
 // DURATION PARSING
@@ -70,38 +72,94 @@ fn parse_duration(s: &str) -> Result<Duration, String> {
 }
 
 // ============================================================================
+// ENUMS
+// ============================================================================
+
+/// Defines the set of valid installation/source methods for tools.
+/// Each variant corresponds to a different installation backend or package manager.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum SourceType {
+    Brew,   // Homebrew package manager (macOS/Linux)
+    Cargo,  // Rust package manager
+    Github, // GitHub releases and repositories
+    Go,     // Go language tooling
+    Rustup, // Rust toolchain manager
+    Url,    // Direct URL downloads
+    Uv,     // Python package manager
+    Pip,    // Python package installer
+}
+
+/// Implementation of string parsing for SourceType enum.
+/// Allows converting string arguments to strongly-typed SourceType values.
+impl FromStr for SourceType {
+    type Err = String;
+
+    /// Parses a string into a SourceType enum variant.
+    ///
+    /// # Arguments
+    /// * `s` - The string to parse (case-insensitive)
+    ///
+    /// # Returns
+    /// * `Ok(SourceType)` if the string matches a valid source type
+    /// * `Err(String)` with error message if no match found
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "brew" => Ok(SourceType::Brew),
+            "cargo" => Ok(SourceType::Cargo),
+            "github" => Ok(SourceType::Github),
+            "go" => Ok(SourceType::Go),
+            "rustup" => Ok(SourceType::Rustup),
+            "url" => Ok(SourceType::Url),
+            "uv" => Ok(SourceType::Uv),
+            "pip" => Ok(SourceType::Pip),
+            _ => {
+                let valid_types = [
+                    "brew", "cargo", "github", "go", "rustup", "url", "uv", "pip",
+                ]
+                .join(", ");
+                Err(format!(
+                    "Invalid source type '{s}'. Must be one of: {valid_types}"
+                ))
+            }
+        }
+    }
+}
+
+/// Implementation of display formatting for SourceType enum.
+/// Provides human-readable string representation for each source type.
+impl fmt::Display for SourceType {
+    /// Formats the SourceType as a string for display purposes.
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            SourceType::Brew => write!(f, "brew"),
+            SourceType::Cargo => write!(f, "cargo"),
+            SourceType::Github => write!(f, "github"),
+            SourceType::Go => write!(f, "go"),
+            SourceType::Rustup => write!(f, "rustup"),
+            SourceType::Url => write!(f, "url"),
+            SourceType::Uv => write!(f, "uv"),
+            SourceType::Pip => write!(f, "pip"),
+        }
+    }
+}
+
+
+// ============================================================================
 // ERROR TYPES
 // ============================================================================
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum InstallerError {
+    #[error("Installer command '{0}' not found")]
     MissingCommand(String),
 }
 
-impl fmt::Display for InstallerError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MissingCommand(cmd) => write!(f, "Installer command '{}' not found", cmd),
-        }
-    }
-}
-
-impl std::error::Error for InstallerError {}
-
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ToolEntryError {
+    #[error("Missing required field: {0}")]
     MissingField(&'static str),
 }
-
-impl fmt::Display for ToolEntryError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MissingField(field) => write!(f, "Missing required field: {field}"),
-        }
-    }
-}
-
-impl std::error::Error for ToolEntryError {}
 
 // =========================================================================== //
 //                           PROCESSING RESULT TYPES                           //

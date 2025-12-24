@@ -15,6 +15,7 @@
 
 use crate::now;
 use crate::schemas::path_resolver::PathResolver;
+use crate::schemas::tools_enums::SourceType;
 use crate::schemas::{
     config_manager::ConfigurationManager, fonts::FontEntry, os_settings::SettingEntry,
     shell_configuration::AliasEntry, tools_types::ToolEntry,
@@ -338,7 +339,7 @@ impl ConfigurationUpdater {
 pub fn add_tool(
     name: String,
     version: String,
-    source: String,
+    source: SourceType,
     url: Option<String>,
     repo: Option<String>,
     tag: Option<String>,
@@ -373,7 +374,7 @@ pub fn add_tool(
     let new_tool = ToolEntry {
         name: name.clone(),
         version: Some(version),
-        source,
+        source: source.clone(),
         url,
         repo,
         tag,
@@ -599,8 +600,8 @@ pub fn add_alias(name: String, value: String) {
 /// # Returns
 /// * `Result<(), String>` - Ok if valid, error message if invalid
 fn validate_tool_restrictions(tool: &ToolEntry) -> Result<(), String> {
-    match tool.source.to_lowercase().as_str() {
-        "github" => {
+    match tool.source {
+        SourceType::Github => {
             // GitHub sources require repository and tag information
             if tool.repo.is_none() || tool.tag.is_none() {
                 return Err("Source is 'github', but requires both 'repo' and
@@ -608,7 +609,7 @@ fn validate_tool_restrictions(tool: &ToolEntry) -> Result<(), String> {
                     .to_owned());
             }
         }
-        "url" => {
+        SourceType::Url => {
             // URL sources require a download URL
             if tool.url.is_none() {
                 return Err("Source is 'url', but requires 'url' to be provided".to_owned());

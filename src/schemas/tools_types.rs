@@ -2,7 +2,7 @@ use crate::engine::configuration::processor::{
     ConfigurationManager, ConfigurationManagerProcessor,
 };
 use crate::schemas::state_file::DevBoxState;
-use crate::schemas::tools_enums::{SdbDuration, ToolEntryError};
+use crate::schemas::tools_enums::{SdbDuration, SourceType, ToolEntryError};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -15,7 +15,7 @@ pub struct ToolConfig {
 pub struct ToolEntry {
     pub name: String,
     pub version: Option<String>,
-    pub source: String,
+    pub source: SourceType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

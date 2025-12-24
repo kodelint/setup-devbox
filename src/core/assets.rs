@@ -54,7 +54,7 @@ pub fn download_url_asset(
     tool_entry: &ToolEntry,
     download_url: &str,
 ) -> Option<(tempfile::TempDir, PathBuf)> {
-    let tool_source = capitalize_first(&tool_entry.source);
+    let tool_source = capitalize_first(&tool_entry.source.to_string());
     // Create temporary directory with descriptive prefix
     let temp_dir = match TempFileBuilder::new()
         .prefix(&format!("setup-devbox-install-{}-", tool_entry.name))
@@ -342,7 +342,7 @@ pub fn process_asset_by_type(
 ) -> Option<(String, PathBuf, PathBuf)> {
     // Initialize working directory (default to temp directory)
     let mut working_dir = temp_dir.path().to_path_buf();
-    let tool_source = capitalize_first(&tool_entry.source);
+    let tool_source = capitalize_first(&tool_entry.source.to_string());
 
     // Package type identifier for state tracking
     let package_type: String;

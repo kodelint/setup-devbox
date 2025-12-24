@@ -34,6 +34,7 @@ use crate::schemas::os_settings::{OsSpecificSettings, SettingEntry, SettingsConf
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::shell_configuration::AliasEntry;
 use crate::schemas::state_file::{FontState, SettingState, ToolState};
+use crate::schemas::tools_enums::SourceType;
 use crate::schemas::tools_types::ToolEntry;
 use crate::{log_debug, log_error, log_info};
 use colored::Colorize;
@@ -249,7 +250,8 @@ impl ToolEntry {
     /// A ToolEntry suitable for serialization to tools.yaml
     pub fn from_state(name: String, tool_state: &ToolState) -> Self {
         // Normalize the installation method to a shorter source type
-        let source = ToolState::normalize_source_type(&tool_state.install_method);
+        let source_str = ToolState::normalize_source_type(&tool_state.install_method);
+        let source: SourceType = source_str.parse().unwrap_or(SourceType::Url);
 
         // Determine if URL should be included based on source type
         let url_for_config = Self::resolve_url_for_source(&source, &tool_state.url, &name);
@@ -335,9 +337,9 @@ impl ToolEntry {
     /// # Returns
     ///
     /// `None` for GitHub sources (URL is redundant), otherwise the state's URL
-    fn resolve_url_for_source(source: &str, url: &Option<String>, name: &str) -> Option<String> {
+    fn resolve_url_for_source(source: &SourceType, url: &Option<String>, name: &str) -> Option<String> {
         match source {
-            "github" => {
+            SourceType::Github => {
                 log_debug!("[Sync::Tool] Omitting URL for GitHub tool: {}", name);
                 None
             }

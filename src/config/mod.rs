@@ -30,6 +30,7 @@ use crate::schemas::fonts::FontConfig;
 use crate::schemas::os_settings::SettingsConfig;
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::shell_configuration::ShellConfig;
+use crate::schemas::tools_enums::SourceType;
 use crate::schemas::tools_types::{ToolConfig, ToolEntry};
 
 /// A composite struct designed to hold all the parsed configuration data.
@@ -406,7 +407,7 @@ fn topological_sort_tools(tools: &[ToolEntry]) -> Vec<ToolEntry> {
     // Detect presence of Rust toolchain components
     let has_rustup = tool_names.contains("rustup");
     let has_rust = tool_names.contains("rust");
-    let has_cargo_users = tools.iter().any(|t| t.source == "cargo");
+    let has_cargo_users = tools.iter().any(|t| t.source == SourceType::Cargo);
 
     // Dependency graph: maps a tool name to the list of tools that depend on it
     let mut graph: HashMap<String, Vec<String>> = HashMap::new();
@@ -427,15 +428,15 @@ fn topological_sort_tools(tools: &[ToolEntry]) -> Vec<ToolEntry> {
         let source = &tool.source;
 
         // Case 1: Explicit dependency on another tool
-        if tool_names.contains(source) {
+        if tool_names.contains(&source.to_string()) {
             // Direct dependency: this tool depends on 'source'
             graph
-                .entry(source.clone())
+                .entry(source.to_string())
                 .or_default()
                 .push(tool_name.clone());
 
             *in_degree.get_mut(tool_name).unwrap() += 1;
-            is_installer.insert(source.clone());
+            is_installer.insert(source.to_string());
 
             log_debug!(
                 "[SDB::ConfigLoader] Dependency detected: '{}' depends on '{}'",
@@ -444,7 +445,7 @@ fn topological_sort_tools(tools: &[ToolEntry]) -> Vec<ToolEntry> {
             );
         }
         // Case 2: Implicit dependency on Rust via cargo
-        else if source == "cargo" && has_rust {
+        else if *source == SourceType::Cargo && has_rust {
             // Tools using cargo depend on rust
             graph
                 .entry("rust".to_string())
@@ -528,8 +529,8 @@ fn topological_sort_tools(tools: &[ToolEntry]) -> Vec<ToolEntry> {
                 regular_queue.push_back(tool_name.clone());
                 let tool_source = tool_map
                     .get(tool_name)
-                    .map(|t| t.source.as_str())
-                    .unwrap_or("unknown");
+                    .map(|t| t.source.to_string())
+                    .unwrap_or_else(|| "unknown".to_string());
                 log_debug!(
                     "[SDB::ConfigLoader] Queuing tool '{}' with external source '{}' (no internal dependencies)",
                     tool_name,
