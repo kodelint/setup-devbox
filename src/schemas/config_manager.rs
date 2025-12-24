@@ -60,7 +60,7 @@ pub fn is_false(b: &bool) -> bool {
 /// When `enabled` is `true`, the system will automatically manage the configuration
 /// file at the specified path, synchronizing it with the source configuration.
 /// When `false`, configuration management is disabled for this tool.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct ConfigurationManager {
     /// Whether configuration management is enabled for this tool.
     ///

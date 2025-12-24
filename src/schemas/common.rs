@@ -287,5 +287,5 @@ pub struct RemovalOrchestrator<'a> {
     pub state: &'a mut DevBoxState,
 
     /// Configuration file manager
-    pub cleaner: crate::libs::tools::uninstaller::executors::ConfigurationCleaner,
+    pub cleaner: crate::engine::uninstaller::executors::ConfigurationCleaner,
 }

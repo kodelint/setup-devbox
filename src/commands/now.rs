@@ -2,7 +2,7 @@
 // It orchestrates the reading of configuration files, state management,
 // and the installation/application of tools, fonts, shell configs, and system settings.
 
-use crate::installers::shell_run_commands::apply_shell_configs;
+use crate::engine::installers::shell_run_commands::apply_shell_configs;
 use crate::schemas::state_file::DevBoxState;
 // Application state structure.
 use crate::{log_debug, log_info};
@@ -10,16 +10,14 @@ use crate::{log_debug, log_info};
 use colored::Colorize;
 // For colored terminal output.
 
-use crate::libs::tools::install_tools;
-use crate::libs::{
-    config::{
-        load_master_configs, // Loads configurations from `config.yaml`.
-        load_single_config,  // Loads a single configuration file.
-    },
-    fonts::installer::install_fonts,
-    settings::apply_system_settings,
-    state::manager::load_or_initialize_state,
+use crate::engine::install_tools;
+use crate::config::{
+    load_master_configs, // Loads configurations from `config.yaml`.
+    load_single_config,  // Loads a single configuration file.
 };
+use crate::fonts::installer::install_fonts;
+use crate::settings::apply_system_settings;
+use crate::state::manager::load_or_initialize_state;
 use crate::schemas::path_resolver::PathResolver;
 
 /// Main entry point for the `now` command.
@@ -76,7 +74,7 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
         install_tools(
             tools_cfg,
             &mut state,
-            &state_path_resolved.to_path_buf(),
+            state_path_resolved,
             update_latest,
             paths,
         ); // Add paths
@@ -88,7 +86,7 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
 
     // Install Fonts.
     if let Some(fonts_cfg) = parsed_configs.fonts {
-        install_fonts(fonts_cfg, &mut state, &state_path_resolved.to_path_buf());
+        install_fonts(fonts_cfg, &mut state, state_path_resolved);
     } else {
         log_debug!(
             "[SDB::Now] No font configurations found (fonts.yaml missing or empty). Skipping font installation phase."
@@ -106,7 +104,7 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
 
     // Apply macOS System Settings.
     if let Some(settings_cfg) = parsed_configs.settings {
-        apply_system_settings(settings_cfg, &mut state, &state_path_resolved.to_path_buf());
+        apply_system_settings(settings_cfg, &mut state, state_path_resolved);
     } else {
         log_debug!(
             "[SDB::Now] No system settings configurations found (settings.yaml missing or empty). Skipping settings application phase."

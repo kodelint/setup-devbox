@@ -6,4 +6,5 @@ pub mod os_settings;
 pub mod path_resolver;
 pub mod shell_configuration;
 pub mod state_file;
-pub mod tools;
+pub mod tools_enums;
+pub mod tools_types;

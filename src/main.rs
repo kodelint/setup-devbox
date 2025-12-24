@@ -87,12 +87,19 @@
 mod cli;
 /// Individual subcommand implementations
 mod commands;
-/// Detailed help text and documentation
-mod help_details;
-/// Tool-specific installation logic
-mod installers;
+// Detailed help text and documentation
+
+// Tool-specific installation logic
+
 /// Shared utility functions
-mod libs;
+mod core;
+mod shell;
+mod state;
+mod config;
+mod fonts;
+mod settings;
+mod engine;
+
 /// Application logging system
 mod logger;
 /// Configuration file structures
