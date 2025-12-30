@@ -172,6 +172,7 @@ pub enum ToolProcessingResult {
     Skipped(String),
     ConfigurationSkipped(String),
     Failed(String),
+    DryRun(String),
 }
 
 #[derive(Debug, PartialEq, Eq)]

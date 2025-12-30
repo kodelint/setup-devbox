@@ -5,7 +5,7 @@
 use crate::engine::installers::shell_run_commands::apply_shell_configs;
 use crate::schemas::state_file::DevBoxState;
 // Application state structure.
-use crate::{log_debug, log_info};
+use crate::{log_debug, log_info, log_warn};
 // Custom logging macros.
 use colored::Colorize;
 // For colored terminal output.
@@ -14,6 +14,7 @@ use crate::config::{
     load_master_configs, // Loads configurations from `config.yaml`.
     load_single_config,  // Loads a single configuration file.
 };
+use crate::core::backup::backup_directory;
 use crate::engine::install_tools;
 use crate::fonts::installer::install_fonts;
 use crate::schemas::path_resolver::PathResolver;
@@ -32,14 +33,23 @@ use crate::state::manager::load_or_initialize_state;
 /// # Arguments
 /// * `config_path`: Optional custom path to `config.yaml` or a single config file.
 /// * `state_path`: Optional custom path to `state.json`.
-pub fn run(paths: &PathResolver, update_latest: bool) {
+pub fn run(paths: &PathResolver, update_latest: bool, dry_run: bool) {
     log_debug!("[SDB] Entered now::run() function.");
 
-    if update_latest {
+    if dry_run {
         log_info!(
-            "[SDB] '{}' flag is set, forcing update of all `latest` version tools",
-            "Update latest".bright_yellow()
+            "[SDB] '{}' flag is set, simulation mode enabled",
+            "Dry Run".bright_magenta()
         );
+    } else {
+        // Automatically backup configuration directory before changes
+        // Use base_config_dir to include configs/ and state.json
+        if let Err(e) = backup_directory(paths.base_config_dir()) {
+            log_warn!(
+                "[SDB::Backup] Automatic backup failed: {}. Continuing anyway.",
+                e
+            );
+        }
     }
 
     // Get resolved paths from the PathResolver
@@ -76,6 +86,7 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
             &mut state,
             state_path_resolved,
             update_latest,
+            dry_run,
             paths,
         ); // Add paths
     } else {

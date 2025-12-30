@@ -13,6 +13,7 @@
 //! This ensures valid YAML output and eliminates formatting bugs at the cost of
 //! not preserving custom formatting or comments.
 
+use crate::cli::cmd_enums::AddCommands;
 use crate::now;
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::tools_enums::SourceType;
@@ -26,6 +27,102 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_yaml::{self, Value};
 use std::fs;
 use std::path::PathBuf;
+
+/// Entry point for the 'add' subcommand
+///
+/// Dispatches to specific add functions based on the command type.
+pub fn run(add_type: AddCommands) {
+    match add_type {
+        AddCommands::Tool {
+            name,
+            version,
+            source,
+            url,
+            repo,
+            tag,
+            rename_to,
+            options,
+            executable_path_after_extract,
+            post_installation_hooks,
+            enable_config_manager,
+            config_paths,
+        } => {
+            log_debug!("[SDB] 'Add Tool' subcommand detected.");
+            log_debug!("[SDB] Tool name: {}", name);
+            log_debug!("[SDB] Tool version: {}", version);
+            log_debug!("[SDB] Tool source: {:?}", source);
+            log_debug!("[SDB] Tool URL: {:?}", url);
+            log_debug!("[SDB] Tool repo: {:?}", repo);
+            log_debug!("[SDB] Tool tag: {:?}", tag);
+            log_debug!("[SDB] Rename to: {:?}", rename_to);
+            log_debug!("[SDB] Options: {:?}", options);
+            log_debug!(
+                "[SDB] Executable path after extract: {:?}",
+                executable_path_after_extract
+            );
+            log_debug!(
+                "[SDB] Post installation hooks: {:?}",
+                post_installation_hooks
+            );
+            log_debug!("[SDB] Enable config manager: {}", enable_config_manager);
+            log_debug!("[SDB] Config paths: {:?}", config_paths);
+
+            add_tool(
+                name,
+                version,
+                source,
+                url,
+                repo,
+                tag,
+                rename_to,
+                options,
+                None, // executable_path_after_extract is currently ignored/None in main.rs
+                post_installation_hooks,
+                enable_config_manager,
+                config_paths,
+            );
+        }
+        AddCommands::Font {
+            name,
+            version,
+            source,
+            repo,
+            tag,
+            install_only,
+        } => {
+            log_debug!("[SDB] 'Add Font' subcommand detected.");
+            log_debug!("[SDB] Font name: {}", name);
+            log_debug!("[SDB] Font version: {}", version);
+            log_debug!("[SDB] Font source: {}", source);
+            log_debug!("[SDB] Font repo: {}", repo);
+            log_debug!("[SDB] Font tag: {}", tag);
+            log_debug!("[SDB] Install only: {:?}", install_only);
+
+            add_font(name, version, source, repo, tag, install_only);
+        }
+        AddCommands::Setting {
+            domain,
+            key,
+            value,
+            value_type,
+        } => {
+            log_debug!("[SDB] 'Add Setting' subcommand detected.");
+            log_debug!("[SDB] Setting domain: {}", domain);
+            log_debug!("[SDB] Setting key: {}", key);
+            log_debug!("[SDB] Setting value: {}", value);
+            log_debug!("[SDB] Setting type: {}", value_type);
+
+            add_setting(domain, key, value, value_type.to_string());
+        }
+        AddCommands::Alias { name, value } => {
+            log_debug!("[SDB] 'Add Alias' subcommand detected.");
+            log_debug!("[SDB] Alias name: {}", name);
+            log_debug!("[SDB] Alias value: {}", value);
+
+            add_alias(name, value);
+        }
+    }
+}
 
 // ============================================================================
 // CONFIGURATION UPDATER STRUCTURE
@@ -647,7 +744,7 @@ fn run_now_command() {
     );
 
     match PathResolver::new(None, None) {
-        Ok(paths) => now::run(&paths, false),
+        Ok(paths) => now::run(&paths, false, false),
         Err(e) => {
             log_error!("Failed to initialize path resolver: {}", e.red());
             std::process::exit(1);

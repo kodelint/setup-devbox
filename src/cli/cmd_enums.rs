@@ -36,6 +36,9 @@ pub enum Commands {
         /// This ensures the latest versions are installed regardless of previous installation timestamps.
         #[arg(long)]
         update_latest: bool,
+        /// Show what changes would be made without actually executing them.
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Generates default configuration files with sensible defaults.
     /// Useful for initial setup or creating template configurations.
@@ -90,6 +93,20 @@ pub enum Commands {
         /// Filter results by installer type or category.
         #[arg(long)]
         filter: Option<String>,
+    },
+    /// Reset the installation state.
+    /// Wipes entries from the state file without uninstalling the actual tools.
+    /// This forces the next 'now' run to re-verify or re-install everything.
+    Reset {
+        /// Optional name of a specific tool to reset in the state.
+        #[arg(long)]
+        tool: Option<String>,
+        /// Reset the entire state file (wipes everything).
+        #[arg(long)]
+        all: bool,
+        /// Optional path to a custom state file.
+        #[arg(long)]
+        state: Option<String>,
     },
 }
 

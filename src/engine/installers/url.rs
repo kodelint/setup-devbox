@@ -62,6 +62,7 @@ use crate::{log_debug, log_error, log_info, log_warn};
 // `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
 use crate::core::{assets, assets::detect_file_type};
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::errors::InstallerError;
 use crate::engine::installers::traits::Installer;
 
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
@@ -103,9 +104,9 @@ impl Installer for UrlInstaller {
     ///
     /// # Returns
     ///
-    /// An `Option<ToolState>`:
-    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
-    /// * `None` if any step of the installation process fails
+    /// An `Result<ToolState, InstallerError>`:
+    /// * `Ok(ToolState)` if installation was completely successful with accurate metadata
+    /// * `Err(InstallerError)` if any step of the installation process fails
     ///
     /// # Examples - YAML Configuration
     ///
@@ -170,7 +171,7 @@ impl Installer for UrlInstaller {
     /// };
     /// install(&tool_entry);
     /// ```
-    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
+    fn install(&self, tool_entry: &ToolEntry) -> Result<ToolState, InstallerError> {
         log_info!(
             "[SDB::Tools::UrlInstaller] Attempting to install tool from direct URL: {}",
             tool_entry.name.bold()
@@ -181,14 +182,19 @@ impl Installer for UrlInstaller {
         );
 
         // Step 1: Validate URL configuration - ensure required fields are present
-        let download_url = validate_url_configuration(tool_entry)?;
+        let download_url = validate_url_configuration(tool_entry).ok_or_else(|| {
+            InstallerError::ConfigurationError("URL configuration is invalid".into())
+        })?;
 
         // Step 2: Download asset to temporary location
         log_debug!(
             "[SDB::Tools::UrlInstaller] Downloading asset from: {}",
             download_url.blue()
         );
-        let (temp_dir, downloaded_path) = assets::download_url_asset(tool_entry, &download_url)?;
+        let (temp_dir, downloaded_path) = assets::download_url_asset(tool_entry, &download_url)
+            .ok_or_else(|| {
+                InstallerError::DownloadFailed(format!("Failed to download from {}", download_url))
+            })?;
 
         // Step 3: Detect file type and determine installation strategy
         let file_type = detect_file_type(&downloaded_path);
@@ -199,12 +205,19 @@ impl Installer for UrlInstaller {
 
         // Step 4: Process asset based on file type (binary, archive, or macOS package)
         let (package_type, final_install_path, working_dir) =
-            assets::process_asset_by_type(tool_entry, &downloaded_path, &file_type, &temp_dir)?;
+            assets::process_asset_by_type(tool_entry, &downloaded_path, &file_type, &temp_dir)
+                .ok_or_else(|| {
+                    cleanup_temp_file(&downloaded_path);
+                    InstallerError::InstallationFailed("Failed to process asset".into())
+                })?;
 
         // Step 5: Verify installation was successful
         if !verify_installation(&final_install_path, &package_type, tool_entry) {
             cleanup_temp_file(&downloaded_path);
-            return None;
+            return Err(InstallerError::InstallationFailed(format!(
+                "Verification failed for tool '{}'",
+                tool_entry.name
+            )));
         }
 
         // Step 6: Clean up temporary download file
@@ -224,7 +237,7 @@ impl Installer for UrlInstaller {
         );
 
         // Step 8: Return comprehensive ToolState for state tracking and persistence
-        Some(ToolState::new(
+        Ok(ToolState::new(
             tool_entry,
             &final_install_path,
             "direct-url".to_string(),
@@ -238,11 +251,6 @@ impl Installer for UrlInstaller {
             executed_post_installation_hooks,
         ))
     }
-}
-
-/// Convenience wrapper to maintain backward compatibility and simple invocation.
-pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    UrlInstaller.install(tool_entry)
 }
 
 /// Validates that the tool configuration contains required URL fields.

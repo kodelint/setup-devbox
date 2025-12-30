@@ -117,8 +117,8 @@ use colored::Colorize;
 // INTERNAL IMPORTS
 // ============================================================================
 
-use crate::cli::cmd_enums::{AddCommands, Cli, Commands, RemoveCommands};
-use crate::commands::{add, edit, help};
+use crate::cli::cmd_enums::{Cli, Commands, RemoveCommands};
+use crate::commands::{add, edit, help, reset};
 use crate::schemas::path_resolver::PathResolver;
 use commands::{generate, now, sync, version};
 
@@ -143,9 +143,28 @@ fn main() -> Result<()> {
     // ========================================================================
     // Use clap to parse the arguments into our structured Cli type.
     // This handles validation, type conversion, and error messages for
-    // malformed arguments. If parsing fails, clap will print an error
-    // and exit automatically.
-    let cli = Cli::parse();
+    // malformed arguments.
+    let cli = match Cli::try_parse() {
+        Ok(c) => c,
+        Err(e) => {
+            let error_str = e.to_string();
+            if error_str.contains("-h")
+                || error_str.contains("--help")
+                || error_str.contains("help")
+            {
+                eprintln!(
+                    "\n{}",
+                    "To see available commands and options, please use:"
+                        .bold()
+                        .yellow()
+                );
+                eprintln!("  {} help", "setup-devbox".cyan());
+                std::process::exit(0);
+            }
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    };
 
     // ========================================================================
     // STEP 2: INITIALIZE LOGGING SYSTEM
@@ -166,105 +185,7 @@ fn main() -> Result<()> {
         // ====================================================================
         Commands::Add { add_type } => {
             log_debug!("[SDB] 'Add' subcommand detected.");
-
-            // Handle different types of add operations
-            match add_type {
-                AddCommands::Tool {
-                    name,
-                    version,
-                    source,
-                    url,
-                    repo,
-                    tag,
-                    rename_to,
-                    options,
-                    executable_path_after_extract,
-                    post_installation_hooks,
-                    enable_config_manager,
-                    config_paths,
-                } => {
-                    log_debug!("[SDB] 'Add Tool' subcommand detected.");
-                    log_debug!("[SDB] Tool name: {}", name);
-                    log_debug!("[SDB] Tool version: {}", version);
-                    log_debug!("[SDB] Tool source: {:?}", source);
-                    log_debug!("[SDB] Tool URL: {:?}", url);
-                    log_debug!("[SDB] Tool repo: {:?}", repo);
-                    log_debug!("[SDB] Tool tag: {:?}", tag);
-                    log_debug!("[SDB] Rename to: {:?}", rename_to);
-                    log_debug!("[SDB] Options: {:?}", options);
-                    log_debug!(
-                        "[SDB] Executable path after extract: {:?}",
-                        executable_path_after_extract
-                    );
-                    log_debug!(
-                        "[SDB] Post installation hooks: {:?}",
-                        post_installation_hooks
-                    );
-                    log_debug!("[SDB] Enable config manager: {}", enable_config_manager);
-                    log_debug!("[SDB] Config paths: {:?}", config_paths);
-
-                    // Call the add_tool function with all collected parameters
-                    add::add_tool(
-                        name,
-                        version,
-                        source, // Passed directly as SourceType
-                        url,
-                        repo,
-                        tag,
-                        rename_to,
-                        options,
-                        None,
-                        post_installation_hooks,
-                        enable_config_manager,
-                        config_paths,
-                    );
-                }
-                AddCommands::Font {
-                    name,
-                    version,
-                    source,
-                    repo,
-                    tag,
-                    install_only,
-                } => {
-                    log_debug!("[SDB] 'Add Font' subcommand detected.");
-                    log_debug!("[SDB] Font name: {}", name);
-                    log_debug!("[SDB] Font version: {}", version);
-                    log_debug!("[SDB] Font source: {}", source);
-                    log_debug!("[SDB] Font repo: {}", repo);
-                    log_debug!("[SDB] Font tag: {}", tag);
-                    log_debug!("[SDB] Install only: {:?}", install_only);
-
-                    // Call the add_font function with font-specific parameters
-                    add::add_font(name, version, source, repo, tag, install_only);
-                }
-                AddCommands::Setting {
-                    domain,
-                    key,
-                    value,
-                    value_type,
-                } => {
-                    log_debug!("[SDB] 'Add Setting' subcommand detected.");
-                    log_debug!("[SDB] Setting domain: {}", domain);
-                    log_debug!("[SDB] Setting key: {}", key);
-                    log_debug!("[SDB] Setting value: {}", value);
-                    log_debug!("[SDB] Setting type: {}", value_type);
-
-                    // Convert ValueType enum to String for the add_setting function
-                    let value_type_string = value_type.to_string();
-
-                    // Call the add_setting function with system setting parameters
-                    add::add_setting(domain, key, value, value_type_string);
-                }
-                AddCommands::Alias { name, value } => {
-                    log_debug!("[SDB] 'Add Alias' subcommand detected.");
-                    log_debug!("[SDB] Alias name: {}", name);
-                    log_debug!("[SDB] Alias value: {}", value);
-
-                    // Call the add_alias function with shell alias parameters
-                    add::add_alias(name, value);
-                }
-            }
+            add::run(add_type);
         }
         // ====================================================================
         // REMOVE COMMAND - Remove items from system and configuration
@@ -353,6 +274,7 @@ fn main() -> Result<()> {
             config,
             state,
             update_latest,
+            dry_run,
         } => {
             log_debug!("[SDB] 'Now' subcommand detected.");
 
@@ -370,7 +292,7 @@ fn main() -> Result<()> {
 
             // Execute the main installation and configuration process
             // Pass the PathResolver to provide consistent file path resolution
-            now::run(&paths, update_latest);
+            now::run(&paths, update_latest, dry_run);
         }
 
         // ====================================================================
@@ -389,6 +311,14 @@ fn main() -> Result<()> {
             log_debug!("[SDB] 'Version' subcommand detected. Calling version::run().");
             // Display application version information
             version::run();
+        }
+
+        // ====================================================================
+        // RESET COMMAND - Reset installation state
+        // ====================================================================
+        Commands::Reset { tool, all, state } => {
+            log_debug!("[SDB] 'Reset' subcommand detected.");
+            reset::run(tool, all, state);
         }
     }
 

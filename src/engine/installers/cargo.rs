@@ -44,6 +44,7 @@ use std::process::Command;
 
 // Post-installation hook execution functionality.
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::errors::InstallerError;
 use crate::engine::installers::traits::Installer;
 // Internal module imports:
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
@@ -83,10 +84,10 @@ impl Installer for CargoInstaller {
     ///   - `tool_entry.options`: Optional list of cargo install options (--features, --git, etc.)
     ///
     /// # Returns:
-    /// An `Option<ToolState>`:
-    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
-    /// * `None` if any step of the installation process fails
-    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
+    /// An `Result<ToolState, InstallerError>`:
+    /// * `Ok(ToolState)` if installation was completely successful with accurate metadata
+    /// * `Err(InstallerError)` if any step of the installation process fails
+    fn install(&self, tool_entry: &ToolEntry) -> Result<ToolState, InstallerError> {
         log_info!(
             "[SDB::Tools::CargoInstaller] Attempting to install Tool: {}",
             tool_entry.name.green().bold()
@@ -134,7 +135,10 @@ impl Installer for CargoInstaller {
         );
         let command_args = prepare_cargo_install_command(tool_entry, is_it_git_based_install);
         if !execute_cargo_install_command(&command_args, tool_entry) {
-            return None;
+            return Err(InstallerError::InstallationFailed(format!(
+                "Failed to install crate '{}'",
+                tool_entry.name
+            )));
         }
 
         // 4. Verify the installation was successful - ensure the binary is actually available
@@ -143,7 +147,10 @@ impl Installer for CargoInstaller {
             tool_entry.name.bold()
         );
         if !check_if_installed(&tool_entry.name) {
-            return None;
+            return Err(InstallerError::InstallationFailed(format!(
+                "Verification failed for crate '{}'",
+                tool_entry.name
+            )));
         }
 
         // 5. Determine accurate installation path - where the binary was actually installed
@@ -174,11 +181,7 @@ impl Installer for CargoInstaller {
         );
 
         // 8. Return comprehensive ToolState for tracking
-        //
-        // Construct a `ToolState` object to record the details of this successful installation.
-        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-        // what tools are installed, where they are, and how they were installed.
-        Some(ToolState::new(
+        Ok(ToolState::new(
             tool_entry,
             &install_path,
             "cargo-install".to_string(),
@@ -189,11 +192,6 @@ impl Installer for CargoInstaller {
             executed_post_installation_hooks,
         ))
     }
-}
-
-/// Convenience wrapper to maintain backward compatibility and simple invocation.
-pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    CargoInstaller.install(tool_entry)
 }
 
 /// Detects if this is a git-based installation by checking for --git option.

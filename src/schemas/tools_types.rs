@@ -1,6 +1,7 @@
 use crate::engine::configuration::processor::{
     ConfigurationManager, ConfigurationManagerProcessor,
 };
+use crate::engine::installers::factory::InstallerFactory;
 use crate::schemas::state_file::DevBoxState;
 use crate::schemas::tools_enums::{SdbDuration, SourceType, ToolEntryError};
 use serde::{Deserialize, Serialize};
@@ -51,12 +52,14 @@ pub struct ToolInstallationOrchestrator<'a> {
     pub state: &'a mut DevBoxState,
     pub configuration: &'a InstallationConfiguration,
     pub config_processor: ConfigurationManagerProcessor,
+    pub installer_factory: InstallerFactory,
 }
 
 #[derive(Debug)]
 pub struct InstallationConfiguration {
     pub update_threshold_duration: SdbDuration,
     pub force_update_enabled: bool,
+    pub dry_run: bool,
 }
 
 pub struct InstallationSummary {
@@ -66,4 +69,5 @@ pub struct InstallationSummary {
     pub skipped_tools: Vec<(String, String)>,
     pub configuration_skipped_tools: Vec<(String, String)>,
     pub failed_tools: Vec<(String, String)>,
+    pub dry_run_tools: Vec<(String, String)>,
 }

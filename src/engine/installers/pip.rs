@@ -23,6 +23,7 @@ use crate::{log_debug, log_error, log_info, log_warn};
 // `std::process::Command` is used to run commands/hooks.
 // `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::errors::InstallerError;
 use crate::engine::installers::traits::Installer;
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
@@ -94,22 +95,10 @@ impl Installer for PipInstaller {
     ///   - `tool_entry.options`: Optional list of pip install options (--user, --upgrade, etc.)
     ///
     /// # Returns
-    /// An `Option<ToolState>`:
-    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
-    /// * `None` if any step of the installation process fails
-    /// ## Examples - YAML
-    ///
-    /// ```yaml
-    /// # ########################
-    /// # Example: PIP Installer #
-    /// # ########################
-    /// - name: pip
-    ///   source: pip
-    ///   version: 25.2
-    ///   options:
-    ///     - --upgrade
-    /// ```
-    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
+    /// An `Result<ToolState, InstallerError>`:
+    /// * `Ok(ToolState)` if installation was completely successful with accurate metadata
+    /// * `Err(InstallerError)` if any step of the installation process fails
+    fn install(&self, tool_entry: &ToolEntry) -> Result<ToolState, InstallerError> {
         log_info!(
             "[SDB::Tools::PipInstaller] Attempting to install Python package: {}",
             tool_entry.name.bold()
@@ -120,7 +109,9 @@ impl Installer for PipInstaller {
         );
 
         // 1. Detect and validate pip executable
-        let pip_variant = detect_pip_variant()?;
+        let pip_variant = detect_pip_variant().ok_or(
+            InstallerError::PlatformDetectionFailed, // Or create a more specific error
+        )?;
         log_debug!(
             "[SDB::Tools::PipInstaller] Using pip variant: {:?}",
             pip_variant
@@ -128,7 +119,10 @@ impl Installer for PipInstaller {
 
         // 2. Validate package configuration
         if !validate_package_configuration(tool_entry) {
-            return None;
+            return Err(InstallerError::ConfigurationError(format!(
+                "Invalid configuration for package '{}'",
+                tool_entry.name
+            )));
         }
 
         // 3. Determine installation mode (user vs system)
@@ -153,12 +147,18 @@ impl Installer for PipInstaller {
         // 5. Prepare and execute pip install command
         let command_args = prepare_pip_install_command(tool_entry, &pip_variant);
         if !execute_pip_install_command(&pip_variant, &command_args, tool_entry) {
-            return None;
+            return Err(InstallerError::InstallationFailed(format!(
+                "Failed to install pip package '{}'",
+                tool_entry.name
+            )));
         }
 
         // 6. Verify the installation was successful
         if !verify_pip_installation(&tool_entry.name, &pip_variant) {
-            return None;
+            return Err(InstallerError::InstallationFailed(format!(
+                "Verification failed for pip package '{}'",
+                tool_entry.name
+            )));
         }
 
         // 7. Determine accurate installation path
@@ -171,11 +171,12 @@ impl Installer for PipInstaller {
 
         // 8. Verify binary/package exists at expected path
         if !verify_package_accessible(&tool_entry.name, &pip_variant) {
-            log_error!(
-                "[SDB::Tools::PipInstaller] Package '{}' is not accessible after installation",
-                tool_entry.name.red()
+            let msg = format!(
+                "Package '{}' is not accessible after installation",
+                tool_entry.name
             );
-            return None;
+            log_error!("[SDB::Tools::PipInstaller] {}", msg.red());
+            return Err(InstallerError::ValidationFailed(msg));
         }
 
         // 9. Execute post-installation hooks
@@ -202,11 +203,7 @@ impl Installer for PipInstaller {
         );
 
         // 11. Return comprehensive ToolState for tracking
-        //
-        // Construct a `ToolState` object to record the details of this successful installation.
-        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-        // what tools are installed, where they are, and how they were installed.
-        Some(ToolState::new(
+        Ok(ToolState::new(
             tool_entry,
             &install_path,
             "pip".to_string(),
@@ -217,11 +214,6 @@ impl Installer for PipInstaller {
             executed_post_installation_hooks,
         ))
     }
-}
-
-/// Convenience wrapper to maintain backward compatibility and simple invocation.
-pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    PipInstaller.install(tool_entry)
 }
 
 /// Detects the best available pip variant on the system.

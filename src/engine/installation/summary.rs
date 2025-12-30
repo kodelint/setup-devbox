@@ -39,6 +39,7 @@ impl InstallationSummary {
             skipped_tools: Vec::new(),
             configuration_skipped_tools: Vec::new(),
             failed_tools: Vec::new(),
+            dry_run_tools: Vec::new(),
         };
 
         // Categorize each result into the appropriate vector.
@@ -57,6 +58,9 @@ impl InstallationSummary {
                     .push((tool_name, reason)),
                 ToolProcessingResult::Failed(reason) => {
                     summary.failed_tools.push((tool_name, reason))
+                }
+                ToolProcessingResult::DryRun(message) => {
+                    summary.dry_run_tools.push((tool_name, message))
                 }
             }
         }
@@ -78,8 +82,32 @@ impl InstallationSummary {
     pub(crate) fn display_summary(&self) {
         self.display_skipped_tools();
         self.display_configuration_skipped_tools();
+        self.display_dry_run_tools();
         self.display_failed_tools();
         self.display_success_summary();
+    }
+
+    /// Prints a formatted list of dry-run actions.
+    fn display_dry_run_tools(&self) {
+        if self.dry_run_tools.is_empty() {
+            return;
+        }
+
+        println!();
+        println!(
+            "{} Dry Run Actions (Simulation) {}",
+            "============".magenta(),
+            "=============".magenta()
+        );
+
+        for (tool_name, message) in &self.dry_run_tools {
+            println!(
+                "  {} - {}",
+                tool_name.bright_magenta().bold(),
+                message.magenta()
+            );
+        }
+        println!("{}", "=".repeat(61).magenta());
     }
 
     /// Prints a formatted list of skipped tools.

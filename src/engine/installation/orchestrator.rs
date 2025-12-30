@@ -22,7 +22,8 @@
 //! 4. **State Update**: Record results and update persistent state
 
 // Import all available installer modules
-use crate::engine::installers::{brew, cargo, github, go, pip, rustup, url, uv};
+use crate::engine::installers::errors::InstallerError;
+use crate::engine::installers::factory::InstallerFactory;
 // Import utility functions for state and time management
 use crate::core::platform::check_installer_command_available;
 // Import logging macros
@@ -31,7 +32,6 @@ use crate::core::timestamps::{is_timestamp_older_than, time_since};
 use crate::schemas::config_manager::{
     ConfigurationEvaluationResult, ConfigurationManagerProcessor,
 };
-use crate::schemas::path_resolver::PathResolver;
 // Import data schemas and the configuration processor
 use crate::schemas::state_file::{DevBoxState, ToolState};
 use crate::schemas::tools_enums::{
@@ -62,14 +62,14 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     pub(crate) fn new(
         state: &'a mut DevBoxState,
         configuration: &'a InstallationConfiguration,
-        paths: &PathResolver,
+        config_processor: ConfigurationManagerProcessor,
+        installer_factory: InstallerFactory,
     ) -> Self {
-        let config_processor = ConfigurationManagerProcessor::new(paths);
-
         Self {
             state,
             configuration,
             config_processor,
+            installer_factory,
         }
     }
 
@@ -362,6 +362,22 @@ impl<'a> ToolInstallationOrchestrator<'a> {
         action: ToolAction,
         cached_config_evaluation: Option<ConfigurationEvaluationResult>,
     ) -> ToolProcessingResult {
+        if self.configuration.dry_run {
+            let dry_run_msg = match action {
+                ToolAction::Skip(reason) => format!("Would skip: {reason}"),
+                ToolAction::SkipConfigurationOnly(reason) => {
+                    format!("Would skip configuration: {reason}")
+                }
+                ToolAction::Install => format!("Would install {} using {}", tool.name, tool.source),
+                ToolAction::Update => format!("Would update {} using {}", tool.name, tool.source),
+                ToolAction::UpdateConfigurationOnly => {
+                    format!("Would update configuration for {}", tool.name)
+                }
+            };
+            log_info!("[SDB::DryRun] {}", dry_run_msg.bright_magenta());
+            return ToolProcessingResult::DryRun(dry_run_msg);
+        }
+
         match action {
             ToolAction::Skip(reason) => ToolProcessingResult::Skipped(reason),
             ToolAction::SkipConfigurationOnly(reason) => {
@@ -401,7 +417,7 @@ impl<'a> ToolInstallationOrchestrator<'a> {
 
         // Invoke the correct installer based on the tool's `source`.
         match self.invoke_appropriate_installer(tool) {
-            Some(mut tool_state) => {
+            Ok(mut tool_state) => {
                 // Process configuration management as a non-fatal step with cached evaluation.
                 // An error here will be logged as a warning but won't fail the overall installation.
                 if let Err(error) = self.process_configuration_management(
@@ -426,10 +442,11 @@ impl<'a> ToolInstallationOrchestrator<'a> {
                     _ => ToolProcessingResult::Updated,
                 }
             }
-            None => {
-                // If the installer returns `None`, it signifies a failure.
+            Err(e) => {
+                // If the installer returns `Err`, it signifies a failure.
                 self.display_installation_failure(tool, operation_type);
-                ToolProcessingResult::Failed(format!("[SDB::Tools] {operation_type} failed"))
+                log_error!("[SDB::Tools] Failure reason: {}", e);
+                ToolProcessingResult::Failed(format!("[SDB::Tools] {operation_type} failed: {e}"))
             }
         }
     }
@@ -444,18 +461,19 @@ impl<'a> ToolInstallationOrchestrator<'a> {
     /// - `tool`: Tool entry to install
     ///
     /// ## Returns
-    /// `Some(ToolState)` if installation succeeded, `None` if it failed
-    fn invoke_appropriate_installer(&self, tool: &ToolEntry) -> Option<ToolState> {
-        match tool.source {
-            SourceType::Github => github::install(tool),
-            SourceType::Brew => brew::install(tool),
-            SourceType::Go => go::install(tool),
-            SourceType::Cargo => cargo::install(tool),
-            SourceType::Rustup => rustup::install(tool),
-            SourceType::Pip => pip::install(tool),
-            SourceType::Uv => uv::install(tool),
-            SourceType::Url => url::install(tool),
-        }
+    /// `Result<ToolState, InstallerError>` if installation succeeded or failed
+    fn invoke_appropriate_installer(&self, tool: &ToolEntry) -> Result<ToolState, InstallerError> {
+        let installer = self
+            .installer_factory
+            .get_installer(&tool.source)
+            .ok_or_else(|| {
+                InstallerError::ConfigurationError(format!(
+                    "No installer registered for source type: {:?}",
+                    tool.source
+                ))
+            })?;
+
+        installer.install(tool)
     }
 
     /// Handles the `UpdateConfigurationOnly` action with cached evaluation.

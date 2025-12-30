@@ -1,4 +1,5 @@
 pub mod assets;
+pub mod backup;
 pub mod binary;
 pub mod compression;
 pub mod manage_rc_files;

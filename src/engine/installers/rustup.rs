@@ -58,6 +58,7 @@ use crate::{log_debug, log_error, log_info, log_warn};
 // `std::process::Command` is used to run commands/hooks.
 // `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::errors::InstallerError;
 use crate::engine::installers::traits::Installer;
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
@@ -92,9 +93,9 @@ impl Installer for RustupInstaller {
     ///   - `tool_entry.options`: Optional list of rustup components to install (e.g., ["rustfmt", "clippy"])
     ///
     /// # Returns
-    /// An `Option<ToolState>`:
-    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
-    /// * `None` if any step of the installation process fails
+    /// An `Result<ToolState, InstallerError>`:
+    /// * `Ok(ToolState)` if installation was completely successful with accurate metadata
+    /// * `Err(InstallerError)` if any step of the installation process fails
     ///
     /// # Examples - YAML
     ///
@@ -126,7 +127,7 @@ impl Installer for RustupInstaller {
     /// };
     /// install(&tool_entry);
     /// ```
-    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
+    fn install(&self, tool_entry: &ToolEntry) -> Result<ToolState, InstallerError> {
         log_info!(
             "[SDB::Tools::RustUpInstaller] Attempting to install Rust toolchain: {}",
             tool_entry.name.bold()
@@ -137,7 +138,9 @@ impl Installer for RustupInstaller {
         );
 
         // 1. Validate and extract toolchain name - ensure version is specified and valid
-        let toolchain_name = validate_toolchain_version(tool_entry)?;
+        let toolchain_name = validate_toolchain_version(tool_entry).ok_or_else(|| {
+            InstallerError::ValidationFailed("Toolchain version is missing or invalid".into())
+        })?;
 
         log_debug!(
             "[SDB::Tools::RustUpInstaller] Installing toolchain: {}",
@@ -157,7 +160,10 @@ impl Installer for RustupInstaller {
             ToolchainStatus::NotInstalled => {
                 // 4. Install the toolchain - only if not already present
                 if !install_toolchain(&toolchain_name) {
-                    return None;
+                    return Err(InstallerError::InstallationFailed(format!(
+                        "Failed to install toolchain '{}'",
+                        toolchain_name
+                    )));
                 }
             }
             ToolchainStatus::CheckFailed => {
@@ -165,7 +171,10 @@ impl Installer for RustupInstaller {
                     "[SDB::Tools::RustUpInstaller] Could not verify toolchain status, proceeding with installation attempt"
                 );
                 if !install_toolchain(&toolchain_name) {
-                    return None;
+                    return Err(InstallerError::InstallationFailed(format!(
+                        "Failed to install toolchain '{}'",
+                        toolchain_name
+                    )));
                 }
             }
         }
@@ -194,12 +203,17 @@ impl Installer for RustupInstaller {
         if let Some(components) = &tool_entry.options
             && !install_components(components, &toolchain_name)
         {
-            return None;
+            return Err(InstallerError::InstallationFailed(
+                "Failed to install one or more components".into(),
+            ));
         }
 
         // 5. Verify the complete installation - ensure everything was installed correctly
         if !verify_toolchain_installation(&toolchain_name, tool_entry.options.as_ref()) {
-            return None;
+            return Err(InstallerError::InstallationFailed(format!(
+                "Verification failed for toolchain '{}'",
+                toolchain_name
+            )));
         }
 
         // 6. Determine accurate installation path - where the toolchain binaries are located
@@ -231,11 +245,7 @@ impl Installer for RustupInstaller {
         );
 
         // 9. Return comprehensive ToolState for tracking
-        //
-        // Construct a `ToolState` object to record the details of this successful installation.
-        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-        // what tools are installed, where they are, and how they were installed.
-        Some(ToolState::new(
+        Ok(ToolState::new(
             tool_entry,
             &install_path,
             "rustup".to_string(),
@@ -246,11 +256,6 @@ impl Installer for RustupInstaller {
             executed_post_installation_hooks,
         ))
     }
-}
-
-/// Convenience wrapper to maintain backward compatibility and simple invocation.
-pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    RustupInstaller.install(tool_entry)
 }
 
 /// Represents the status of a toolchain installation check.

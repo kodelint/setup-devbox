@@ -51,6 +51,7 @@ use crate::{log_debug, log_error, log_info, log_warn};
 // `std::process::Command` is used to run commands/hooks.
 // `std::process::Output` captures the stdout, stderr, and exit status of executed commands.
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::errors::InstallerError;
 use crate::engine::installers::traits::Installer;
 // `ToolEntry`: Represents a single tool's configuration from `tools.yaml`.
 // `ToolState`: Represents the actual state of an installed tool for persistence in `state.json`.
@@ -90,9 +91,9 @@ impl Installer for UvInstaller {
     ///   - `tool_entry.options`: Optional list of uv install options (--mode, --features, etc.)
     ///
     /// # Returns:
-    /// An `Option<ToolState>`:
-    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
-    /// * `None` if any step of the installation process fails
+    /// An `Result<ToolState, InstallerError>`:
+    /// * `Ok(ToolState)` if installation was completely successful with accurate metadata
+    /// * `Err(InstallerError)` if any step of the installation process fails
     ///
     /// ## Examples - YAML
     ///
@@ -155,7 +156,7 @@ impl Installer for UvInstaller {
     /// };
     /// install(&tool_entry);
     /// ```
-    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
+    fn install(&self, tool_entry: &ToolEntry) -> Result<ToolState, InstallerError> {
         log_info!(
             "[SDB::Tools::UVInstaller] Attempting to install Python package: {}",
             tool_entry.name.bold()
@@ -167,7 +168,10 @@ impl Installer for UvInstaller {
 
         // 1. Validate configuration - check tool entry and options for correctness
         if !validate_uv_configuration(tool_entry) {
-            return None;
+            return Err(InstallerError::ConfigurationError(format!(
+                "Invalid configuration for '{}'",
+                tool_entry.name
+            )));
         }
 
         // 2. Determine installation mode - detect whether to use tool, pip, or python mode
@@ -178,14 +182,23 @@ impl Installer for UvInstaller {
         );
 
         // 3. Build complete command - construct appropriate uv command arguments
-        let command_args = build_command_args(&subcommand, &base_args, tool_entry)?;
+        let command_args =
+            build_command_args(&subcommand, &base_args, tool_entry).ok_or_else(|| {
+                InstallerError::ConfigurationError("Failed to build command args".into())
+            })?;
 
         // 4. Execute installation - run the uv command with error handling
-        let output = execute_uv_command(&subcommand, &command_args, tool_entry)?;
+        let output =
+            execute_uv_command(&subcommand, &command_args, tool_entry).ok_or_else(|| {
+                InstallerError::CommandFailed(format!("Failed to execute 'uv {}'", subcommand))
+            })?;
 
         // 5. Verify installation success - ensure the package was properly installed
         if !verify_installation_success(&output, &subcommand, tool_entry) {
-            return None;
+            return Err(InstallerError::InstallationFailed(format!(
+                "Installation failed for '{}'",
+                tool_entry.name
+            )));
         }
 
         // 6. Determine installation path - where the package was actually installed
@@ -211,7 +224,7 @@ impl Installer for UvInstaller {
         // Construct a `ToolState` object to record the details of this successful installation.
         // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
         // what tools are installed, where they are, and how they were installed.
-        Some(ToolState::new(
+        Ok(ToolState::new(
             tool_entry,
             &install_path,
             format!("uv-{subcommand}"),
@@ -219,17 +232,15 @@ impl Installer for UvInstaller {
                 "python" => "python-interpreter".to_string(),
                 _ => "python-package".to_string(),
             },
-            tool_entry.version.clone()?.to_string(),
+            tool_entry
+                .version
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
             None,
             None,
             executed_hooks,
         ))
     }
-}
-
-/// Convenience wrapper to maintain backward compatibility and simple invocation.
-pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    UvInstaller.install(tool_entry)
 }
 
 /// Validates the UV configuration for the tool entry.

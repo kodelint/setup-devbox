@@ -64,6 +64,7 @@ use crate::schemas::tools_types::ToolEntry;
 use crate::{log_debug, log_error, log_info, log_warn};
 // Post-installation hook execution functionality.
 use crate::engine::execute_post_installation_hooks;
+use crate::engine::installers::errors::InstallerError;
 use crate::engine::installers::traits::Installer;
 
 /// Struct representing the Homebrew installer.
@@ -92,10 +93,10 @@ impl Installer for BrewInstaller {
     ///   - `tool_entry.rename_to`: Optional binary rename specification
     ///
     /// # Returns
-    /// An `Option<ToolState>`:
-    /// * `Some(ToolState)` if installation was completely successful with accurate metadata
-    /// * `None` if any step of the installation process fails
-    fn install(&self, tool_entry: &ToolEntry) -> Option<ToolState> {
+    /// An `Result<ToolState, InstallerError>`:
+    /// * `Ok(ToolState)` if installation was completely successful with accurate metadata
+    /// * `Err(InstallerError)` if any step of the installation process fails
+    fn install(&self, tool_entry: &ToolEntry) -> Result<ToolState, InstallerError> {
         log_info!(
             "[SDB::Tools::BrewInstaller] Attempting to install Homebrew formula: {}",
             tool_entry.name.bold()
@@ -120,12 +121,18 @@ impl Installer for BrewInstaller {
         // 2. Prepare and execute brew install command
         let command_args = prepare_brew_install_command(tool_entry);
         if !execute_brew_install_command(&command_args, tool_entry) {
-            return None;
+            return Err(InstallerError::InstallationFailed(format!(
+                "Failed to install formula '{}'",
+                tool_entry.name
+            )));
         }
 
         // 3. Verify the installation was successful
         if !verify_brew_installation(&tool_entry.name) {
-            return None;
+            return Err(InstallerError::InstallationFailed(format!(
+                "Verification failed for formula '{}'",
+                tool_entry.name
+            )));
         }
 
         // 4. Determine accurate installation path
@@ -137,11 +144,12 @@ impl Installer for BrewInstaller {
 
         // 5. Verify binary exists at expected path
         if !verify_binary_exists(install_path.clone()) {
-            log_error!(
-                "[SDB::Tools::BrewInstaller] Binary not found at expected path: {}",
-                install_path.display().to_string().red()
+            let msg = format!(
+                "Binary not found at expected path: {}",
+                install_path.display()
             );
-            return None;
+            log_error!("[SDB::Tools::BrewInstaller] {}", msg.red());
+            return Err(InstallerError::ValidationFailed(msg));
         }
 
         // 6. Execute post-installation hooks
@@ -165,11 +173,7 @@ impl Installer for BrewInstaller {
         );
 
         // 8. Return comprehensive ToolState for tracking
-        //
-        // Construct a `ToolState` object to record the details of this successful installation.
-        // This `ToolState` will be serialized to `state.json`, allowing `devbox` to track
-        // what tools are installed, where they are, and how they were installed.
-        Some(ToolState::new(
+        Ok(ToolState::new(
             tool_entry,
             &install_path,
             "brew".to_string(),
@@ -180,11 +184,6 @@ impl Installer for BrewInstaller {
             executed_post_installation_hooks,
         ))
     }
-}
-
-/// Convenience wrapper to maintain backward compatibility and simple invocation.
-pub fn install(tool_entry: &ToolEntry) -> Option<ToolState> {
-    BrewInstaller.install(tool_entry)
 }
 
 /// Checks if a formula is already installed to avoid unnecessary reinstallation.

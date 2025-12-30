@@ -4,6 +4,8 @@ pub mod installers;
 pub mod uninstaller;
 
 use crate::core::platform::execute_hooks;
+use crate::engine::configuration::processor::ConfigurationManagerProcessor;
+use crate::engine::installers::factory::InstallerFactory;
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::state_file::DevBoxState;
 use crate::schemas::tools_types::{
@@ -24,6 +26,7 @@ pub fn install_tools(
     state: &mut DevBoxState,
     state_file_path: &Path,
     force_update_latest: bool,
+    dry_run: bool,
     paths: &PathResolver,
 ) {
     eprintln!("\n");
@@ -31,8 +34,24 @@ pub fn install_tools(
     eprintln!("{}", "=".repeat(7).bright_yellow());
 
     let installation_config =
-        InstallationConfiguration::new(&tools_configuration, force_update_latest);
-    let mut orchestrator = ToolInstallationOrchestrator::new(state, &installation_config, paths);
+        InstallationConfiguration::new(&tools_configuration, force_update_latest, dry_run);
+
+    let config_processor = ConfigurationManagerProcessor::new(paths);
+    let installer_factory = InstallerFactory::new();
+
+    let mut orchestrator = ToolInstallationOrchestrator::new(
+        state,
+        &installation_config,
+        config_processor,
+        installer_factory,
+    );
+
+    if dry_run {
+        log_info!(
+            "[SDB::Engine] {} Mode Enabled. No changes will be applied.",
+            "DRY-RUN".bright_magenta().bold()
+        );
+    }
 
     log_debug!(
         "[SDB::Engine] Update policy: {}",
@@ -51,8 +70,10 @@ pub fn install_tools(
 
     summary.display_summary();
 
-    if summary.has_state_changes() {
+    if summary.has_state_changes() && !dry_run {
         save_state_to_file(state, state_file_path);
+    } else if dry_run {
+        log_info!("[SDB::Engine] Dry-run completed. State file was not modified.");
     } else {
         log_info!("[SDB::Engine] No new tools installed or state changes detected.");
     }

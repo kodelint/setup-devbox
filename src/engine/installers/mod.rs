@@ -6,6 +6,8 @@
 // methods are supported by `setup-devbox` and allowing for easy extension
 // with new installer types in the future.
 
+pub mod errors;
+pub mod factory;
 pub mod traits;
 
 /// Declares the `GitHub` module, responsible for installing tools

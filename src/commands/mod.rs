@@ -11,6 +11,8 @@ pub mod generate;
 pub mod help;
 // Orchestrates the main setup and installation process.;
 pub mod now;
+// Reset the installation state
+pub mod reset;
 // Remove a component (tool, font, setting or alias) from command line
 pub mod remove;
 // Sync configuration files from state file

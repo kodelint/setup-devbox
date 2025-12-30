@@ -8,7 +8,7 @@ use chrono::Duration;
 // ============================================================================
 
 impl InstallationConfiguration {
-    pub(crate) fn new(tools_config: &ToolConfig, force_update: bool) -> Self {
+    pub(crate) fn new(tools_config: &ToolConfig, force_update: bool, dry_run: bool) -> Self {
         let update_threshold_duration = if force_update {
             Duration::seconds(0)
         } else {
@@ -22,6 +22,7 @@ impl InstallationConfiguration {
         Self {
             update_threshold_duration: SdbDuration(update_threshold_duration),
             force_update_enabled: force_update,
+            dry_run,
         }
     }
 }
