@@ -296,12 +296,17 @@ fn main() -> Result<()> {
         }
 
         // ====================================================================
-        // SYNC CONFIG COMMAND - Generate configs from state file
+        // SYNC CONFIG COMMAND - Generate configs from state file or Gist
         // ====================================================================
-        Commands::SyncConfig { state, output_dir } => {
+        Commands::SyncConfig {
+            state,
+            output_dir,
+            gist,
+            github_token,
+        } => {
             log_debug!("[SDB] 'SyncConfig' subcommand detected.");
             let paths = PathResolver::new(output_dir, state).map_err(|e| anyhow::anyhow!(e))?;
-            sync::run(paths);
+            sync::run(paths, gist, github_token);
         }
 
         // ====================================================================
