@@ -187,6 +187,7 @@ pub struct ConfigurationManagerState {
 /// - Calculating and verifying SHA-256 hashes for change detection
 /// - Handling environment variable expansion in paths
 /// - Managing file permissions and ownership
+#[derive(Clone)]
 pub struct ConfigurationManagerProcessor {
     /// Base directory path for searching source configuration files.
     ///
