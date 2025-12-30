@@ -30,15 +30,28 @@ pub fn show_add_help(detailed: bool) {
     .unwrap();
     writeln!(
         output,
-        "  manually editing YAML. After adding an item, it automatically runs"
+        "  manually editing YAML. It supports both {} and {} modes.",
+        "interactive".green(),
+        "direct".green()
     )
     .unwrap();
     writeln!(
         output,
-        "  {} to apply the changes immediately.\n",
+        "  After adding an item, it automatically runs {} to apply",
         "setup-devbox now".cyan()
     )
     .unwrap();
+    writeln!(output, "  the changes immediately.\n").unwrap();
+
+    writeln!(output, "{}", "Interactive Mode:".bold().yellow()).unwrap();
+    writeln!(
+        output,
+        "  Simply run any subcommand without arguments to start interactive mode:"
+    )
+    .unwrap();
+    writeln!(output, "    {}", "setup-devbox add tool".cyan().italic()).unwrap();
+    writeln!(output, "    {}", "setup-devbox add font".cyan().italic()).unwrap();
+    writeln!(output).unwrap();
 
     writeln!(output, "{}", "Available Subcommands:".bold().yellow()).unwrap();
     writeln!(
@@ -85,42 +98,15 @@ fn add_add_basic_info(output: &mut String) {
     writeln!(output, "{}", "Basic Usage:".bold().yellow()).unwrap();
     writeln!(output).unwrap();
 
-    writeln!(output, "  {} Add a tool:", "•".bold()).unwrap();
-    writeln!(
-        output,
-        "  {}",
-        "    setup-devbox add tool --name <NAME> --version <VERSION> --source <SOURCE>"
-            .cyan()
-            .italic()
-    )
-    .unwrap();
+    writeln!(output, "  {} Add a tool (Interactive):", "•".bold()).unwrap();
+    writeln!(output, "    {}", "setup-devbox add tool".cyan().italic()).unwrap();
     writeln!(output).unwrap();
 
-    writeln!(output, "  {} Add a font:", "•".bold()).unwrap();
+    writeln!(output, "  {} Add a tool (Direct):", "•".bold()).unwrap();
     writeln!(
         output,
-        "  {}",
-        "    setup-devbox add font --name <NAME> --version <VERSION> --repo <REPO> --tag <TAG>"
-            .cyan()
-            .italic()
-    )
-    .unwrap();
-    writeln!(output).unwrap();
-
-    writeln!(output, "  {} Add a setting:", "•".bold()).unwrap();
-    writeln!(
-        output,
-        "  {}",
-        "    setup-devbox add setting --domain <DOMAIN> --key <KEY> --value <VALUE> --value-type <TYPE>".cyan().italic()
-    )
-    .unwrap();
-    writeln!(output).unwrap();
-
-    writeln!(output, "  {} Add an alias:", "•".bold()).unwrap();
-    writeln!(
-        output,
-        "  {}",
-        "    setup-devbox add alias --name <NAME> --value <VALUE>"
+        "    {}",
+        "setup-devbox add tool --name <NAME> --version <VERSION> --source <SOURCE>"
             .cyan()
             .italic()
     )
@@ -160,7 +146,12 @@ fn add_add_detailed_info(output: &mut String) {
     )
     .unwrap();
 
-    writeln!(output, "{}", "Required Options:".bold().yellow()).unwrap();
+    writeln!(
+        output,
+        "{}",
+        "Options (Interactive if omitted):".bold().yellow()
+    )
+    .unwrap();
     writeln!(output, "  {}  Tool name", "--name <NAME>".cyan()).unwrap();
     writeln!(
         output,
@@ -178,7 +169,7 @@ fn add_add_detailed_info(output: &mut String) {
     writeln!(
         output,
         "{}",
-        "GitHub Source Options (required for --source github):"
+        "GitHub Source Options (Interactive if omitted for --source github):"
             .bold()
             .yellow()
     )
@@ -291,7 +282,12 @@ fn add_add_detailed_info(output: &mut String) {
     )
     .unwrap();
 
-    writeln!(output, "{}", "Required Options:".bold().yellow()).unwrap();
+    writeln!(
+        output,
+        "{}",
+        "Options (Interactive if omitted):".bold().yellow()
+    )
+    .unwrap();
     writeln!(output, "  {}  Font name", "--name <NAME>".cyan()).unwrap();
     writeln!(output, "  {}  Font version", "--version <VERSION>".cyan()).unwrap();
     writeln!(
@@ -360,7 +356,12 @@ fn add_add_detailed_info(output: &mut String) {
     )
     .unwrap();
 
-    writeln!(output, "{}", "Required Options:".bold().yellow()).unwrap();
+    writeln!(
+        output,
+        "{}",
+        "Options (Interactive if omitted):".bold().yellow()
+    )
+    .unwrap();
     writeln!(
         output,
         "  {}  Setting domain (e.g., NSGlobalDomain, com.apple.finder)",
@@ -420,7 +421,12 @@ fn add_add_detailed_info(output: &mut String) {
     )
     .unwrap();
 
-    writeln!(output, "{}", "Required Options:".bold().yellow()).unwrap();
+    writeln!(
+        output,
+        "{}",
+        "Options (Interactive if omitted):".bold().yellow()
+    )
+    .unwrap();
     writeln!(
         output,
         "  {}  Alias name (the shortcut)",
