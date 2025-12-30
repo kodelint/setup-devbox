@@ -14,6 +14,9 @@
 //! not preserving custom formatting or comments.
 
 use crate::cli::cmd_enums::AddCommands;
+use crate::commands::add_interactive::{
+    prompt_for_alias, prompt_for_font, prompt_for_setting, prompt_for_tool,
+};
 use crate::now;
 use crate::schemas::path_resolver::PathResolver;
 use crate::schemas::tools_enums::SourceType;
@@ -42,38 +45,24 @@ pub fn run(add_type: AddCommands) {
             tag,
             rename_to,
             options,
-            executable_path_after_extract,
+            executable_path_after_extract: _,
             post_installation_hooks,
             enable_config_manager,
             config_paths,
         } => {
             log_debug!("[SDB] 'Add Tool' subcommand detected.");
-            log_debug!("[SDB] Tool name: {}", name);
-            log_debug!("[SDB] Tool version: {}", version);
-            log_debug!("[SDB] Tool source: {:?}", source);
-            log_debug!("[SDB] Tool URL: {:?}", url);
-            log_debug!("[SDB] Tool repo: {:?}", repo);
-            log_debug!("[SDB] Tool tag: {:?}", tag);
-            log_debug!("[SDB] Rename to: {:?}", rename_to);
-            log_debug!("[SDB] Options: {:?}", options);
-            log_debug!(
-                "[SDB] Executable path after extract: {:?}",
-                executable_path_after_extract
-            );
-            log_debug!(
-                "[SDB] Post installation hooks: {:?}",
-                post_installation_hooks
-            );
-            log_debug!("[SDB] Enable config manager: {}", enable_config_manager);
-            log_debug!("[SDB] Config paths: {:?}", config_paths);
+
+            // Interactively prompt for missing key details
+            let (final_name, final_version, final_source, final_url, final_repo, final_tag) =
+                prompt_for_tool(name, version, source, url, repo, tag);
 
             add_tool(
-                name,
-                version,
-                source,
-                url,
-                repo,
-                tag,
+                final_name,
+                final_version,
+                final_source,
+                final_url,
+                final_repo,
+                final_tag,
                 rename_to,
                 options,
                 None, // executable_path_after_extract is currently ignored/None in main.rs
@@ -91,14 +80,19 @@ pub fn run(add_type: AddCommands) {
             install_only,
         } => {
             log_debug!("[SDB] 'Add Font' subcommand detected.");
-            log_debug!("[SDB] Font name: {}", name);
-            log_debug!("[SDB] Font version: {}", version);
-            log_debug!("[SDB] Font source: {}", source);
-            log_debug!("[SDB] Font repo: {}", repo);
-            log_debug!("[SDB] Font tag: {}", tag);
-            log_debug!("[SDB] Install only: {:?}", install_only);
 
-            add_font(name, version, source, repo, tag, install_only);
+            // Interactive prompt
+            let (final_name, final_version, final_repo, final_tag) =
+                prompt_for_font(name, version, repo, tag);
+
+            add_font(
+                final_name,
+                final_version,
+                source,
+                final_repo,
+                final_tag,
+                install_only,
+            );
         }
         AddCommands::Setting {
             domain,
@@ -107,19 +101,18 @@ pub fn run(add_type: AddCommands) {
             value_type,
         } => {
             log_debug!("[SDB] 'Add Setting' subcommand detected.");
-            log_debug!("[SDB] Setting domain: {}", domain);
-            log_debug!("[SDB] Setting key: {}", key);
-            log_debug!("[SDB] Setting value: {}", value);
-            log_debug!("[SDB] Setting type: {}", value_type);
 
-            add_setting(domain, key, value, value_type.to_string());
+            let (final_domain, final_key, final_value, final_type) =
+                prompt_for_setting(domain, key, value, value_type);
+
+            add_setting(final_domain, final_key, final_value, final_type.to_string());
         }
         AddCommands::Alias { name, value } => {
             log_debug!("[SDB] 'Add Alias' subcommand detected.");
-            log_debug!("[SDB] Alias name: {}", name);
-            log_debug!("[SDB] Alias value: {}", value);
 
-            add_alias(name, value);
+            let (final_name, final_value) = prompt_for_alias(name, value);
+
+            add_alias(final_name, final_value);
         }
     }
 }
