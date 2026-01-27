@@ -97,23 +97,16 @@ impl Installer for CargoInstaller {
             tool_entry
         );
 
-        // 1. Check if crate is already installed (optimization)
-        // There might be possibility that tool was already installed outside SDB
+        // 1. Check if crate is already installed
         log_debug!(
             "[SDB::Tools::CargoInstaller] Checking if {} is already installed",
             tool_entry.name.bold()
         );
-        if check_if_installed(&tool_entry.name) {
-            log_warn!(
-                "[SDB::Tools::CargoInstaller] Tool '{}' appears to be already installed, outside SDB",
-                tool_entry.name.green()
-            );
+        if let Some(installed_version) = get_installed_version(&tool_entry.name) {
             log_info!(
-                "[SDB::Tools::CargoInstaller] Updating SDB inventory for {}",
-                tool_entry.name.green()
-            );
-            log_debug!(
-                "[SDB::Tools::CargoInstaller] Proceeding with installation to ensure correct version/options"
+                "[SDB::Tools::CargoInstaller] Tool '{}' is already installed (version {}). SDB will ensure it matches the configured version.",
+                tool_entry.name.green(),
+                installed_version.cyan()
             );
         }
 
@@ -146,7 +139,7 @@ impl Installer for CargoInstaller {
             "[SDB::Tools::CargoInstaller] Verify if the {} actually installed",
             tool_entry.name.bold()
         );
-        if !check_if_installed(&tool_entry.name) {
+        if get_installed_version(&tool_entry.name).is_none() {
             return Err(InstallerError::InstallationFailed(format!(
                 "Verification failed for crate '{}'",
                 tool_entry.name
@@ -213,46 +206,32 @@ fn detect_install_source(tool_entry: &ToolEntry) -> bool {
 }
 
 /// This function runs `cargo install --list` and parses the output to determine
-/// if the specified crate is installed.
+/// if the specified crate is installed and returns its version.
 ///
 /// # Arguments
 /// * `tool_name` - The name of the crate to check
 ///
 /// # Returns
-/// `true` if the crate is already installed, `false` otherwise
-///
-/// # Note
-/// The function looks for lines that start with the tool name and contain a colon,
-/// which is the format used by `cargo install --list` for installed crates.
-fn check_if_installed(tool_name: &str) -> bool {
-    match Command::new("cargo").args(["install", "--list"]).output() {
-        Ok(output) if output.status.success() => {
-            let installed_crates = String::from_utf8_lossy(&output.stdout);
-
-            installed_crates.lines().any(|line| {
-                let trimmed = line.trim();
-
-                // Case 1: Check Package Name (Unindented line)
-                // Format: "package-name v1.2.3: ..."
-                if !line.starts_with(char::is_whitespace) {
-                    // Extract just the name part before the version/space
-                    if let Some(pkg_name) = line.split_whitespace().next() {
-                        return pkg_name == tool_name;
+/// `Some(String)` with the version if the crate is installed, `None` otherwise.
+fn get_installed_version(tool_name: &str) -> Option<String> {
+    let output = Command::new("cargo").args(["install", "--list"]).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let installed_crates = String::from_utf8_lossy(&output.stdout);
+    for line in installed_crates.lines() {
+        if !line.starts_with(char::is_whitespace) {
+            let mut parts = line.split_whitespace();
+            if let Some(pkg_name) = parts.next() {
+                if pkg_name == tool_name {
+                    if let Some(version) = parts.next() {
+                        return Some(version.trim_end_matches(':').to_string());
                     }
                 }
-
-                // Case 2: Check Binary Name (Indented line)
-                // Format: "    binary-name"
-                // This acts as a fallback if the tool_name provided was actually the binary name
-                if line.starts_with(char::is_whitespace) {
-                    return trimmed == tool_name;
-                }
-
-                false
-            })
+            }
         }
-        _ => false,
     }
+    None
 }
 
 /// Prepares the cargo install command arguments based on installation type.
