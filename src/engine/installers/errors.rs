@@ -2,8 +2,11 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum InstallerError {
-    #[error("Platform detection failed")]
-    PlatformDetectionFailed,
+    #[error("Platform detection failed: {0}")]
+    PlatformDetectionFailed(String),
+
+    #[error("Version detection failed: {0}")]
+    VersionDetectionFailed(String),
 
     #[error("Configuration error: {0}")]
     ConfigurationError(String),

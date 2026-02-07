@@ -184,6 +184,91 @@ impl Installer for BrewInstaller {
             executed_post_installation_hooks,
         ))
     }
+
+    fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
+        log_debug!(
+            "[SDB::Tools::BrewInstaller] Getting latest version for: {}",
+            tool_entry.name.bold()
+        );
+        log_debug!(
+            "[SDB::Tools::BrewInstaller] ToolEntry details: {:#?}",
+            tool_entry
+        );
+
+        let formula_name = &tool_entry.name;
+        get_latest_brew_version(formula_name).ok_or_else(|| {
+            InstallerError::VersionDetectionFailed(format!(
+                "Failed to get latest Homebrew version for '{}'",
+                formula_name
+            ))
+        })
+    }
+}
+
+/// Gets the latest available version for a Homebrew formula.
+///
+/// This function executes `brew info --json <formula_name>` and parses the
+/// JSON output to extract the latest stable version of the formula.
+///
+/// # Arguments
+/// * `formula_name` - The name of the formula to query
+///
+/// # Returns
+/// `Some(String)` containing the latest version, or `None` if detection fails
+///
+/// # Command Execution
+/// Runs: `brew info --json <formula_name>`
+fn get_latest_brew_version(formula_name: &str) -> Option<String> {
+    log_debug!(
+        "[SDB::Tools::BrewInstaller] Executing 'brew info --json {}'",
+        formula_name.cyan()
+    );
+
+    match Command::new("brew")
+        .args(["info", "--json", formula_name])
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            let info_output = String::from_utf8_lossy(&output.stdout);
+            // Attempt to parse the JSON output
+            // The output is an array, so we need to get the first element
+            if let Ok(json_array) = serde_json::from_str::<Vec<serde_json::Value>>(&info_output) {
+                if let Some(formula_json) = json_array.first() {
+                    // Extract the stable version
+                    if let Some(stable_version) = formula_json["versions"]["stable"].as_str() {
+                        log_debug!(
+                            "[SDB::Tools::BrewInstaller] Detected latest version for '{}': {}",
+                            formula_name.green(),
+                            stable_version.green()
+                        );
+                        return Some(stable_version.to_string());
+                    }
+                }
+            }
+            log_warn!(
+                "[SDB::Tools::BrewInstaller] Could not parse JSON output from 'brew info --json {}' for version.",
+                formula_name.yellow()
+            );
+            None
+        }
+        Ok(output) => {
+            log_warn!(
+                "[SDB::Tools::BrewInstaller] Failed to get brew info for '{}'. Exit code: {}. Error: {}",
+                formula_name.yellow(),
+                output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            None
+        }
+        Err(e) => {
+            log_warn!(
+                "[SDB::Tools::BrewInstaller] Failed to execute 'brew info --json' for '{}': {}",
+                formula_name.yellow(),
+                e
+            );
+            None
+        }
+    }
 }
 
 /// Checks if a formula is already installed to avoid unnecessary reinstallation.

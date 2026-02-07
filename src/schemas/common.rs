@@ -132,6 +132,7 @@ pub struct Release {
     /// Some releases may contain only source code or documentation without
     /// pre-built binaries, resulting in an empty assets vector.
     pub(crate) assets: Vec<ReleaseAsset>,
+    pub(crate) tag_name: String,
 }
 
 // ============================================================================

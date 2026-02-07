@@ -118,7 +118,7 @@ use colored::Colorize;
 // ============================================================================
 
 use crate::cli::cmd_enums::{Cli, Commands, RemoveCommands};
-use crate::commands::{add, edit, help, reset};
+use crate::commands::{add, check_updates, edit, help, reset};
 use crate::schemas::path_resolver::PathResolver;
 use commands::{generate, now, sync, version};
 
@@ -316,6 +316,14 @@ fn main() -> Result<()> {
             log_debug!("[SDB] 'Version' subcommand detected. Calling version::run().");
             // Display application version information
             version::run();
+        }
+
+        // ====================================================================
+        // CHECK UPDATES COMMAND - Check for new versions of tools
+        // ====================================================================
+        Commands::CheckUpdates => {
+            log_debug!("[SDB] 'CheckUpdates' subcommand detected.");
+            check_updates::run();
         }
 
         // ====================================================================

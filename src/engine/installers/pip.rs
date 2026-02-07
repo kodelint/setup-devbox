@@ -109,8 +109,8 @@ impl Installer for PipInstaller {
         );
 
         // 1. Detect and validate pip executable
-        let pip_variant = detect_pip_variant().ok_or(
-            InstallerError::PlatformDetectionFailed, // Or create a more specific error
+        let pip_variant = detect_pip_variant().ok_or_else(||
+            InstallerError::PlatformDetectionFailed("No pip executable found. Please ensure Python and pip are installed and in your PATH.".to_string())
         )?;
         log_debug!(
             "[SDB::Tools::PipInstaller] Using pip variant: {:?}",
@@ -213,6 +213,110 @@ impl Installer for PipInstaller {
             None,
             executed_post_installation_hooks,
         ))
+    }
+
+    fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
+        log_debug!(
+            "[SDB::Tools::PipInstaller] Getting latest version for: {}",
+            tool_entry.name.bold()
+        );
+        log_debug!(
+            "[SDB::Tools::PipInstaller] ToolEntry details: {:#?}",
+            tool_entry
+        );
+
+        let package_name = &tool_entry.name;
+
+        // Detect pip variant
+        let pip_variant = detect_pip_variant().ok_or_else(|| {
+            InstallerError::PlatformDetectionFailed(
+                "No pip executable found to check for updates".to_string(),
+            )
+        })?;
+
+        get_latest_pip_version(package_name, &pip_variant).ok_or_else(|| {
+            InstallerError::VersionDetectionFailed(format!(
+                "Failed to get latest pip version for '{}'",
+                package_name
+            ))
+        })
+    }
+}
+
+/// Gets the latest available version for a pip package.
+///
+/// This function executes `pip index versions <package_name>` and parses the
+/// output to extract the latest version.
+///
+/// # Arguments
+/// * `package_name` - The name of the pip package to query
+/// * `pip_variant` - The detected pip executable variant
+///
+/// # Returns
+/// `Some(String)` containing the latest version, or `None` if detection fails
+fn get_latest_pip_version(package_name: &str, pip_variant: &PipVariant) -> Option<String> {
+    let mut args = Vec::new();
+    if pip_variant.is_module() {
+        args.extend(pip_variant.module_args().iter().map(|s| s.to_string()));
+    }
+    args.push("index".to_string());
+    args.push("versions".to_string());
+    args.push(package_name.to_string());
+
+    log_debug!(
+        "[SDB::Tools::PipInstaller] Executing '{} {}'",
+        pip_variant.command().cyan().bold(),
+        args.join(" ").cyan()
+    );
+
+    match Command::new(pip_variant.command()).args(args).output() {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            // The output typically lists versions from newest to oldest.
+            // We'll take the first line that looks like a version.
+            for line in stdout.lines() {
+                let trimmed_line = line.trim();
+                // Look for lines that start with the package name followed by (latest: X.Y.Z) or similar
+                if trimmed_line.starts_with(package_name) && trimmed_line.contains("latest:") {
+                    if let Some(version_start) = trimmed_line.find("latest: ") {
+                        let version_str = &trimmed_line[version_start + "latest: ".len()..];
+                        if let Some(version_end) = version_str.find(')') {
+                            let version = version_str[..version_end].trim().to_string();
+                            if !version.is_empty() {
+                                log_debug!(
+                                    "[SDB::Tools::PipInstaller] Detected latest version for '{}': {}",
+                                    package_name.green(),
+                                    version.green()
+                                );
+                                return Some(version);
+                            }
+                        }
+                    }
+                }
+            }
+            log_warn!(
+                "[SDB::Tools::PipInstaller] Could not parse latest version from 'pip index versions {}' output.",
+                package_name.yellow()
+            );
+            None
+        }
+        Ok(output) => {
+            log_warn!(
+                "[SDB::Tools::PipInstaller] Failed to get pip index versions for '{}'. Exit code: {}. Error: {}",
+                package_name.yellow(),
+                output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            None
+        }
+        Err(e) => {
+            log_warn!(
+                "[SDB::Tools::PipInstaller] Failed to execute 'pip index versions' for '{}': {}",
+                package_name.yellow(),
+                e
+            );
+            None
+        }
     }
 }
 

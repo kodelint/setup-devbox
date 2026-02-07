@@ -23,6 +23,32 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
     // Convert inputs to lowercase for case-insensitive comparison.
     let asset_name_lower = filename.to_lowercase();
 
+    // Get all known OS and arch aliases to check for genericity
+    let all_os_aliases: Vec<String> = ["macos", "linux", "windows"]
+        .iter()
+        .flat_map(|os_str| os_aliases(os_str))
+        .collect();
+    let all_arch_aliases: Vec<String> = ["arm64", "x86_64"]
+        .iter()
+        .flat_map(|arch_str| arch_aliases(arch_str))
+        .collect();
+
+    let has_any_os_keyword = all_os_aliases.iter().any(|alias| asset_name_lower.contains(alias));
+    let has_any_arch_keyword = all_arch_aliases.iter().any(|alias| asset_name_lower.contains(alias));
+
+    // If the asset name has no OS or arch keywords, it's a generic binary.
+    if !has_any_os_keyword && !has_any_arch_keyword {
+        // Exclude common non-binary files.
+        if is_excluded_asset(&asset_name_lower) {
+            return false;
+        }
+        log_debug!(
+            "[Utils] Asset '{}' is considered a generic binary, matching platform.",
+            filename.dimmed()
+        );
+        return true;
+    }
+
     // Pre-Step: Normalize the input OS and Architecture first
     // This makes sure we are working with consistent, canonical names like "macOS" and "arm64",
     // regardless of whether the input was "Darwin" or "aarch64".

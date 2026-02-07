@@ -185,6 +185,100 @@ impl Installer for CargoInstaller {
             executed_post_installation_hooks,
         ))
     }
+
+    fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
+        log_debug!(
+            "[SDB::Tools::CargoInstaller] Getting latest version for: {}",
+            tool_entry.name.bold()
+        );
+        log_debug!(
+            "[SDB::Tools::CargoInstaller] ToolEntry details: {:#?}",
+            tool_entry
+        );
+
+        let tool_name = &tool_entry.name;
+        let is_git_based = detect_install_source(tool_entry);
+
+        if is_git_based {
+            // For git-based installations, determining the "latest" version
+            // would require cloning the repo and inspecting, which is too complex
+            // for a simple version check.
+            Ok("git-latest".to_string())
+        } else {
+            get_latest_crates_io_version(tool_name).ok_or_else(|| {
+                InstallerError::VersionDetectionFailed(format!(
+                    "Failed to get latest crates.io version for '{}'",
+                    tool_name
+                ))
+            })
+        }
+    }
+}
+
+/// Gets the latest available version for a crates.io package.
+///
+/// This function executes `cargo search <crate_name>` and parses the
+/// output to extract the latest version.
+///
+/// # Arguments
+/// * `crate_name` - The name of the crate to query
+///
+/// # Returns
+/// `Some(String)` containing the latest version, or `None` if detection fails
+fn get_latest_crates_io_version(crate_name: &str) -> Option<String> {
+    log_debug!(
+        "[SDB::Tools::CargoInstaller] Executing 'cargo search {}'",
+        crate_name.cyan()
+    );
+
+    // Using `--limit 1` to try and get only the most relevant result
+    match Command::new("cargo")
+        .args(["search", crate_name, "--limit", "1"])
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                // Example line: my-crate = "1.2.3" # My awesome crate
+                if line.starts_with(&format!("{} = ", crate_name)) {
+                    // Find the version part enclosed in quotes
+                    if let Some(start_quote) = line.find('"') {
+                        if let Some(end_quote) = line[start_quote + 1..].find('"') {
+                            let version = &line[start_quote + 1..start_quote + 1 + end_quote];
+                            log_debug!(
+                                "[SDB::Tools::CargoInstaller] Detected latest crates.io version for '{}': {}",
+                                crate_name.green(),
+                                version.green()
+                            );
+                            return Some(version.to_string());
+                        }
+                    }
+                }
+            }
+            log_warn!(
+                "[SDB::Tools::CargoInstaller] Could not parse latest version from 'cargo search {}' output.",
+                crate_name.yellow()
+            );
+            None
+        }
+        Ok(output) => {
+            log_warn!(
+                "[SDB::Tools::CargoInstaller] Failed to get cargo search info for '{}'. Exit code: {}. Error: {}",
+                crate_name.yellow(),
+                output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            None
+        }
+        Err(e) => {
+            log_warn!(
+                "[SDB::Tools::CargoInstaller] Failed to execute 'cargo search' for '{}': {}",
+                crate_name.yellow(),
+                e
+            );
+            None
+        }
+    }
 }
 
 /// Detects if this is a git-based installation by checking for --git option.
@@ -214,7 +308,10 @@ fn detect_install_source(tool_entry: &ToolEntry) -> bool {
 /// # Returns
 /// `Some(String)` with the version if the crate is installed, `None` otherwise.
 fn get_installed_version(tool_name: &str) -> Option<String> {
-    let output = Command::new("cargo").args(["install", "--list"]).output().ok()?;
+    let output = Command::new("cargo")
+        .args(["install", "--list"])
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }

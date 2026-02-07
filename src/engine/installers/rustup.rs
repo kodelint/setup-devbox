@@ -256,6 +256,109 @@ impl Installer for RustupInstaller {
             executed_post_installation_hooks,
         ))
     }
+
+    fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
+        log_debug!(
+            "[SDB::Tools::RustUpInstaller] Getting latest version for: {}",
+            tool_entry.name.bold()
+        );
+        log_debug!(
+            "[SDB::Tools::RustUpInstaller] ToolEntry details: {:#?}",
+            tool_entry
+        );
+
+        let tool_name = &tool_entry.name;
+        // For rustup, we are interested in the latest stable toolchain
+        if tool_name != "rust" && tool_name != "rustup" {
+            log_warn!(
+                "[SDB::Tools::RustUpInstaller] Update check for '{}' is currently only supported for 'rust' or 'rustup'. Returning current version.",
+                tool_name.yellow()
+            );
+            return tool_entry.version.clone().ok_or_else(|| {
+                InstallerError::VersionDetectionFailed(
+                    "Tool version not specified in config.".to_string(),
+                )
+            });
+        }
+
+        get_latest_rustup_stable_version().ok_or_else(|| {
+            InstallerError::VersionDetectionFailed(format!(
+                "Failed to get latest rustup stable version for '{}'",
+                tool_name
+            ))
+        })
+    }
+}
+
+/// Gets the latest available stable version for Rustup.
+///
+/// This function executes `rustup check` and parses its output to determine
+/// the latest stable toolchain version.
+///
+/// # Returns
+/// `Some(String)` containing the latest stable version, or `None` if detection fails
+fn get_latest_rustup_stable_version() -> Option<String> {
+    log_debug!("[SDB::Tools::RustUpInstaller] Executing 'rustup check'");
+
+    match Command::new("rustup").args(["check"]).output() {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let mut latest_stable_version: Option<String> = None;
+
+            for line in stdout.lines() {
+                let trimmed_line = line.trim();
+                if trimmed_line.starts_with("stable-") && trimmed_line.contains("(out of date)") {
+                    // Example: stable-x86_64-apple-darwin (out of date)
+                    // The next line should contain the update info
+                    // We can't directly get the "available" version from this line.
+                    // We'll rely on the "update available" line if present.
+                    // For now, if we see "out of date", we'll try to find the actual update line.
+                } else if trimmed_line.starts_with("update available: ") {
+                    // Example: update available: 1.76.0 (from 1.75.0)
+                    if let Some(version_start) = trimmed_line.find("update available: ") {
+                        let version_str =
+                            &trimmed_line[version_start + "update available: ".len()..];
+                        if let Some(version_end) = version_str.find(' ') {
+                            let version = version_str[..version_end].trim().to_string();
+                            if !version.is_empty() {
+                                log_debug!(
+                                    "[SDB::Tools::RustUpInstaller] Detected latest stable rustup version: {}",
+                                    version.green()
+                                );
+                                latest_stable_version = Some(version);
+                                break; // Found it, no need to parse further
+                            }
+                        }
+                    }
+                }
+            }
+
+            if latest_stable_version.is_none() {
+                // If no explicit "update available" for stable was found,
+                // it implies stable is up-to-date. Get the currently installed stable version.
+                log_debug!(
+                    "[SDB::Tools::RustUpInstaller] No explicit stable update found, assuming current stable is latest."
+                );
+                latest_stable_version = get_actual_toolchain_version("stable");
+            }
+            latest_stable_version
+        }
+        Ok(output) => {
+            log_warn!(
+                "[SDB::Tools::RustUpInstaller] Failed to get rustup check info. Exit code: {}. Error: {}",
+                output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            None
+        }
+        Err(e) => {
+            log_warn!(
+                "[SDB::Tools::RustUpInstaller] Failed to execute 'rustup check': {}",
+                e
+            );
+            None
+        }
+    }
 }
 
 /// Represents the status of a toolchain installation check.

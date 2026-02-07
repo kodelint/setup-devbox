@@ -171,6 +171,88 @@ impl Installer for GoInstaller {
             executed_post_installation_hooks,
         ))
     }
+
+    fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
+        log_debug!(
+            "[SDB::Tools::GoInstaller] Getting latest version for: {}",
+            tool_entry.name.bold()
+        );
+        log_debug!(
+            "[SDB::Tools::GoInstaller] ToolEntry details: {:#?}",
+            tool_entry
+        );
+
+        let module_path = if let Some(url) = &tool_entry.url {
+            url.clone()
+        } else {
+            tool_entry.name.clone()
+        };
+
+        get_latest_go_version(&module_path).ok_or_else(|| {
+            InstallerError::VersionDetectionFailed(format!(
+                "Failed to get latest Go version for '{}'",
+                tool_entry.name
+            ))
+        })
+    }
+}
+
+/// Gets the latest available version for a Go module.
+///
+/// This function executes `go list -m -json <module-path>` and parses the
+/// JSON output to extract the latest version.
+///
+/// # Arguments
+/// * `module_path` - The Go module path to query
+///
+/// # Returns
+/// `Some(String)` containing the latest version, or `None` if detection fails
+fn get_latest_go_version(module_path: &str) -> Option<String> {
+    log_debug!(
+        "[SDB::Tools::GoInstaller] Executing 'go list -m -json {}'",
+        module_path.cyan()
+    );
+
+    match Command::new("go")
+        .args(["list", "-m", "-json", module_path])
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&stdout) {
+                if let Some(version) = json_value["Version"].as_str() {
+                    log_debug!(
+                        "[SDB::Tools::GoInstaller] Detected latest version for '{}': {}",
+                        module_path.green(),
+                        version.green()
+                    );
+                    return Some(version.to_string());
+                }
+            }
+            log_warn!(
+                "[SDB::Tools::GoInstaller] Could not parse latest version from 'go list -m -json {}' output.",
+                module_path.yellow()
+            );
+            None
+        }
+        Ok(output) => {
+            log_warn!(
+                "[SDB::Tools::GoInstaller] Failed to get go list info for '{}'. Exit code: {}. Error: {}",
+                module_path.yellow(),
+                output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            None
+        }
+        Err(e) => {
+            log_warn!(
+                "[SDB::Tools::GoInstaller] Failed to execute 'go list -m -json' for '{}': {}",
+                module_path.yellow(),
+                e
+            );
+            None
+        }
+    }
 }
 
 /// Determines the installation source for the Go tool.

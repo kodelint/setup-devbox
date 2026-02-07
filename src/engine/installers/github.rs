@@ -223,6 +223,30 @@ impl Installer for GitHubInstaller {
 
         Ok(tool_state)
     }
+
+    fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
+        log_debug!(
+            "[SDB::Tools::GitHubInstaller] Getting latest version for: {}",
+            tool_entry.name.bold()
+        );
+        log_debug!(
+            "[SDB::Tools::GitHubInstaller] ToolEntry details: {:#?}",
+            tool_entry
+        );
+
+        let repo = tool_entry.repo.as_ref().ok_or_else(|| {
+            let msg = format!(
+                "Configuration error: 'repo' field is missing for tool {}. Expected 'owner/repo'.",
+                tool_entry.name
+            );
+            log_error!("[SDB::Tools::GitHubInstaller] {}", msg);
+            InstallerError::ConfigurationError(msg)
+        })?;
+
+        let release = fetch_latest_github_release(repo)?;
+
+        Ok(release.tag_name)
+    }
 }
 
 /// Detects the current platform (OS and architecture).
@@ -379,6 +403,42 @@ fn fetch_github_release(repo: &str, tag: &str) -> Result<Release, InstallerError
         let msg = format!(
             "Failed to parse GitHub release JSON for {}/{}: {}",
             repo, tag, err
+        );
+        log_error!("[SDB::Tools::GitHubInstaller] {}", msg);
+        InstallerError::NetworkError(msg)
+    })
+}
+
+fn fetch_latest_github_release(repo: &str) -> Result<Release, InstallerError> {
+    let api_url = format!("https://api.github.com/repos/{repo}/releases/latest");
+    log_debug!(
+        "[SDB::Tools::GitHubInstaller] Latest API URL: {}",
+        api_url.blue()
+    );
+
+    let response = ureq::get(&api_url)
+        .set("User-Agent", "setup-devbox")
+        .call()
+        .map_err(|e| {
+            let msg = format!("Failed to fetch latest GitHub release for {}: {}", repo, e);
+            log_error!("[SDB::Tools::GitHubInstaller] {}", msg);
+            InstallerError::NetworkError(msg)
+        })?;
+
+    if response.status() >= 400 {
+        let msg = format!(
+            "GitHub API error (HTTP {}) for latest release of {}",
+            response.status(),
+            repo
+        );
+        log_error!("[SDB::Tools::GitHubInstaller] {}", msg);
+        return Err(InstallerError::NetworkError(msg));
+    }
+
+    response.into_json().map_err(|err| {
+        let msg = format!(
+            "Failed to parse latest GitHub release JSON for {}: {}",
+            repo, err
         );
         log_error!("[SDB::Tools::GitHubInstaller] {}", msg);
         InstallerError::NetworkError(msg)

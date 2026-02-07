@@ -4,6 +4,7 @@
 // Adding a component (tool, font, setting or alias) from command line.
 pub mod add;
 pub mod add_interactive;
+pub mod check_updates;
 // Help with editing configuration and state file.
 pub mod edit;
 // Manages the creation of default configuration files.

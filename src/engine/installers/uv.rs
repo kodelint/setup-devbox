@@ -73,7 +73,7 @@ impl Installer for UvInstaller {
     /// 2. **Configuration Validation**: Validates tool entry and installation options
     /// 3. **Mode Detection**: Determines correct installation mode (tool/pip/python)
     /// 4. **Command Construction**: Builds the complete uv command with proper arguments
-    /// 5. **Command Execution**: Runs the command with comprehensive error handling
+    /// 5. **Command Execution**: Runs installation with comprehensive error handling
     /// 6. **Installation Verification**: Validates installation success and captures output
     /// 7. **Path Resolution**: Accurately determines installation path based on mode
     /// 8. **Post-Installation Hooks**: Executes additional setup commands if specified
@@ -240,6 +240,96 @@ impl Installer for UvInstaller {
             None,
             executed_hooks,
         ))
+    }
+
+    fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
+        log_debug!(
+            "[SDB::Tools::UVInstaller] Getting latest version for: {}",
+            tool_entry.name.bold()
+        );
+        log_debug!(
+            "[SDB::Tools::UVInstaller] ToolEntry details: {:#?}",
+            tool_entry
+        );
+
+        let package_name = &tool_entry.name;
+
+        get_latest_uv_version(package_name).ok_or_else(|| {
+            InstallerError::VersionDetectionFailed(format!(
+                "Failed to get latest uv version for '{}'",
+                package_name
+            ))
+        })
+    }
+}
+
+/// Gets the latest available version for a uv package.
+///
+/// This function executes `uv index versions <package_name>` and parses the
+/// output to extract the latest version.
+///
+/// # Arguments
+/// * `package_name` - The name of the uv package to query
+///
+/// # Returns
+/// `Some(String)` containing the latest version, or `None` if detection fails
+fn get_latest_uv_version(package_name: &str) -> Option<String> {
+    log_debug!(
+        "[SDB::Tools::UVInstaller] Executing 'uv index versions {}'",
+        package_name.cyan()
+    );
+
+    match Command::new("uv")
+        .args(["index", "versions", package_name])
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            // The output typically lists versions from newest to oldest.
+            // We'll take the first line that looks like a version.
+            for line in stdout.lines() {
+                let trimmed_line = line.trim();
+                // Look for lines that start with the package name followed by (latest: X.Y.Z) or similar
+                if trimmed_line.starts_with(package_name) && trimmed_line.contains("latest:") {
+                    if let Some(version_start) = trimmed_line.find("latest: ") {
+                        let version_str = &trimmed_line[version_start + "latest: ".len()..];
+                        if let Some(version_end) = version_str.find(')') {
+                            let version = version_str[..version_end].trim().to_string();
+                            if !version.is_empty() {
+                                log_debug!(
+                                    "[SDB::Tools::UVInstaller] Detected latest version for '{}': {}",
+                                    package_name.green(),
+                                    version.green()
+                                );
+                                return Some(version);
+                            }
+                        }
+                    }
+                }
+            }
+            log_warn!(
+                "[SDB::Tools::UVInstaller] Could not parse latest version from 'uv index versions {}' output.",
+                package_name.yellow()
+            );
+            None
+        }
+        Ok(output) => {
+            log_warn!(
+                "[SDB::Tools::UVInstaller] Failed to get uv index versions for '{}'. Exit code: {}. Error: {}",
+                package_name.yellow(),
+                output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            None
+        }
+        Err(e) => {
+            log_warn!(
+                "[SDB::Tools::UVInstaller] Failed to execute 'uv index versions' for '{}': {}",
+                package_name.yellow(),
+                e
+            );
+            None
+        }
     }
 }
 

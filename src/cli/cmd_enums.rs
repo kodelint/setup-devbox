@@ -23,6 +23,8 @@ pub struct Cli {
 pub enum Commands {
     /// Show the current Version of the tool.
     Version,
+    /// Check for updates for all tools defined in tools.yaml.
+    CheckUpdates,
     /// Installs and Configures Tools, Fonts, OS Settings and Shell Configs.
     /// This is the primary command that executes the full setup process.
     Now {

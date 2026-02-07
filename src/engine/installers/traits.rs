@@ -4,4 +4,5 @@ use crate::schemas::tools_types::ToolEntry;
 
 pub trait Installer {
     fn install(&self, tool: &ToolEntry) -> Result<ToolState, InstallerError>;
+    fn get_latest_version(&self, tool: &ToolEntry) -> Result<String, InstallerError>;
 }

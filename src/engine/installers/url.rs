@@ -251,6 +251,38 @@ impl Installer for UrlInstaller {
             executed_post_installation_hooks,
         ))
     }
+
+    fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
+        log_debug!(
+            "[SDB::Tools::UrlInstaller] Getting latest version for: {}",
+            tool_entry.name.bold()
+        );
+        log_debug!(
+            "[SDB::Tools::UrlInstaller] ToolEntry details: {:#?}",
+            tool_entry
+        );
+
+        match &tool_entry.version {
+            Some(version) if version.to_lowercase() == "latest" => {
+                Err(InstallerError::VersionDetectionFailed(
+                    "Cannot automatically determine the 'latest' version for URL-based tools. Please specify a concrete version in your configuration.".to_string()
+                ))
+            }
+            Some(version) => {
+                log_info!(
+                    "[SDB::Tools::UrlInstaller] Using configured version '{}' for URL-based tool '{}'",
+                    version.cyan(),
+                    tool_entry.name.green()
+                );
+                Ok(version.clone())
+            }
+            None => {
+                Err(InstallerError::VersionDetectionFailed(
+                    "Cannot determine latest version for URL-based tool. No version specified in configuration.".to_string()
+                ))
+            }
+        }
+    }
 }
 
 /// Validates that the tool configuration contains required URL fields.
