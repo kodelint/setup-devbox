@@ -176,14 +176,10 @@ impl Installer for UvInstaller {
                     ))
                 })
             }
-            "tool" => {
-                Ok("Skipped (not supported for uv tool)".to_string())
-            }
-            _ => {
-                Err(InstallerError::VersionDetectionFailed(
-                    "Unknown uv installation mode.".to_string()
-                ))
-            }
+            "tool" => Ok("Skipped (not supported for uv tool)".to_string()),
+            _ => Err(InstallerError::VersionDetectionFailed(
+                "Unknown uv installation mode.".to_string(),
+            )),
         }
     }
 }
@@ -201,20 +197,18 @@ fn get_latest_uv_python_version(version_prefix: Option<String>) -> Option<String
                 let mut latest_semver: Option<Version> = None;
 
                 for installation in json_array {
-                    if let Some(key) = installation["key"].as_str() {
-                         if let Some(prefix) = &version_prefix {
-                            if key.contains(prefix) {
-                                if let Some(version_part) = key.strip_prefix("cpython-") {
-                                    if let Some(end_pos) = version_part.find('-') {
-                                        let version_str = &version_part[..end_pos];
-                                        if let Ok(semver) = Version::parse(version_str) {
-                                            if latest_semver.is_none() || semver > *latest_semver.as_ref().unwrap() {
-                                                latest_semver = Some(semver);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                    if let Some(key) = installation["key"].as_str()
+                        && let Some(prefix) = &version_prefix
+                        && key.contains(prefix)
+                        && let Some(version_part) = key.strip_prefix("cpython-")
+                        && let Some(end_pos) = version_part.find('-')
+                    {
+                        let version_str = &version_part[..end_pos];
+                        if let Ok(semver) = Version::parse(version_str)
+                            && (latest_semver.is_none()
+                                || semver > *latest_semver.as_ref().unwrap())
+                        {
+                            latest_semver = Some(semver);
                         }
                     }
                 }
@@ -240,13 +234,12 @@ fn get_latest_uv_pip_version(package_name: &str) -> Option<String> {
             let stdout = String::from_utf8_lossy(&output.stdout);
             for line in stdout.lines() {
                 let trimmed_line = line.trim();
-                if trimmed_line.starts_with(package_name) {
-                    if let Some(start_paren) = trimmed_line.find('(') {
-                        if let Some(end_paren) = trimmed_line.find(')') {
-                            let version = &trimmed_line[start_paren + 1..end_paren];
-                            return Some(version.to_string());
-                        }
-                    }
+                if trimmed_line.starts_with(package_name)
+                    && let Some(start_paren) = trimmed_line.find('(')
+                    && let Some(end_paren) = trimmed_line.find(')')
+                {
+                    let version = &trimmed_line[start_paren + 1..end_paren];
+                    return Some(version.to_string());
                 }
             }
             None
@@ -294,27 +287,25 @@ fn build_command_args(
     let mut args = base_args.to_vec();
 
     match subcommand {
-        "python" => {
-            match &tool_entry.version {
-                Some(version) if !version.trim().is_empty() => {
-                    args.push(version.clone());
-                }
-                Some(_) => {
-                    log_error!(
-                        "[SDB::Tools::UVInstaller] Empty Python version specified for tool '{}'",
-                        tool_entry.name.red()
-                    );
-                    return None;
-                }
-                None => {
-                    log_error!(
-                        "[SDB::Tools::UVInstaller] No Python version specified for tool '{}'",
-                        tool_entry.name.red()
-                    );
-                    return None;
-                }
+        "python" => match &tool_entry.version {
+            Some(version) if !version.trim().is_empty() => {
+                args.push(version.clone());
             }
-        }
+            Some(_) => {
+                log_error!(
+                    "[SDB::Tools::UVInstaller] Empty Python version specified for tool '{}'",
+                    tool_entry.name.red()
+                );
+                return None;
+            }
+            None => {
+                log_error!(
+                    "[SDB::Tools::UVInstaller] No Python version specified for tool '{}'",
+                    tool_entry.name.red()
+                );
+                return None;
+            }
+        },
         _ => {
             let package_specifier = if let Some(version) = &tool_entry.version {
                 if version.trim().is_empty() {
@@ -453,17 +444,15 @@ fn determine_install_path(subcommand: &str, package_name: &str) -> PathBuf {
                 PathBuf::from("/usr/local/lib/python/site-packages/".to_string())
             }
         }
-        "python" => {
-            match get_python_installation_path(package_name) {
-                Some(path) => PathBuf::from(path),
-                None => {
-                    log_warn!(
-                        "[SDB::Tools::UVInstaller] Could not determine Python installation path, using default"
-                    );
-                    PathBuf::from(default_python_path(package_name))
-                }
+        "python" => match get_python_installation_path(package_name) {
+            Some(path) => PathBuf::from(path),
+            None => {
+                log_warn!(
+                    "[SDB::Tools::UVInstaller] Could not determine Python installation path, using default"
+                );
+                PathBuf::from(default_python_path(package_name))
             }
-        }
+        },
         _ => {
             log_warn!(
                 "[SDB::Tools::UVInstaller] Unknown subcommand '{}', using generic path",

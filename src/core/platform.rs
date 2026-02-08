@@ -33,8 +33,12 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
         .flat_map(|arch_str| arch_aliases(arch_str))
         .collect();
 
-    let has_any_os_keyword = all_os_aliases.iter().any(|alias| asset_name_lower.contains(alias));
-    let has_any_arch_keyword = all_arch_aliases.iter().any(|alias| asset_name_lower.contains(alias));
+    let has_any_os_keyword = all_os_aliases
+        .iter()
+        .any(|alias| asset_name_lower.contains(alias));
+    let has_any_arch_keyword = all_arch_aliases
+        .iter()
+        .any(|alias| asset_name_lower.contains(alias));
 
     // If the asset name has no OS or arch keywords, it's a generic binary.
     if !has_any_os_keyword && !has_any_arch_keyword {

@@ -219,15 +219,15 @@ fn get_latest_go_version(module_path: &str) -> Option<String> {
     {
         Ok(output) if output.status.success() => {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&stdout) {
-                if let Some(version) = json_value["Version"].as_str() {
-                    log_debug!(
-                        "[SDB::Tools::GoInstaller] Detected latest version for '{}': {}",
-                        module_path.green(),
-                        version.green()
-                    );
-                    return Some(version.to_string());
-                }
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&stdout)
+                && let Some(version) = json_value["Version"].as_str()
+            {
+                log_debug!(
+                    "[SDB::Tools::GoInstaller] Detected latest version for '{}': {}",
+                    module_path.green(),
+                    version.green()
+                );
+                return Some(version.to_string());
             }
             log_warn!(
                 "[SDB::Tools::GoInstaller] Could not parse latest version from 'go list -m -json {}' output.",

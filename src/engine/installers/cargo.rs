@@ -242,16 +242,16 @@ fn get_latest_crates_io_version(crate_name: &str) -> Option<String> {
                 // Example line: my-crate = "1.2.3" # My awesome crate
                 if line.starts_with(&format!("{} = ", crate_name)) {
                     // Find the version part enclosed in quotes
-                    if let Some(start_quote) = line.find('"') {
-                        if let Some(end_quote) = line[start_quote + 1..].find('"') {
-                            let version = &line[start_quote + 1..start_quote + 1 + end_quote];
-                            log_debug!(
-                                "[SDB::Tools::CargoInstaller] Detected latest crates.io version for '{}': {}",
-                                crate_name.green(),
-                                version.green()
-                            );
-                            return Some(version.to_string());
-                        }
+                    if let Some(start_quote) = line.find('"')
+                        && let Some(end_quote) = line[start_quote + 1..].find('"')
+                    {
+                        let version = &line[start_quote + 1..start_quote + 1 + end_quote];
+                        log_debug!(
+                            "[SDB::Tools::CargoInstaller] Detected latest crates.io version for '{}': {}",
+                            crate_name.green(),
+                            version.green()
+                        );
+                        return Some(version.to_string());
                     }
                 }
             }
@@ -319,12 +319,11 @@ fn get_installed_version(tool_name: &str) -> Option<String> {
     for line in installed_crates.lines() {
         if !line.starts_with(char::is_whitespace) {
             let mut parts = line.split_whitespace();
-            if let Some(pkg_name) = parts.next() {
-                if pkg_name == tool_name {
-                    if let Some(version) = parts.next() {
-                        return Some(version.trim_end_matches(':').to_string());
-                    }
-                }
+            if let Some(pkg_name) = parts.next()
+                && pkg_name == tool_name
+                && let Some(version) = parts.next()
+            {
+                return Some(version.trim_end_matches(':').to_string());
             }
         }
     }

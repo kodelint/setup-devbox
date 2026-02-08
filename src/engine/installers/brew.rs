@@ -232,17 +232,17 @@ fn get_latest_brew_version(formula_name: &str) -> Option<String> {
             let info_output = String::from_utf8_lossy(&output.stdout);
             // Attempt to parse the JSON output
             // The output is an array, so we need to get the first element
-            if let Ok(json_array) = serde_json::from_str::<Vec<serde_json::Value>>(&info_output) {
-                if let Some(formula_json) = json_array.first() {
-                    // Extract the stable version
-                    if let Some(stable_version) = formula_json["versions"]["stable"].as_str() {
-                        log_debug!(
-                            "[SDB::Tools::BrewInstaller] Detected latest version for '{}': {}",
-                            formula_name.green(),
-                            stable_version.green()
-                        );
-                        return Some(stable_version.to_string());
-                    }
+            if let Ok(json_array) = serde_json::from_str::<Vec<serde_json::Value>>(&info_output)
+                && let Some(formula_json) = json_array.first()
+            {
+                // Extract the stable version
+                if let Some(stable_version) = formula_json["versions"]["stable"].as_str() {
+                    log_debug!(
+                        "[SDB::Tools::BrewInstaller] Detected latest version for '{}': {}",
+                        formula_name.green(),
+                        stable_version.green()
+                    );
+                    return Some(stable_version.to_string());
                 }
             }
             log_warn!(

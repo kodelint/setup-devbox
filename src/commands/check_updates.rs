@@ -27,7 +27,7 @@ pub fn run() {
 
         for tool in tools_cfg.tools {
             let current_version = tool.version.as_deref().unwrap_or("N/A").to_string();
-            
+
             if current_version.to_lowercase() == "latest" || current_version == "N/A" {
                 table.add_row(Row::new(vec![
                     Cell::new(&tool.name),
@@ -36,14 +36,26 @@ pub fn run() {
                 ]));
                 continue;
             }
-            
+
             let latest_version_cell;
             let source_type = &tool.source;
 
             if let Some(installer) = installer_factory.get_installer(source_type) {
                 match installer.get_latest_version(&tool) {
                     Ok(latest_version) => {
-                        latest_version_cell = Cell::new(&latest_version);
+                        let normalized_current = current_version
+                            .strip_prefix('v')
+                            .unwrap_or(&current_version);
+                        let normalized_latest =
+                            latest_version.strip_prefix('v').unwrap_or(&latest_version);
+
+                        if normalized_current != normalized_latest
+                            && !latest_version.starts_with("Skipped")
+                        {
+                            latest_version_cell = Cell::new(&latest_version.green().to_string());
+                        } else {
+                            latest_version_cell = Cell::new(&latest_version);
+                        }
                     }
                     Err(e) => {
                         latest_version_cell = Cell::new(&format!("Error: {}", e).red().to_string());
@@ -60,7 +72,7 @@ pub fn run() {
                 latest_version_cell,
             ]));
         }
-
+        println!("\n");
         table.printstd();
     } else {
         log_info!("[SDB::CheckUpdates] No tools found in tools.yaml to check for updates.");

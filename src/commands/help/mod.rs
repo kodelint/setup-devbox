@@ -1,4 +1,5 @@
 pub mod add_help;
+pub mod check_updates_help;
 pub mod edit_help;
 pub mod generate_help;
 pub mod installers_help;
@@ -8,6 +9,7 @@ pub mod reset_help;
 pub mod sync_config_help;
 
 use self::add_help::show_add_help;
+use self::check_updates_help::show_check_updates_help;
 use self::edit_help::show_edit_help;
 use self::generate_help::show_generate_help;
 use self::installers_help::{add_supported_installers, show_installers_help};
@@ -28,6 +30,7 @@ pub fn run(topic: Option<String>, detailed: bool, filter: Option<String>) {
         Some("remove") => show_remove_help(detailed),
         Some("reset") => show_reset_help(detailed),
         Some("sync-config" | "sync_config") => show_sync_config_help(detailed),
+        Some("check-updates") => show_check_updates_help(detailed),
         Some("version") => show_version_help(detailed),
         Some(unknown) => {
             show_unknown_topic_error(unknown);
@@ -41,7 +44,7 @@ fn show_unknown_topic_error(topic: &str) {
     eprintln!("{}: Unknown help topic '{}'", "Error".red(), topic);
     println!("\n{}", "Available help topics:".bold().yellow());
 
-    const TOPICS: [(&str, &str); 9] = [
+    const TOPICS: [(&str, &str); 10] = [
         ("add", "Show help for the 'add' command"),
         ("edit", "Show help for the 'edit' command"),
         ("generate", "Show help for the 'generate' command"),
@@ -50,6 +53,7 @@ fn show_unknown_topic_error(topic: &str) {
         ("remove", "Show help for the 'remove' command"),
         ("reset", "Show help for the 'reset' command"),
         ("sync-config", "Show help for the 'sync-config' command"),
+        ("check-updates", "Show help for the 'check-updates' command"),
         ("version", "Show help for the 'version' command"),
     ];
 
@@ -88,7 +92,7 @@ fn show_general_help() {
 fn add_commands_info(output: &mut String) {
     let _ = writeln!(output, "{}", "Commands:".bold().yellow());
 
-    const COMMANDS: [(&str, &str); 9] = [
+    const COMMANDS: [(&str, &str); 10] = [
         (
             "now",
             "Installs and Configures Tools, Fonts, OS Settings and Shell Configs",
@@ -114,12 +118,13 @@ fn add_commands_info(output: &mut String) {
             "reset",
             "Reset the installation state (wipes entries from state file)",
         ),
+        ("check-updates", "Checks for updates for all tools defined in tools.yaml"),
         ("help", "Show detailed help for commands and installers"),
         ("version", "Show the current version of the tool"),
     ];
-
+    
     let max_width = COMMANDS.iter().map(|(cmd, _)| cmd.len()).max().unwrap_or(0);
-
+    
     for (cmd, desc) in &COMMANDS {
         let _ = writeln!(
             output,

@@ -277,19 +277,20 @@ fn get_latest_pip_version(package_name: &str, pip_variant: &PipVariant) -> Optio
             for line in stdout.lines() {
                 let trimmed_line = line.trim();
                 // Look for lines that start with the package name followed by (latest: X.Y.Z) or similar
-                if trimmed_line.starts_with(package_name) && trimmed_line.contains("latest:") {
-                    if let Some(version_start) = trimmed_line.find("latest: ") {
-                        let version_str = &trimmed_line[version_start + "latest: ".len()..];
-                        if let Some(version_end) = version_str.find(')') {
-                            let version = version_str[..version_end].trim().to_string();
-                            if !version.is_empty() {
-                                log_debug!(
-                                    "[SDB::Tools::PipInstaller] Detected latest version for '{}': {}",
-                                    package_name.green(),
-                                    version.green()
-                                );
-                                return Some(version);
-                            }
+                if trimmed_line.starts_with(package_name)
+                    && trimmed_line.contains("latest:")
+                    && let Some(version_start) = trimmed_line.find("latest: ")
+                {
+                    let version_str = &trimmed_line[version_start + "latest: ".len()..];
+                    if let Some(version_end) = version_str.find(')') {
+                        let version = version_str[..version_end].trim().to_string();
+                        if !version.is_empty() {
+                            log_debug!(
+                                "[SDB::Tools::PipInstaller] Detected latest version for '{}': {}",
+                                package_name.green(),
+                                version.green()
+                            );
+                            return Some(version);
                         }
                     }
                 }
