@@ -252,6 +252,21 @@ impl Installer for UrlInstaller {
         ))
     }
 
+    /// # `get_latest_version`
+    ///
+    /// For URL-based tools, automatic version detection is not supported.
+    /// This function returns the version specified in the configuration.
+    ///
+    /// ## Arguments
+    ///
+    /// * `tool`: A reference to a `ToolEntry` struct.
+    ///
+    /// ## Returns
+    ///
+    /// A `Result` which is:
+    /// - `Ok(String)`: The version string from the tool's configuration.
+    /// - `Err(InstallerError)`: An `InstallerError` if no version is specified in the
+    ///   configuration, or if the version is "latest".
     fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
         log_debug!(
             "[SDB::Tools::UrlInstaller] Getting latest version for: {}",

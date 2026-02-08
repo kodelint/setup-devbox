@@ -186,6 +186,22 @@ impl Installer for CargoInstaller {
         ))
     }
 
+    /// # `get_latest_version`
+    ///
+    /// Fetches the latest version of a Rust crate.
+    ///
+    /// ## Arguments
+    ///
+    /// * `tool`: A reference to a `ToolEntry` struct. It checks if the installation
+    ///   is git-based. If so, it returns "git-latest". Otherwise, it uses the tool's
+    ///   name to search for the latest version on crates.io.
+    ///
+    /// ## Returns
+    ///
+    /// A `Result` which is:
+    /// - `Ok(String)`: A string containing the latest version of the crate, or "git-latest"
+    ///   for git-based installations.
+    /// - `Err(InstallerError)`: An `InstallerError` if it fails to get the latest version.
     fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
         log_debug!(
             "[SDB::Tools::CargoInstaller] Getting latest version for: {}",

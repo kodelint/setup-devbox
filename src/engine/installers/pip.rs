@@ -215,6 +215,21 @@ impl Installer for PipInstaller {
         ))
     }
 
+    /// # `get_latest_version`
+    ///
+    /// Fetches the latest version of a package from the Python Package Index (PyPI).
+    ///
+    /// ## Arguments
+    ///
+    /// * `tool`: A reference to a `ToolEntry` struct, which must contain the `name`
+    ///   of the pip package.
+    ///
+    /// ## Returns
+    ///
+    /// A `Result` which is:
+    /// - `Ok(String)`: A string containing the latest version number.
+    /// - `Err(InstallerError)`: An `InstallerError` if it fails to get the latest version,
+    ///   or if no pip executable is found.
     fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
         log_debug!(
             "[SDB::Tools::PipInstaller] Getting latest version for: {}",

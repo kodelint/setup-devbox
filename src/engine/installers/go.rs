@@ -172,6 +172,20 @@ impl Installer for GoInstaller {
         ))
     }
 
+    /// # `get_latest_version`
+    ///
+    /// Fetches the latest version of a Go module.
+    ///
+    /// ## Arguments
+    ///
+    /// * `tool`: A reference to a `ToolEntry` struct. It uses the `url` field if present,
+    ///   otherwise it falls back to the `name` field as the module path.
+    ///
+    /// ## Returns
+    ///
+    /// A `Result` which is:
+    /// - `Ok(String)`: A string containing the latest version of the module.
+    /// - `Err(InstallerError)`: An `InstallerError` if it fails to get the latest version.
     fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
         log_debug!(
             "[SDB::Tools::GoInstaller] Getting latest version for: {}",

@@ -257,6 +257,21 @@ impl Installer for RustupInstaller {
         ))
     }
 
+    /// # `get_latest_version`
+    ///
+    /// Fetches the latest available stable toolchain version from `rustup`.
+    ///
+    /// ## Arguments
+    ///
+    /// * `tool`: A reference to a `ToolEntry` struct. The `name` of the tool is checked,
+    ///   and this function currently only supports checking for "rust" or "rustup".
+    ///
+    /// ## Returns
+    ///
+    /// A `Result` which is:
+    /// - `Ok(String)`: A string containing the latest stable toolchain version. If the tool
+    ///   is not "rust" or "rustup", it returns the currently configured version.
+    /// - `Err(InstallerError)`: An `InstallerError` if it fails to get the latest version.
     fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
         log_debug!(
             "[SDB::Tools::RustUpInstaller] Getting latest version for: {}",

@@ -185,6 +185,20 @@ impl Installer for BrewInstaller {
         ))
     }
 
+    /// # `get_latest_version`
+    ///
+    /// Fetches the latest stable version of a Homebrew formula.
+    ///
+    /// ## Arguments
+    ///
+    /// * `tool`: A reference to a `ToolEntry` struct, which must contain the `name`
+    ///   of the Homebrew formula.
+    ///
+    /// ## Returns
+    ///
+    /// A `Result` which is:
+    /// - `Ok(String)`: A string containing the latest stable version number.
+    /// - `Err(InstallerError)`: An `InstallerError` if it fails to get the latest version.
     fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
         log_debug!(
             "[SDB::Tools::BrewInstaller] Getting latest version for: {}",

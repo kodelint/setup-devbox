@@ -224,6 +224,21 @@ impl Installer for GitHubInstaller {
         Ok(tool_state)
     }
 
+    /// # `get_latest_version`
+    ///
+    /// Fetches the latest release for a GitHub repository and returns the tag name.
+    ///
+    /// ## Arguments
+    ///
+    /// * `tool`: A reference to a `ToolEntry` struct, which must contain the `repo` field
+    ///   in the format "owner/repo".
+    ///
+    /// ## Returns
+    ///
+    /// A `Result` which is:
+    /// - `Ok(String)`: A string containing the tag name of the latest release (e.g., "v1.2.3").
+    /// - `Err(InstallerError)`: An `InstallerError` if the repository is not specified or
+    ///   if the API call fails.
     fn get_latest_version(&self, tool_entry: &ToolEntry) -> Result<String, InstallerError> {
         log_debug!(
             "[SDB::Tools::GitHubInstaller] Getting latest version for: {}",

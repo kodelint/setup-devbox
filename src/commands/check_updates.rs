@@ -1,3 +1,10 @@
+//! # Check Updates Module
+//!
+//! This module provides the functionality for the `check-updates` command.
+//! It reads the `tools.yaml` configuration file, iterates through the defined tools,
+//! and checks for the latest available versions using the appropriate installer.
+//! The results are then displayed in a formatted table in the console.
+
 use crate::config::load_single_config;
 use crate::schemas::path_resolver::PathResolver;
 use colored::Colorize;
@@ -6,6 +13,25 @@ use prettytable::{Cell, Row, Table};
 use crate::engine::installers::factory::InstallerFactory;
 use crate::log_info;
 
+/// # `run`
+///
+/// This is the main entry point for the `check-updates` command.
+///
+/// ## Functionality
+///
+/// 1. **Load Configuration**: It loads the `tools.yaml` configuration file.
+/// 2. **Initialize Installers**: It creates an `InstallerFactory` to get access to the different installers.
+/// 3. **Iterate Tools**: It iterates through each tool defined in `tools.yaml`.
+/// 4. **Check Versions**: For each tool, it calls the `get_latest_version` method of the appropriate installer.
+/// 5. **Display Results**: It prints a formatted table to the console with the following columns:
+///    - **Tool Name**: The name of the tool.
+///    - **Configured Version**: The version specified in `tools.yaml`.
+///    - **Latest Version**: The latest version found by the installer. If the latest version is different from the configured version, it is displayed in green.
+///
+/// ## Side Effects
+///
+/// - Prints output to the console.
+/// - Reads the `tools.yaml` file from the configuration directory.
 pub fn run() {
     log_info!("[SDB::CheckUpdates] Checking for updates for tools defined in tools.yaml...");
 
