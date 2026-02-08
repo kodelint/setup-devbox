@@ -18,6 +18,7 @@ pub fn run() {
 
     if let Some(tools_cfg) = parsed_configs.tools {
         let mut table = Table::new();
+        table.set_format(*prettytable::format::consts::FORMAT_BOX_CHARS);
         table.add_row(Row::new(vec![
             Cell::new("Tool Name").style_spec("b"),
             Cell::new("Configured Version").style_spec("b"),
