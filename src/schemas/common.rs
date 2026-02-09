@@ -132,6 +132,7 @@ pub struct Release {
     /// Some releases may contain only source code or documentation without
     /// pre-built binaries, resulting in an empty assets vector.
     pub(crate) assets: Vec<ReleaseAsset>,
+    pub(crate) tag_name: String,
 }
 
 // ============================================================================
@@ -287,5 +288,5 @@ pub struct RemovalOrchestrator<'a> {
     pub state: &'a mut DevBoxState,
 
     /// Configuration file manager
-    pub cleaner: crate::libs::tools::uninstaller::executors::ConfigurationCleaner,
+    pub cleaner: crate::engine::uninstaller::executors::ConfigurationCleaner,
 }

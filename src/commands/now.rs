@@ -2,25 +2,24 @@
 // It orchestrates the reading of configuration files, state management,
 // and the installation/application of tools, fonts, shell configs, and system settings.
 
-use crate::installers::shell_run_commands::apply_shell_configs;
+use crate::engine::installers::shell_run_commands::apply_shell_configs;
 use crate::schemas::state_file::DevBoxState;
 // Application state structure.
-use crate::{log_debug, log_info};
+use crate::{log_debug, log_info, log_warn};
 // Custom logging macros.
 use colored::Colorize;
 // For colored terminal output.
 
-use crate::libs::tools::install_tools;
-use crate::libs::{
-    config::{
-        load_master_configs, // Loads configurations from `config.yaml`.
-        load_single_config,  // Loads a single configuration file.
-    },
-    fonts::installer::install_fonts,
-    settings::apply_system_settings,
-    state::manager::load_or_initialize_state,
+use crate::config::{
+    load_master_configs, // Loads configurations from `config.yaml`.
+    load_single_config,  // Loads a single configuration file.
 };
+use crate::core::backup::backup_directory;
+use crate::engine::install_tools;
+use crate::fonts::installer::install_fonts;
 use crate::schemas::path_resolver::PathResolver;
+use crate::settings::apply_system_settings;
+use crate::state::manager::load_or_initialize_state;
 
 /// Main entry point for the `now` command.
 ///
@@ -34,14 +33,23 @@ use crate::schemas::path_resolver::PathResolver;
 /// # Arguments
 /// * `config_path`: Optional custom path to `config.yaml` or a single config file.
 /// * `state_path`: Optional custom path to `state.json`.
-pub fn run(paths: &PathResolver, update_latest: bool) {
+pub fn run(paths: &PathResolver, update_latest: bool, dry_run: bool) {
     log_debug!("[SDB] Entered now::run() function.");
 
-    if update_latest {
+    if dry_run {
         log_info!(
-            "[SDB] '{}' flag is set, forcing update of all `latest` version tools",
-            "Update latest".bright_yellow()
+            "[SDB] '{}' flag is set, simulation mode enabled",
+            "Dry Run".bright_magenta()
         );
+    } else {
+        // Automatically backup configuration directory before changes
+        // Use base_config_dir to include configs/ and state.json
+        if let Err(e) = backup_directory(paths.base_config_dir()) {
+            log_warn!(
+                "[SDB::Backup] Automatic backup failed: {}. Continuing anyway.",
+                e
+            );
+        }
     }
 
     // Get resolved paths from the PathResolver
@@ -76,8 +84,9 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
         install_tools(
             tools_cfg,
             &mut state,
-            &state_path_resolved.to_path_buf(),
+            state_path_resolved,
             update_latest,
+            dry_run,
             paths,
         ); // Add paths
     } else {
@@ -88,7 +97,7 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
 
     // Install Fonts.
     if let Some(fonts_cfg) = parsed_configs.fonts {
-        install_fonts(fonts_cfg, &mut state, &state_path_resolved.to_path_buf());
+        install_fonts(fonts_cfg, &mut state, state_path_resolved);
     } else {
         log_debug!(
             "[SDB::Now] No font configurations found (fonts.yaml missing or empty). Skipping font installation phase."
@@ -106,7 +115,7 @@ pub fn run(paths: &PathResolver, update_latest: bool) {
 
     // Apply macOS System Settings.
     if let Some(settings_cfg) = parsed_configs.settings {
-        apply_system_settings(settings_cfg, &mut state, &state_path_resolved.to_path_buf());
+        apply_system_settings(settings_cfg, &mut state, state_path_resolved);
     } else {
         log_debug!(
             "[SDB::Now] No system settings configurations found (settings.yaml missing or empty). Skipping settings application phase."

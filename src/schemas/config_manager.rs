@@ -60,7 +60,7 @@ pub fn is_false(b: &bool) -> bool {
 /// When `enabled` is `true`, the system will automatically manage the configuration
 /// file at the specified path, synchronizing it with the source configuration.
 /// When `false`, configuration management is disabled for this tool.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct ConfigurationManager {
     /// Whether configuration management is enabled for this tool.
     ///
@@ -187,6 +187,7 @@ pub struct ConfigurationManagerState {
 /// - Calculating and verifying SHA-256 hashes for change detection
 /// - Handling environment variable expansion in paths
 /// - Managing file permissions and ownership
+#[derive(Clone)]
 pub struct ConfigurationManagerProcessor {
     /// Base directory path for searching source configuration files.
     ///

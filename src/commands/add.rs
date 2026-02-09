@@ -13,11 +13,16 @@
 //! This ensures valid YAML output and eliminates formatting bugs at the cost of
 //! not preserving custom formatting or comments.
 
+use crate::cli::cmd_enums::AddCommands;
+use crate::commands::add_interactive::{
+    prompt_for_alias, prompt_for_font, prompt_for_setting, prompt_for_tool,
+};
 use crate::now;
 use crate::schemas::path_resolver::PathResolver;
+use crate::schemas::tools_enums::SourceType;
 use crate::schemas::{
     config_manager::ConfigurationManager, fonts::FontEntry, os_settings::SettingEntry,
-    shell_configuration::AliasEntry, tools::types::ToolEntry,
+    shell_configuration::AliasEntry, tools_types::ToolEntry,
 };
 use crate::{log_debug, log_error, log_info, log_warn};
 use colored::Colorize;
@@ -25,6 +30,92 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_yaml::{self, Value};
 use std::fs;
 use std::path::PathBuf;
+
+/// Entry point for the 'add' subcommand
+///
+/// Dispatches to specific add functions based on the command type.
+pub fn run(add_type: AddCommands) {
+    match add_type {
+        AddCommands::Tool {
+            name,
+            version,
+            source,
+            url,
+            repo,
+            tag,
+            rename_to,
+            options,
+            executable_path_after_extract: _,
+            post_installation_hooks,
+            enable_config_manager,
+            config_paths,
+        } => {
+            log_debug!("[SDB] 'Add Tool' subcommand detected.");
+
+            // Interactively prompt for missing key details
+            let (final_name, final_version, final_source, final_url, final_repo, final_tag) =
+                prompt_for_tool(name, version, source, url, repo, tag);
+
+            add_tool(
+                final_name,
+                final_version,
+                final_source,
+                final_url,
+                final_repo,
+                final_tag,
+                rename_to,
+                options,
+                None, // executable_path_after_extract is currently ignored/None in main.rs
+                post_installation_hooks,
+                enable_config_manager,
+                config_paths,
+            );
+        }
+        AddCommands::Font {
+            name,
+            version,
+            source,
+            repo,
+            tag,
+            install_only,
+        } => {
+            log_debug!("[SDB] 'Add Font' subcommand detected.");
+
+            // Interactive prompt
+            let (final_name, final_version, final_repo, final_tag) =
+                prompt_for_font(name, version, repo, tag);
+
+            add_font(
+                final_name,
+                final_version,
+                source,
+                final_repo,
+                final_tag,
+                install_only,
+            );
+        }
+        AddCommands::Setting {
+            domain,
+            key,
+            value,
+            value_type,
+        } => {
+            log_debug!("[SDB] 'Add Setting' subcommand detected.");
+
+            let (final_domain, final_key, final_value, final_type) =
+                prompt_for_setting(domain, key, value, value_type);
+
+            add_setting(final_domain, final_key, final_value, final_type.to_string());
+        }
+        AddCommands::Alias { name, value } => {
+            log_debug!("[SDB] 'Add Alias' subcommand detected.");
+
+            let (final_name, final_value) = prompt_for_alias(name, value);
+
+            add_alias(final_name, final_value);
+        }
+    }
+}
 
 // ============================================================================
 // CONFIGURATION UPDATER STRUCTURE
@@ -338,7 +429,7 @@ impl ConfigurationUpdater {
 pub fn add_tool(
     name: String,
     version: String,
-    source: String,
+    source: SourceType,
     url: Option<String>,
     repo: Option<String>,
     tag: Option<String>,
@@ -373,7 +464,7 @@ pub fn add_tool(
     let new_tool = ToolEntry {
         name: name.clone(),
         version: Some(version),
-        source,
+        source: source.clone(),
         url,
         repo,
         tag,
@@ -599,8 +690,8 @@ pub fn add_alias(name: String, value: String) {
 /// # Returns
 /// * `Result<(), String>` - Ok if valid, error message if invalid
 fn validate_tool_restrictions(tool: &ToolEntry) -> Result<(), String> {
-    match tool.source.to_lowercase().as_str() {
-        "github" => {
+    match tool.source {
+        SourceType::Github => {
             // GitHub sources require repository and tag information
             if tool.repo.is_none() || tool.tag.is_none() {
                 return Err("Source is 'github', but requires both 'repo' and
@@ -608,7 +699,7 @@ fn validate_tool_restrictions(tool: &ToolEntry) -> Result<(), String> {
                     .to_owned());
             }
         }
-        "url" => {
+        SourceType::Url => {
             // URL sources require a download URL
             if tool.url.is_none() {
                 return Err("Source is 'url', but requires 'url' to be provided".to_owned());
@@ -646,7 +737,7 @@ fn run_now_command() {
     );
 
     match PathResolver::new(None, None) {
-        Ok(paths) => now::run(&paths, false),
+        Ok(paths) => now::run(&paths, false, false),
         Err(e) => {
             log_error!("Failed to initialize path resolver: {}", e.red());
             std::process::exit(1);

@@ -87,12 +87,19 @@
 mod cli;
 /// Individual subcommand implementations
 mod commands;
-/// Detailed help text and documentation
-mod help_details;
-/// Tool-specific installation logic
-mod installers;
+// Detailed help text and documentation
+
+// Tool-specific installation logic
+
+mod config;
 /// Shared utility functions
-mod libs;
+mod core;
+mod engine;
+mod fonts;
+mod settings;
+mod shell;
+mod state;
+
 /// Application logging system
 mod logger;
 /// Configuration file structures
@@ -102,6 +109,7 @@ mod schemas;
 // EXTERNAL DEPENDENCIES
 // ============================================================================
 
+use anyhow::Result;
 use clap::Parser;
 use colored::Colorize;
 
@@ -109,8 +117,8 @@ use colored::Colorize;
 // INTERNAL IMPORTS
 // ============================================================================
 
-use crate::cli::cmd_enums::{AddCommands, Cli, Commands, RemoveCommands};
-use crate::commands::{add, edit, help};
+use crate::cli::cmd_enums::{Cli, Commands, RemoveCommands};
+use crate::commands::{add, check_updates, edit, help, reset};
 use crate::schemas::path_resolver::PathResolver;
 use commands::{generate, now, sync, version};
 
@@ -121,61 +129,45 @@ use commands::{generate, now, sync, version};
 /// Main entry point of the application.
 ///
 /// This function serves as the application's starting point and performs:
-/// 1. Custom help flag handling for context-aware help
-/// 2. Parses command-line arguments
-/// 3. Initializes the logging system
-/// 4. Routes to the appropriate subcommand handler
-/// 5. Handles global error conditions
+/// 1. Parses command-line arguments using clap
+/// 2. Initializes the logging system
+/// 3. Routes to the appropriate subcommand handler
+/// 4. Handles global error conditions
 ///
 /// # Returns
 /// * `Ok(())` if the application completes successfully
-/// * `Err(Box<dyn std::error::Error>)` if any error occurs during execution
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// * `Err(anyhow::Error)` if any error occurs during execution
+fn main() -> Result<()> {
     // ========================================================================
-    // STEP 1: CUSTOM HELP FLAG HANDLING
-    // ========================================================================
-    // Collect all command-line arguments for preprocessing before clap parsing.
-    // This allows us to implement custom help handling logic.
-    let args: Vec<String> = std::env::args().collect();
-
-    // Check if --help or -h appears anywhere in the arguments.
-    // We do this before clap parsing to provide enhanced, context-aware help.
-    if let Some(help_index) = args.iter().position(|arg| arg == "--help" || arg == "-h") {
-        // Initialize logger without debug mode for help display
-        logger::init(false);
-
-        // Determine if help is requested for a specific topic/subcommand.
-        // If --help appears after a subcommand name, we show help for that subcommand.
-        // Example: `setup-devbox now --help` should show help for the 'now' command.
-        let topic = if help_index > 1 {
-            // Check if there's a subcommand before the help flag
-            let potential_topic = &args[help_index - 1];
-            if !potential_topic.starts_with('-') && potential_topic != "help" {
-                Some(potential_topic.clone())
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        log_debug!("[SDB] Help flag detected, topic: {:?}", topic);
-        // Display help and exit immediately
-        help::run(topic, false, None);
-        std::process::exit(0);
-    }
-
-    // ========================================================================
-    // STEP 2: PARSE COMMAND-LINE ARGUMENTS
+    // STEP 1: PARSE COMMAND-LINE ARGUMENTS
     // ========================================================================
     // Use clap to parse the arguments into our structured Cli type.
     // This handles validation, type conversion, and error messages for
-    // malformed arguments. If parsing fails, clap will print an error
-    // and exit automatically.
-    let cli = Cli::parse();
+    // malformed arguments.
+    let cli = match Cli::try_parse() {
+        Ok(c) => c,
+        Err(e) => {
+            let error_str = e.to_string();
+            if error_str.contains("-h")
+                || error_str.contains("--help")
+                || error_str.contains("help")
+            {
+                eprintln!(
+                    "\n{}",
+                    "To see available commands and options, please use:"
+                        .bold()
+                        .yellow()
+                );
+                eprintln!("  {} help", "setup-devbox".cyan());
+                std::process::exit(0);
+            }
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    };
 
     // ========================================================================
-    // STEP 3: INITIALIZE LOGGING SYSTEM
+    // STEP 2: INITIALIZE LOGGING SYSTEM
     // ========================================================================
     // Set up the logger based on the --debug flag.
     logger::init(cli.debug);
@@ -183,7 +175,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     log_debug!("[SDB] Debug mode requested: {}", cli.debug);
 
     // ========================================================================
-    // STEP 4: COMMAND DISPATCH
+    // STEP 3: COMMAND DISPATCH
     // ========================================================================
     // Route to the appropriate subcommand handler based on parsed command.
     // Each match arm handles a different subcommand with its specific arguments.
@@ -193,108 +185,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // ====================================================================
         Commands::Add { add_type } => {
             log_debug!("[SDB] 'Add' subcommand detected.");
-
-            // Handle different types of add operations
-            match add_type {
-                AddCommands::Tool {
-                    name,
-                    version,
-                    source,
-                    url,
-                    repo,
-                    tag,
-                    rename_to,
-                    options,
-                    executable_path_after_extract,
-                    post_installation_hooks,
-                    enable_config_manager,
-                    config_paths,
-                } => {
-                    log_debug!("[SDB] 'Add Tool' subcommand detected.");
-                    log_debug!("[SDB] Tool name: {}", name);
-                    log_debug!("[SDB] Tool version: {}", version);
-                    log_debug!("[SDB] Tool source: {:?}", source);
-                    log_debug!("[SDB] Tool URL: {:?}", url);
-                    log_debug!("[SDB] Tool repo: {:?}", repo);
-                    log_debug!("[SDB] Tool tag: {:?}", tag);
-                    log_debug!("[SDB] Rename to: {:?}", rename_to);
-                    log_debug!("[SDB] Options: {:?}", options);
-                    log_debug!(
-                        "[SDB] Executable path after extract: {:?}",
-                        executable_path_after_extract
-                    );
-                    log_debug!(
-                        "[SDB] Post installation hooks: {:?}",
-                        post_installation_hooks
-                    );
-                    log_debug!("[SDB] Enable config manager: {}", enable_config_manager);
-                    log_debug!("[SDB] Config paths: {:?}", config_paths);
-
-                    // Convert SourceType enum to String for the add_tool function
-                    let source_string = source.to_string();
-
-                    // Call the add_tool function with all collected parameters
-                    add::add_tool(
-                        name,
-                        version,
-                        source_string,
-                        url,
-                        repo,
-                        tag,
-                        rename_to,
-                        options,
-                        None,
-                        post_installation_hooks,
-                        enable_config_manager,
-                        config_paths,
-                    );
-                }
-                AddCommands::Font {
-                    name,
-                    version,
-                    source,
-                    repo,
-                    tag,
-                    install_only,
-                } => {
-                    log_debug!("[SDB] 'Add Font' subcommand detected.");
-                    log_debug!("[SDB] Font name: {}", name);
-                    log_debug!("[SDB] Font version: {}", version);
-                    log_debug!("[SDB] Font source: {}", source);
-                    log_debug!("[SDB] Font repo: {}", repo);
-                    log_debug!("[SDB] Font tag: {}", tag);
-                    log_debug!("[SDB] Install only: {:?}", install_only);
-
-                    // Call the add_font function with font-specific parameters
-                    add::add_font(name, version, source, repo, tag, install_only);
-                }
-                AddCommands::Setting {
-                    domain,
-                    key,
-                    value,
-                    value_type,
-                } => {
-                    log_debug!("[SDB] 'Add Setting' subcommand detected.");
-                    log_debug!("[SDB] Setting domain: {}", domain);
-                    log_debug!("[SDB] Setting key: {}", key);
-                    log_debug!("[SDB] Setting value: {}", value);
-                    log_debug!("[SDB] Setting type: {}", value_type);
-
-                    // Convert ValueType enum to String for the add_setting function
-                    let value_type_string = value_type.to_string();
-
-                    // Call the add_setting function with system setting parameters
-                    add::add_setting(domain, key, value, value_type_string);
-                }
-                AddCommands::Alias { name, value } => {
-                    log_debug!("[SDB] 'Add Alias' subcommand detected.");
-                    log_debug!("[SDB] Alias name: {}", name);
-                    log_debug!("[SDB] Alias value: {}", value);
-
-                    // Call the add_alias function with shell alias parameters
-                    add::add_alias(name, value);
-                }
-            }
+            add::run(add_type);
         }
         // ====================================================================
         // REMOVE COMMAND - Remove items from system and configuration
@@ -346,7 +237,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             log_debug!("[SDB] 'Generate' subcommand detected.");
 
             // Initialize path resolver with command overrides for custom file locations
-            let paths = PathResolver::new(config, state)?;
+            let paths = PathResolver::new(config, state).map_err(|e| anyhow::anyhow!(e))?;
 
             log_debug!(
                 "[SDB] 'Generate' subcommand using config dir: {}",
@@ -383,11 +274,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             config,
             state,
             update_latest,
+            dry_run,
         } => {
             log_debug!("[SDB] 'Now' subcommand detected.");
 
             // Initialize path resolver with command overrides for custom file locations
-            let paths = PathResolver::new(config, state)?;
+            let paths = PathResolver::new(config, state).map_err(|e| anyhow::anyhow!(e))?;
 
             log_debug!(
                 "[SDB] 'Now' subcommand using config file: {}",
@@ -400,16 +292,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // Execute the main installation and configuration process
             // Pass the PathResolver to provide consistent file path resolution
-            now::run(&paths, update_latest);
+            now::run(&paths, update_latest, dry_run);
         }
 
         // ====================================================================
-        // SYNC CONFIG COMMAND - Generate configs from state file
+        // SYNC CONFIG COMMAND - Generate configs from state file or Gist
         // ====================================================================
-        Commands::SyncConfig { state, output_dir } => {
+        Commands::SyncConfig {
+            state,
+            output_dir,
+            gist,
+            github_token,
+        } => {
             log_debug!("[SDB] 'SyncConfig' subcommand detected.");
-            let paths = PathResolver::new(output_dir, state)?;
-            sync::run(paths);
+            let paths = PathResolver::new(output_dir, state).map_err(|e| anyhow::anyhow!(e))?;
+            sync::run(paths, gist, github_token);
         }
 
         // ====================================================================
@@ -420,8 +317,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Display application version information
             version::run();
         }
+
+        // ====================================================================
+        // CHECK UPDATES COMMAND - Check for new versions of tools
+        // ====================================================================
+        Commands::CheckUpdates => {
+            log_debug!("[SDB] 'CheckUpdates' subcommand detected.");
+            check_updates::run();
+        }
+
+        // ====================================================================
+        // RESET COMMAND - Reset installation state
+        // ====================================================================
+        Commands::Reset { tool, all, state } => {
+            log_debug!("[SDB] 'Reset' subcommand detected.");
+            reset::run(tool, all, state);
+        }
     }
 
     log_debug!("[SDB] Command execution completed. Exiting application.");
-    Ok(())
+    std::process::exit(0);
 }

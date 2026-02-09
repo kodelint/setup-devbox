@@ -357,7 +357,7 @@ impl InstallerRegistry {
             description: "Package manager for macOS/Linux (Homebrew). Installs CLI tools, applications, and libraries.",
             env_variables: None,
             examples_fn: || {
-                r#"- name: pyenv
+                r"- name: pyenv
   source: brew
   options:
     - --head
@@ -375,7 +375,7 @@ impl InstallerRegistry {
   source: brew
   version: 24.0.6
   options:
-    - --cask"#
+    - --cask"
                     .to_string()
             },
             options: &[
@@ -401,7 +401,7 @@ impl InstallerRegistry {
             description: "Rust package manager for crates and binaries. Installs Rust tools and applications.",
             env_variables: None,
             examples_fn: || {
-                r#"- name: lsd
+                r"- name: lsd
   source: cargo
   version: 1.1.5
 
@@ -415,7 +415,7 @@ impl InstallerRegistry {
   source: cargo
   version: latest
   options:
-    - --features=simd-accel"#
+    - --features=simd-accel"
                     .to_string()
             },
             options: &[
@@ -439,15 +439,15 @@ impl InstallerRegistry {
         InstallerInfo {
             name: "Fonts",
             description: "Fonts installer from GitHub Repository. Downloads and installs programming fonts with icons.\
-            Presently only GitHub is supported.",
+                Presently only GitHub is supported.",
             env_variables: None,
             examples_fn: || {
                 r#"- name: 0xProto
-  source: github
-  version: "3.4.0"
-  repo: repo: ryanoasis/nerd-fonts
-  tag: v3.4.0
-  install_only: ['regular', 'Mono']"#
+      source: github
+      version: "3.4.0"
+      repo: repo: ryanoasis/nerd-fonts
+      tag: v3.4.0
+      install_only: ['regular', 'Mono']"#
                     .to_string()
             },
             options: &[
@@ -471,30 +471,30 @@ impl InstallerRegistry {
             description: "Download and install tools directly from GitHub releases. Supports various archive formats.",
             env_variables: None,
             examples_fn: || {
-                r#"- name: helix
-  version: 25.07.1
-  source: github
-  repo: helix-editor/helix
-  tag: 25.07.1
-  rename_to: hx
-  post_installation_hooks:
-    - mv contrib $HOME/.config/helix/
-    - mv runtime $HOME/.config/helix/
-  configuration_manager:
-    enabled: true
-    tools_configuration_paths:
-      - $HOME/.config/helix/config.toml
-
-- name: zed
-  version: 0.200.1-pre
-  source: github
-  repo: zed-industries/zed
-  tag: v0.200.1-pre
-  rename_to: zed
-  configuration_manager:
-    enabled: true
-    tools_configuration_paths:
-      - $HOME/.config/zed/settings.json"#
+                r"- name: helix
+      version: 25.07.1
+      source: github
+      repo: helix-editor/helix
+      tag: 25.07.1
+      rename_to: hx
+      post_installation_hooks:
+        - mv contrib $HOME/.config/helix/
+        - mv runtime $HOME/.config/helix/
+      configuration_manager:
+        enabled: true
+        tools_configuration_paths:
+          - $HOME/.config/helix/config.toml
+    
+    - name: zed
+      version: 0.200.1-pre
+      source: github
+      repo: zed-industries/zed
+      tag: v0.200.1-pre
+      rename_to: zed
+      configuration_manager:
+        enabled: true
+        tools_configuration_paths:
+          - $HOME/.config/zed/settings.json"
                     .to_string()
             },
             options: &[
@@ -522,20 +522,20 @@ impl InstallerRegistry {
             description: "Go package installer using 'go install'. Installs Go-based tools and applications.",
             env_variables: None,
             examples_fn: || {
-                r#"- name: gopls
-  source: go
-  version: latest
-  url: golang.org/x/tools/gopls
-
-- name: goreleaser
-  source: go
-  version: latest
-  url: github.com/goreleaser/goreleaser
-
-- name: goimports
-  source: go
-  version: v0.1.12
-  url: golang.org/x/tools/cmd/goimports"#
+                r"- name: gopls
+      source: go
+      version: latest
+      url: golang.org/x/tools/gopls
+    
+    - name: goreleaser
+      source: go
+      version: latest
+      url: github.com/goreleaser/goreleaser
+    
+    - name: goimports
+      source: go
+      version: v0.1.12
+      url: golang.org/x/tools/cmd/goimports"
                     .to_string()
             },
             options: &[
@@ -561,22 +561,22 @@ impl InstallerRegistry {
             description: "Python package installer using pip. Installs Python libraries and command-line tools.",
             env_variables: None,
             examples_fn: || {
-                r#"- name: black
-  source: pip
-  version: 22.3.0
-
-- name: django
-  source: pip
-  version: latest
-  options:
-    - --user
-
-- name: numpy
-  source: pip
-  version: 1.24.0
-  options:
-    - --upgrade
-    - --user"#
+                r"- name: black
+      source: pip
+      version: 22.3.0
+    
+    - name: django
+      source: pip
+      version: latest
+      options:
+        - --user
+    
+    - name: numpy
+      source: pip
+      version: 1.24.0
+      options:
+        - --upgrade
+        - --user"
                     .to_string()
             },
             options: &[
@@ -602,21 +602,21 @@ impl InstallerRegistry {
             description: "Rust toolchain installer and manager. Manages Rust versions, targets, and components.",
             env_variables: None,
             examples_fn: || {
-                r#"- name: rust
-  source: rustup
-  version: stable
-  options:
-    - rust-src
-    - clippy
-    - rustfmt
-    - rust-analyzer
-
-- name: rust-nightly
-  source: rustup
-  version: nightly
-  options:
-    - rustfmt
-    - clippy"#
+                r"- name: rust
+      source: rustup
+      version: stable
+      options:
+        - rust-src
+        - clippy
+        - rustfmt
+        - rust-analyzer
+    
+    - name: rust-nightly
+      source: rustup
+      version: nightly
+      options:
+        - rustfmt
+        - clippy"
                     .to_string()
             },
             options: &[
@@ -642,110 +642,110 @@ impl InstallerRegistry {
             description: "Shell configuration manager. Handles .zshrc, .bashrc files and shell aliases.",
             env_variables: Some(
                 r#"SDB_RESET_SHELLRC_FILE: "true||false"
-
-Purpose:
-========
-This feature ensures that updates to existing shell configuration elements
-(aliases, exports, commands) are properly applied by completely regenerating the
-shell configuration file rather than attempting to modify individual entries in place.
-
-The Problem: In-Place Modification Challenges
-=============================================
-When users update existing shell configuration elements, several issues arise:
-
-1. Identification Difficulty:
-    There's no reliable way to programmatically identify which specific line or section
-    corresponds to an existing alias, export, or command that needs modification.
-2. Conflict Resolution:
-     Attempting to modify existing entries risks:
-     - Partial updates leaving broken configurations
-     - Duplicate entries if both old and new versions remain
-     - Syntax errors from improper text manipulation
-     - Missing dependencies if related commands aren't updated together
-3. Consistency Concerns:
-     Manual edits might not follow the same formatting, commenting, or organizational
-     structure as automated entries.
-
-The Solution: Complete Regeneration
-===================================
-Instead of attempting risky in-place modifications, the system:
-- Deletes the existing shell configuration file (.zshrc, .bashrc, etc.)
-- Recreates the file from scratch with all current configuration elements
-- Preserves the integrity and consistency of the entire configuration
-
-How It Works:
-=============
-1. Default Behavior (SDB_RESET_SHELLRC_FILE = "false"):
-   - New configuration elements are appended to the existing file
-   - Existing elements remain unchanged
-   - This is safe but may lead to duplicates or outdated entries
-2. Automatic Regeneration (SDB_RESET_SHELLRC_FILE = "true"):
-   - The entire shell config file is recreated when updates occur
-   - All configuration elements are written fresh in a consistent format
-   - Ensures no duplicates, outdated entries, or formatting inconsistencies"#,
+    
+    Purpose:
+    ========
+    This feature ensures that updates to existing shell configuration elements
+    (aliases, exports, commands) are properly applied by completely regenerating the
+    shell configuration file rather than attempting to modify individual entries in place.
+    
+    The Problem: In-Place Modification Challenges
+    =============================================
+    When users update existing shell configuration elements, several issues arise:
+    
+    1. Identification Difficulty:
+        There's no reliable way to programmatically identify which specific line or section
+        corresponds to an existing alias, export, or command that needs modification.
+    2. Conflict Resolution:
+         Attempting to modify existing entries risks:
+         - Partial updates leaving broken configurations
+         - Duplicate entries if both old and new versions remain
+         - Syntax errors from improper text manipulation
+         - Missing dependencies if related commands aren't updated together
+    3. Consistency Concerns:
+         Manual edits might not follow the same formatting, commenting, or organizational
+         structure as automated entries.
+    
+    The Solution: Complete Regeneration
+    ===================================
+    Instead of attempting risky in-place modifications, the system:
+    - Deletes the existing shell configuration file (.zshrc, .bashrc, etc.)
+    - Recreates the file from scratch with all current configuration elements
+    - Preserves the integrity and consistency of the entire configuration
+    
+    How It Works:
+    =============
+    1. Default Behavior (SDB_RESET_SHELLRC_FILE = "false"):
+       - New configuration elements are appended to the existing file
+       - Existing elements remain unchanged
+       - This is safe but may lead to duplicates or outdated entries
+    2. Automatic Regeneration (SDB_RESET_SHELLRC_FILE = "true"):
+       - The entire shell config file is recreated when updates occur
+       - All configuration elements are written fresh in a consistent format
+       - Ensures no duplicates, outdated entries, or formatting inconsistencies"#,
             ),
             examples_fn: || {
                 r#"run_commands:
-  shell: "zsh" # or "bash"
-  run_commands:
-    # Exports Section - Environment variables
-    - command: |
-        export EDITOR="zed"
-        export VISUAL="zed"
-      section: Exports
-    - command: export UV_CONFIG_FILE="$HOME/.config/uv/uv.toml"
-      section: Exports
-    - command: export PYENV_ROOT="$HOME/.pyenv"
-      section: Exports
-
-    # Paths Section - PATH modifications
-    - command: export PATH="$HOME/bin:$PATH"
-      section: Paths
-    - command: export PATH="$HOME/.local/bin:$PATH"
-      section: Paths
-    - command: export PATH="$(go env GOPATH)/bin:$PATH"
-      section: Paths
-
-    # Evals Section - Command evaluations
-    - command: eval "$(pyenv init - zsh)"
-      section: Evals
-    - command: eval "$(atuin init zsh --disable-up-arrow)"
-      section: Evals
-
-    # Other Section - Miscellaneous configurations
-    - command: source $HOME/.config/secrets.zsh
-      section: Other
-
-aliases:
-  - name: cat # Replace `cat` with `bat`
-    value: bat --paging=never
-  - name: ls
-    value: lsd
-
-  # Git Aliases
-  - name: g
-    value: git
-  - name: gs
-    value: g status
-
-# Implementation Details:
-# =======================
-# The Shell Installer is engineered to generate shell configuration files with a structured, modular
-# architecture organized into distinct functional sections. The implementation follows this
-# organizational framework:
-#
-#    Configuration Sections:
-#        1. Exports Section - Environment variable declarations
-#        2. Paths Section - System and custom PATH configurations
-#        3. Evals Section - Command evaluations and initialization routines
-#        4. Other Section - Miscellaneous configurations and customizations
-#        5. Aliases Section - Command alias definitions
-#
-#    Execution Priority:
-#        The installer employs a deliberate execution sequence that prioritizes the Paths Section to ensure
-#        proper initialization of the $PATH environment variable before processing subsequent sections.
-#        This strategic ordering guarantees that all path-dependent operations execute with correctly
-#        resolved binary and script locations."#.to_string()
+      shell: "zsh" # or "bash"
+      run_commands:
+        # Exports Section - Environment variables
+        - command: |
+            export EDITOR="zed"
+            export VISUAL="zed"
+          section: Exports
+        - command: export UV_CONFIG_FILE="$HOME/.config/uv/uv.toml"
+          section: Exports
+        - command: export PYENV_ROOT="$HOME/.pyenv"
+          section: Exports
+    
+        # Paths Section - PATH modifications
+        - command: export PATH="$HOME/bin:$PATH"
+          section: Paths
+        - command: export PATH="$HOME/.local/bin:$PATH"
+          section: Paths
+        - command: export PATH="$(go env GOPATH)/bin:$PATH"
+          section: Paths
+    
+        # Evals Section - Command evaluations
+        - command: eval "$(pyenv init - zsh)"
+          section: Evals
+        - command: eval "$(atuin init zsh --disable-up-arrow)"
+          section: Evals
+    
+        # Other Section - Miscellaneous configurations
+        - command: source $HOME/.config/secrets.zsh
+          section: Other
+    
+    aliases:
+      - name: cat # Replace `cat` with `bat`
+        value: bat --paging=never
+      - name: ls
+        value: lsd
+    
+      # Git Aliases
+      - name: g
+        value: git
+      - name: gs
+        value: g status
+    
+    # Implementation Details:
+    # =======================
+    # The Shell Installer is engineered to generate shell configuration files with a structured, modular
+    # architecture organized into distinct functional sections. The implementation follows this
+    # organizational framework:
+    #
+    #    Configuration Sections:
+    #        1. Exports Section - Environment variable declarations
+    #        2. Paths Section - System and custom PATH configurations
+    #        3. Evals Section - Command evaluations and initialization routines
+    #        4. Other Section - Miscellaneous configurations and customizations
+    #        5. Aliases Section - Command alias definitions
+    #
+    #    Execution Priority:
+    #        The installer employs a deliberate execution sequence that prioritizes the Paths Section to ensure
+    #        proper initialization of the $PATH environment variable before processing subsequent sections.
+    #        This strategic ordering guarantees that all path-dependent operations execute with correctly
+    #        resolved binary and script locations."#.to_string()
             },
             options: &[
                 "shell: Target shell (zsh, bash)",
@@ -769,7 +769,7 @@ aliases:
             description: "Direct URL installer. Downloads and installs software from direct download URLs.",
             env_variables: None,
             examples_fn: || {
-                r#"- name: go
+                r"- name: go
   source: url
   version: 1.24.5
   url: https://go.dev/dl/go1.24.5.darwin-amd64.pkg
@@ -785,7 +785,7 @@ aliases:
   url: https://example.com/tool.tar.gz
   options:
     - --binary=tool
-    - --checksum=sha256:abc123..."#
+    - --checksum=sha256:abc123..."
                     .to_string()
             },
             options: &[
@@ -813,7 +813,7 @@ aliases:
             description: "Ultra-fast Python package installer with tool, pip, and python modes for modern Python development.",
             env_variables: None,
             examples_fn: || {
-                r#"- name: cpython-3.13.7
+                r"- name: cpython-3.13.7
   source: uv
   version: 3.13.7
   options:
@@ -831,7 +831,7 @@ aliases:
   source: uv
   version: 4.2.0
   options:
-    - --mode=pip"#
+    - --mode=pip"
                     .to_string()
             },
             options: &[

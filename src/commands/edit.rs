@@ -243,9 +243,10 @@ fn handle_config_edit(config_type: &str) {
     // Import and call the now command
     // crate::commands::now::run(None, None, false);
     match PathResolver::new(None, None) {
-        Ok(paths) => crate::commands::now::run(&paths, false),
+        // crate::commands::now::run(None, None, false);
+        Ok(paths) => crate::commands::now::run(&paths, false, false),
         Err(e) => {
-            log_error!("Failed to initialize path resolver: {}", e.red());
+            log_error!("Failed to initialize path resolver: {}", e);
             std::process::exit(1);
         }
     }

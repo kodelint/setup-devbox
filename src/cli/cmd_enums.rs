@@ -23,6 +23,8 @@ pub struct Cli {
 pub enum Commands {
     /// Show the current Version of the tool.
     Version,
+    /// Check for updates for all tools defined in tools.yaml.
+    CheckUpdates,
     /// Installs and Configures Tools, Fonts, OS Settings and Shell Configs.
     /// This is the primary command that executes the full setup process.
     Now {
@@ -36,6 +38,9 @@ pub enum Commands {
         /// This ensures the latest versions are installed regardless of previous installation timestamps.
         #[arg(long)]
         update_latest: bool,
+        /// Show what changes would be made without actually executing them.
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Generates default configuration files with sensible defaults.
     /// Useful for initial setup or creating template configurations.
@@ -47,8 +52,8 @@ pub enum Commands {
         #[arg(long)]
         state: Option<String>,
     },
-    /// Synchronizes or generates configurations from a state file.
-    /// This allows recreating configuration files from an existing installation state.
+    /// Synchronizes or generates configurations from a state file or remote source.
+    /// This allows recreating configuration files from an existing installation state or Gist.
     SyncConfig {
         /// Optional path to the state file (defaults to ~/.setup-devbox/state.json).
         #[arg(long)]
@@ -56,6 +61,12 @@ pub enum Commands {
         /// Optional output directory for generated configuration files (defaults to ~/.setup-devbox/configs).
         #[arg(long)]
         output_dir: Option<String>,
+        /// Gist ID to fetch configuration from (e.g., "5d41402abc4b2a76b9719d911017c592").
+        #[arg(long)]
+        gist: Option<String>,
+        /// GitHub Token for private gists or higher rate limits.
+        #[arg(long, env = "GITHUB_TOKEN")]
+        github_token: Option<String>,
     },
     /// Edit configuration files or state file in your preferred editor.
     /// Provides quick access to modify configurations using the system's default editor.
@@ -91,6 +102,20 @@ pub enum Commands {
         #[arg(long)]
         filter: Option<String>,
     },
+    /// Reset the installation state.
+    /// Wipes entries from the state file without uninstalling the actual tools.
+    /// This forces the next 'now' run to re-verify or re-install everything.
+    Reset {
+        /// Optional name of a specific tool to reset in the state.
+        #[arg(long)]
+        tool: Option<String>,
+        /// Reset the entire state file (wipes everything).
+        #[arg(long)]
+        all: bool,
+        /// Optional path to a custom state file.
+        #[arg(long)]
+        state: Option<String>,
+    },
 }
 
 /// Enumerates the types of entities that can be added to configuration files.
@@ -102,14 +127,14 @@ pub enum AddCommands {
     Tool {
         /// Name of the tool to add. This is the primary identifier for the tool.
         #[arg(long)]
-        name: String,
+        name: Option<String>,
         /// Version of the tool (e.g., "1.0.0" or "latest"). Use "latest" for the most recent version.
         #[arg(long)]
-        version: String,
+        version: Option<String>,
         /// Source type [brew, github, rustup, cargo, pip, go, url, uv].
         /// Determines which installer will be used and how the tool is fetched.
         #[arg(long)]
-        source: SourceType,
+        source: Option<SourceType>,
         /// Direct URL for downloading the tool (used with 'url' source type).
         #[arg(long)]
         url: Option<String>,
@@ -151,21 +176,21 @@ pub enum AddCommands {
     Font {
         /// Name of the font to add. This will be used as the identifier in configurations.
         #[arg(long)]
-        name: String,
+        name: Option<String>,
         /// Version of the font (e.g., "3.4.0"). Typically corresponds to the release tag.
         #[arg(long)]
-        version: String,
+        version: Option<String>,
         /// Source type (currently only "github" is supported for fonts).
         #[arg(long, default_value = "github")]
         source: String,
         /// Repository (format: owner/repo).
         /// GitHub repository containing the font files.
         #[arg(long)]
-        repo: String,
+        repo: Option<String>,
         /// Release tag.
         /// Specific version tag to download from the repository.
         #[arg(long)]
-        tag: String,
+        tag: Option<String>,
         /// Font variants to install (can be specified multiple times, e.g., "regular", "Mono").
         /// Allows selective installation of specific font weights or styles.
         #[arg(long, help = "Only install specific sub-fonts (e.g., 'regular mono bold').", value_name = "SUB_FONT_NAMES", num_args(1..))]
@@ -177,19 +202,19 @@ pub enum AddCommands {
         /// Domain for the setting (e.g., NSGlobalDomain, com.apple.finder).
         /// The preference domain where the setting should be applied.
         #[arg(long)]
-        domain: String,
+        domain: Option<String>,
         /// Setting key name.
         /// The specific preference key to modify.
         #[arg(long)]
-        key: String,
+        key: Option<String>,
         /// Setting value.
         /// The value to set for the specified preference key.
         #[arg(long)]
-        value: String,
+        value: Option<String>,
         /// Value type [bool, string, int, float].
         /// Data type of the setting value for proper serialization.
         #[arg(long)]
-        value_type: ValueType,
+        value_type: Option<ValueType>,
     },
     /// Add a new alias to shellrc.yaml configuration.
     /// Shell aliases are shortcuts for commonly used commands.
@@ -197,11 +222,11 @@ pub enum AddCommands {
         /// Alias name (the command shortcut).
         /// The short name that will be used to invoke the command.
         #[arg(long)]
-        name: String,
+        name: Option<String>,
         /// Alias value (the command it expands to).
         /// The full command that the alias will execute.
         #[arg(long)]
-        value: String,
+        value: Option<String>,
     },
 }
 

@@ -71,30 +71,20 @@ sudo mv ./target/release/setup-devbox /usr/local/bin/
 ## 🚀 Usage
 `setup-devbox` primarily operates through a main `config.yaml` file, which points to other configuration files that define your desired environment.
 
-#### 1. Create your configuration directory:
-By default, `setup-devbox` looks for its configurations in `~/.setup-devbox/configs/`.
-```bash
-mkdir -p ~/.setup-devbox/configs/
-```
-#### 2. Define your `config.yaml`:
-This file tells `setup-devbox` where to find your other configuration files.
-```yaml
-# ~/.setup-devbox/configs/main_config.yaml
-tools: "~/.setup-devbox/configs/tools.yaml"
-settings: "~/.setup-devbox/configs/settings.yaml"
-shellrc: "~/.setup-devbox/configs/shellrc.yaml"
-fonts: "~/.setup-devbox/configs/fonts.yaml"
-```
-#### 3. Define your `tools.yaml` (and other config files):
-This is where you specify the actual tools you want installed. See examples below.
+| Command         | Description                                                      |
+|-----------------|------------------------------------------------------------------|
+| `now`           | Installs and configures tools, fonts, OS settings, and shell.    |
+| `generate`      | Generates default configuration files.                           |
+| `sync-config`   | Synchronizes or generates configurations from a state file.      |
+| `edit`          | Edits configuration files or the state file in your editor.      |
+| `add`           | Adds a new tool, font, setting, or alias.                        |
+| `remove`        | Removes an installed tool, font, alias, or setting.              |
+| `reset`         | Resets the installation state.                                   |
+| `check-updates` | Checks for updates for all tools defined in `tools.yaml` and displays them in two tables: "Updates Available" and "Manual Check Required". |
+| `help`          | Shows detailed help for commands and installers.                 |
+| `version`       | Shows the current version of the tool.                           |
 
-#### 4. Run `setup-devbox`:
-Execute the `now` command to provision your environment based on your configurations.
-```bash
-setup-devbox now
-```
-
-##### _(Note: Details commands are documented in [Commands](commands.md))_
+##### _(Note: Details commands are documented in [Commands](COMMANDS.md))_
 
 ## ⚙️ Configuration Examples 
 ### `tools.yaml`
