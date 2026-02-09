@@ -118,13 +118,16 @@ fn add_commands_info(output: &mut String) {
             "reset",
             "Reset the installation state (wipes entries from state file)",
         ),
-        ("check-updates", "Checks for updates for all tools defined in tools.yaml"),
+        (
+            "check-updates",
+            "Checks for updates for all tools defined in tools.yaml",
+        ),
         ("help", "Show detailed help for commands and installers"),
         ("version", "Show the current version of the tool"),
     ];
-    
+
     let max_width = COMMANDS.iter().map(|(cmd, _)| cmd.len()).max().unwrap_or(0);
-    
+
     for (cmd, desc) in &COMMANDS {
         let _ = writeln!(
             output,

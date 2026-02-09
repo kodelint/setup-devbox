@@ -43,4 +43,3 @@ pub fn show_check_updates_help(detailed: bool) {
 
     print!("{output}");
 }
-

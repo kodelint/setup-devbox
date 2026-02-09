@@ -184,6 +184,17 @@ impl Installer for UvInstaller {
     }
 }
 
+/// # `get_latest_uv_python_version`
+///
+/// Gets the latest available version for a python interpreter from `uv python list`.
+///
+/// ## Arguments
+///
+/// * `version_prefix`: An optional string to filter the python versions.
+///
+/// ## Returns
+///
+/// `Some(String)` containing the latest version, or `None` if detection fails.
 fn get_latest_uv_python_version(version_prefix: Option<String>) -> Option<String> {
     log_debug!("[SDB::Tools::UVInstaller] Executing 'uv python list --output-format json'");
 
@@ -220,6 +231,17 @@ fn get_latest_uv_python_version(version_prefix: Option<String>) -> Option<String
     }
 }
 
+/// # `get_latest_uv_pip_version`
+///
+/// Gets the latest available version for a pip package from PyPI.
+///
+/// ## Arguments
+///
+/// * `package_name`: The name of the package to search for.
+///
+/// ## Returns
+///
+/// `Some(String)` containing the latest version, or `None` if detection fails.
 fn get_latest_uv_pip_version(package_name: &str) -> Option<String> {
     log_debug!(
         "[SDB::Tools::UVInstaller] Executing 'uv pip search {}'",
@@ -248,6 +270,17 @@ fn get_latest_uv_pip_version(package_name: &str) -> Option<String> {
     }
 }
 
+/// # `validate_uv_configuration`
+///
+/// Validates the tool entry for `uv` installation.
+///
+/// ## Arguments
+///
+/// * `tool_entry`: A reference to the `ToolEntry` to validate.
+///
+/// ## Returns
+///
+/// `true` if the configuration is valid, `false` otherwise.
 fn validate_uv_configuration(tool_entry: &ToolEntry) -> bool {
     if tool_entry.name.trim().is_empty() {
         log_error!("[SDB::Tools::UVInstaller] Tool name is empty or whitespace");
@@ -279,6 +312,19 @@ fn validate_uv_configuration(tool_entry: &ToolEntry) -> bool {
     true
 }
 
+/// # `build_command_args`
+///
+/// Builds the command arguments for the `uv` command.
+///
+/// ## Arguments
+///
+/// * `subcommand`: The `uv` subcommand to use (e.g., "tool", "pip", "python").
+/// * `base_args`: The base arguments for the subcommand.
+/// * `tool_entry`: The `ToolEntry` containing the configuration.
+///
+/// ## Returns
+///
+/// `Some(Vec<String>)` with the command arguments, or `None` on error.
 fn build_command_args(
     subcommand: &str,
     base_args: &[String],
@@ -334,6 +380,19 @@ fn build_command_args(
     Some(args)
 }
 
+/// # `execute_uv_command`
+///
+/// Executes a `uv` command.
+///
+/// ## Arguments
+///
+/// * `subcommand`: The `uv` subcommand to execute.
+/// * `command_args`: The arguments for the subcommand.
+/// * `tool_entry`: The `ToolEntry` for logging purposes.
+///
+/// ## Returns
+///
+/// `Some(Output)` if the command was successful, `None` otherwise.
 fn execute_uv_command(
     subcommand: &str,
     command_args: &[String],
@@ -364,6 +423,19 @@ fn execute_uv_command(
     }
 }
 
+/// # `verify_installation_success`
+///
+/// Verifies that the `uv` command executed successfully.
+///
+/// ## Arguments
+///
+/// * `output`: The `Output` from the command execution.
+/// * `subcommand`: The `uv` subcommand that was executed.
+/// * `tool_entry`: The `ToolEntry` for logging purposes.
+///
+/// ## Returns
+///
+/// `true` if the installation was successful, `false` otherwise.
 fn verify_installation_success(output: &Output, subcommand: &str, tool_entry: &ToolEntry) -> bool {
     if output.status.success() {
         if !output.stdout.is_empty() {
@@ -401,6 +473,17 @@ fn verify_installation_success(output: &Output, subcommand: &str, tool_entry: &T
     }
 }
 
+/// # `determine_installation_mode`
+///
+/// Determines the installation mode (`tool`, `pip`, or `python`) from the tool's options.
+///
+/// ## Arguments
+///
+/// * `tool_entry`: The `ToolEntry` to inspect.
+///
+/// ## Returns
+///
+/// A tuple containing the subcommand string and a vector of base arguments.
 fn determine_installation_mode(tool_entry: &ToolEntry) -> (String, Vec<String>) {
     if let Some(options) = &tool_entry.options {
         for opt in options {
@@ -423,6 +506,18 @@ fn determine_installation_mode(tool_entry: &ToolEntry) -> (String, Vec<String>) 
     ("tool".to_string(), vec!["install".to_string()])
 }
 
+/// # `determine_install_path`
+///
+/// Determines the likely installation path for a `uv`-installed tool.
+///
+/// ## Arguments
+///
+/// * `subcommand`: The `uv` subcommand used for installation.
+/// * `package_name`: The name of the package.
+///
+/// ## Returns
+///
+/// A `PathBuf` representing the likely installation path.
 fn determine_install_path(subcommand: &str, package_name: &str) -> PathBuf {
     match subcommand {
         "tool" => {
@@ -467,6 +562,17 @@ fn determine_install_path(subcommand: &str, package_name: &str) -> PathBuf {
     }
 }
 
+/// # `get_python_installation_path`
+///
+/// Gets the installation path of a Python interpreter from `uv`.
+///
+/// ## Arguments
+///
+/// * `package_name`: The name of the Python package (e.g., "cpython").
+///
+/// ## Returns
+///
+/// `Some(String)` with the installation path, or `None` if not found.
 fn get_python_installation_path(package_name: &str) -> Option<String> {
     let output = Command::new("uv")
         .args([
@@ -515,6 +621,17 @@ fn get_python_installation_path(package_name: &str) -> Option<String> {
     None
 }
 
+/// # `validate_uv_options`
+///
+/// Validates the options for a `uv` tool entry.
+///
+/// ## Arguments
+///
+/// * `tool_entry`: The `ToolEntry` to validate.
+///
+/// ## Returns
+///
+/// `true` if the options are valid, `false` otherwise.
 pub fn validate_uv_options(tool_entry: &ToolEntry) -> bool {
     let mut is_valid = true;
 
@@ -584,6 +701,17 @@ pub fn validate_uv_options(tool_entry: &ToolEntry) -> bool {
     is_valid
 }
 
+/// # `get_valid_options_for_mode`
+///
+/// Gets a list of valid options for a given `uv` installation mode.
+///
+/// ## Arguments
+///
+/// * `mode`: The installation mode ("tool", "pip", or "python").
+///
+/// ## Returns
+///
+/// A `Vec<&'static str>` containing the valid options for the mode.
 fn get_valid_options_for_mode(mode: &str) -> Vec<&'static str> {
     let common_options = vec![
         "-n",
@@ -659,6 +787,17 @@ fn get_valid_options_for_mode(mode: &str) -> Vec<&'static str> {
     }
 }
 
+/// # `is_valid_python_version`
+///
+/// Checks if a given Python version string is valid according to `uv`.
+///
+/// ## Arguments
+///
+/// * `version_input`: The version string to check.
+///
+/// ## Returns
+///
+/// `true` if the version is valid, `false` otherwise.
 fn is_valid_python_version(version_input: &str) -> bool {
     let version_number = extract_version_number(version_input);
 
@@ -686,6 +825,17 @@ fn is_valid_python_version(version_input: &str) -> bool {
     available_versions.iter().any(|v| v == &version_number)
 }
 
+/// # `default_python_path`
+///
+/// Gets the default path for a Python installation.
+///
+/// ## Arguments
+///
+/// * `package_name`: The name of the Python package.
+///
+/// ## Returns
+///
+/// A `String` with the default path.
 fn default_python_path(package_name: &str) -> String {
     if let Ok(home) = std::env::var("HOME") {
         format!("{home}/.local/share/uv/python/{package_name}")
@@ -694,6 +844,17 @@ fn default_python_path(package_name: &str) -> String {
     }
 }
 
+/// # `extract_version_number`
+///
+/// Extracts the version number part of a string.
+///
+/// ## Arguments
+///
+/// * `input`: The string to extract the version from.
+///
+/// ## Returns
+///
+/// A `String` containing just the version number.
 fn extract_version_number(input: &str) -> String {
     if let Some(pos) = input.find(|c: char| c.is_ascii_digit()) {
         input[pos..].to_string()
