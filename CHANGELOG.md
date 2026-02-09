@@ -2,7 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2026-02-09
+
+### ♻️ Refactor
+
+- **schema**: Introduce SourceType enum and update core types ([58111e2](https://github.com/kodelint/setup-devbox/commit/58111e263325e1c734612c061039294a516f4768))(by kodelint)
+- **installers**: Standardize installer architecture via trait implementation ([89d2974](https://github.com/kodelint/setup-devbox/commit/89d297467d2e6ec38a7c48eac7c2659289287bec))(by kodelint)
+- **infra**: Migrate logging to tracing and modernize error handling ([6476a3a](https://github.com/kodelint/setup-devbox/commit/6476a3aa831b955d65c0d79dbbc41105026fdfa5))(by kodelint)
+- **cargo**: Improve pre-installation check and logging ([a5579da](https://github.com/kodelint/setup-devbox/commit/a5579dad3234c06f3aa344f970d499d51c4e348f))(by kodelint)
+- Address user feedback for uv installer and table format ([4cd1c93](https://github.com/kodelint/setup-devbox/commit/4cd1c93f847387331df952445492350970e2b632))(by kodelint)
+
+### 🎨 Styling
+
+- Formatting fix ([6cfe8e3](https://github.com/kodelint/setup-devbox/commit/6cfe8e34eb8f07238055d5b5857a7b49f596791a))(by kodelint)
+
+### 🐛 Bug Fixes
+
+- Make target "pre-pr-with-linux" ([20a7f59](https://github.com/kodelint/setup-devbox/commit/20a7f59cb0df4b4f24538248c105b021976a0e9e))(by kodelint)
+- Code formatting ([361061b](https://github.com/kodelint/setup-devbox/commit/361061b55f90d78254240a60e5c5d580393483ce))(by kodelint)
+
+### 📚 Documentation
+
+- Update README.md and COMMANDS.md with check-updates command ([4cc76ff](https://github.com/kodelint/setup-devbox/commit/4cc76ff0899b2da401c042822ac9c452ab535635))(by kodelint)
+- Add developer documentation for check-updates feature ([c136f8e](https://github.com/kodelint/setup-devbox/commit/c136f8e28c9efd11f444dcfa7a69fe328419921b))(by kodelint)
+- Add comprehensive documentation to check_updates.rs ([cef7ee0](https://github.com/kodelint/setup-devbox/commit/cef7ee00c1c402b54f0c72969a128ea3cad897fb))(by kodelint)
+- Update help messages and markdown files for check-updates ([9178423](https://github.com/kodelint/setup-devbox/commit/9178423b763a1d69fa5a1abcb70bb4b7884ed390))(by kodelint)
+
+### 🔧 Continuous Integration
+
+- Workflow fix ([fac84fe](https://github.com/kodelint/setup-devbox/commit/fac84fe973985adbff77abb8afbddb03303b47dd))(by kodelint)
+
+### 🚀 Features
+
+- Added 'reset' command and standardize installer error handling ([67d2778](https://github.com/kodelint/setup-devbox/commit/67d2778ea73b487e3829ec436e82e3a110300019))(by kodelint)
+- **updates**: Add check-updates command ([e1d37ea](https://github.com/kodelint/setup-devbox/commit/e1d37eac5161c3d52e629dcb45e92411170b8150))(by kodelint)
+
 ## [0.6.3] - 2025-12-20
+
+### 🏠 Miscellaneous Tasks
+
+- **release**: 0.6.3 [skip ci] ([d167201](https://github.com/kodelint/setup-devbox/commit/d167201bdd59245c267c8b637c53f228fd17dd16))(by github-actions[bot])
 
 ### 🐛 Bug Fixes
 
