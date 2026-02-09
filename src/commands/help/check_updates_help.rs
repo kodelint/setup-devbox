@@ -24,12 +24,39 @@ pub fn show_check_updates_help(detailed: bool) {
         .unwrap();
         writeln!(
             output,
-            "  for new versions of the tools you have specified. It then prints a table with the"
+            "  for new versions of the tools you have specified. The results are presented in two tables:\n"
+        )
+        .unwrap();
+        writeln!(output, "  {}:", "Updates Available".bold().green()).unwrap();
+        writeln!(
+            output,
+            "    This table lists tools for which a newer version has been detected. It shows the"
         )
         .unwrap();
         writeln!(
             output,
-            "  tool name, the currently configured version, and the latest available version.\n"
+            "    tool name, your configured version, and the latest available version (highlighted in green)."
+        )
+        .unwrap();
+        writeln!(output, "\n  {}:", "Manual Check Required".bold().yellow()).unwrap();
+        writeln!(
+            output,
+            "    This table lists tools that require manual attention. This includes tools whose"
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "    version is specified as 'latest' or 'N/A', tools for which the installer does not"
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "    support automatic version checks (e.g., 'uv tool' mode), or tools that encountered"
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "    an error during the version detection process. Up-to-date tools are not listed to reduce clutter.\n"
         )
         .unwrap();
     }

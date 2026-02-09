@@ -92,7 +92,9 @@ setup-devbox is designed to automate the setup and configuration of your develop
 - #### `check-updates` Checks for updates for all tools.
 
     ##### **Description**:
-    This command checks for updates for all tools defined in your `tools.yaml` file. It will then print a table with the tool name, the currently configured version, and the latest available version from the source.
+    This command checks for updates for all tools defined in your `tools.yaml` file. It then displays the results in two separate tables:
+    - **Updates Available**: Lists tools for which a newer version has been detected.
+    - **Manual Check Required**: Lists tools that were skipped (e.g., version is 'latest' or not specified), tools for which the installer does not support automatic version checks, or tools that encountered an error during detection.
 
     **Usage:**
     ```bash

@@ -80,7 +80,7 @@ sudo mv ./target/release/setup-devbox /usr/local/bin/
 | `add`           | Adds a new tool, font, setting, or alias.                        |
 | `remove`        | Removes an installed tool, font, alias, or setting.              |
 | `reset`         | Resets the installation state.                                   |
-| `check-updates` | Checks for updates for all tools defined in `tools.yaml`.        |
+| `check-updates` | Checks for updates for all tools defined in `tools.yaml` and displays them in two tables: "Updates Available" and "Manual Check Required". |
 | `help`          | Shows detailed help for commands and installers.                 |
 | `version`       | Shows the current version of the tool.                           |
 
