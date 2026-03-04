@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2026-03-04
+
+### 🚀 Features
+
+- **installers**: Add support for Homebrew Cask app path detection ([4c11398](https://github.com/kodelint/setup-devbox/commit/4c11398007048a9a3e11b2045b13ad07c0500bbb))(by kodelint)
+- **backup**: Add environment variables for custom backup retention and path ([59ac449](https://github.com/kodelint/setup-devbox/commit/59ac4492c54d11e159914dd27267b1f4efbda716))(by kodelint)
+
 ## [1.0.0] - 2026-02-09
 
 ### ♻️ Refactor
@@ -15,6 +22,10 @@ All notable changes to this project will be documented in this file.
 ### 🎨 Styling
 
 - Formatting fix ([6cfe8e3](https://github.com/kodelint/setup-devbox/commit/6cfe8e34eb8f07238055d5b5857a7b49f596791a))(by kodelint)
+
+### 🏠 Miscellaneous Tasks
+
+- **release**: 1.0.0 [skip ci] ([092ed17](https://github.com/kodelint/setup-devbox/commit/092ed174e902285c934dcfcae27d437b281424a6))(by github-actions[bot])
 
 ### 🐛 Bug Fixes
 
