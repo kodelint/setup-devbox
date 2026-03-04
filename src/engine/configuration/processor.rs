@@ -456,6 +456,10 @@ impl ConfigurationManagerProcessor {
     /// and then deserializing it into a `serde_json::Value`. This approach leverages
     /// the `serde` framework's robust TOML-to-JSON mapping.
     ///
+    /// If the TOML document contains a single top-level array key (e.g., `keymap`),
+    /// this can optionally unwrap it so the resulting JSON is a top-level array,
+    /// fulfilling requirements for files like Zed's `keymap.json`.
+    ///
     /// ## Parameters
     /// - `toml_value`: TOML value to convert
     ///
@@ -468,8 +472,16 @@ impl ConfigurationManagerProcessor {
         &self,
         toml_value: &TomlValue,
     ) -> Result<JsonValue, Box<dyn std::error::Error>> {
-        // Serialize the TOML value to a JSON string.
-        let json_str = serde_json::to_string(toml_value)?;
+        // Check if we need to unwrap a top-level array for keymap.json
+        let target_value = if let Some(keymap_array) = toml_value.get("keymap") {
+            keymap_array // Serialize just the array
+        } else {
+            toml_value // Serialize the whole root table (for settings.json)
+        };
+
+        // Serialize the target TOML value to a JSON string.
+        let json_str = serde_json::to_string(target_value)?;
+
         // Deserialize the JSON string into a `JsonValue`.
         Ok(serde_json::from_str(&json_str)?)
     }

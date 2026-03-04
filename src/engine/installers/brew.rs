@@ -591,6 +591,99 @@ fn verify_binary_exists(install_path: PathBuf) -> bool {
     }
 }
 
+/// Queries Homebrew for detailed installation information to determine the path.
+///
+/// This uses `brew info --json=v2 <formula_name>` to properly handle both standard formulae
+/// and casks (GUI apps).
+fn get_brew_info_installation_path(tool_entry: &ToolEntry) -> Option<PathBuf> {
+    log_debug!(
+        "[SDB::Tools::BrewInstaller] Attempting to determine path via 'brew info --json=v2 {}'",
+        tool_entry.name.cyan()
+    );
+
+    match Command::new("brew")
+        .args(["info", "--json=v2", &tool_entry.name])
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            let json_str = String::from_utf8_lossy(&output.stdout);
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                // Check if it's a Cask (GUI application)
+                if let Some(casks) = json.get("casks").and_then(|c| c.as_array())
+                    && let Some(cask) = casks.first()
+                    && let Some(artifacts) = cask.get("artifacts").and_then(|a| a.as_array())
+                {
+                    for artifact in artifacts {
+                        // Casks often install .app bundles
+                        if let Some(app_array) = artifact.get("app").and_then(|a| a.as_array())
+                            && let Some(app_name) = app_array.first().and_then(|a| a.as_str())
+                        {
+                            // Standard location
+                            let app_path = PathBuf::from("/Applications").join(app_name);
+                            if app_path.exists() {
+                                log_debug!(
+                                    "[SDB::Tools::BrewInstaller] Detected Cask app at '{}'",
+                                    app_path.display().to_string().cyan()
+                                );
+                                return Some(app_path);
+                            }
+
+                            // User-specific location fallback
+                            if let Some(home) = dirs::home_dir() {
+                                let home_app_path = home.join("Applications").join(app_name);
+                                if home_app_path.exists() {
+                                    log_debug!(
+                                        "[SDB::Tools::BrewInstaller] Detected Cask app at '{}'",
+                                        home_app_path.display().to_string().cyan()
+                                    );
+                                    return Some(home_app_path);
+                                }
+                            }
+                        }
+
+                        // Some casks might just link a binary
+                        if let Some(binary_array) =
+                            artifact.get("binary").and_then(|a| a.as_array())
+                            && let Some(binary_name) = binary_array.first().and_then(|a| a.as_str())
+                        {
+                            // The binary name might be just a name or a relative path
+                            let binary_name_path = PathBuf::from(binary_name);
+                            let file_name = binary_name_path
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or(binary_name);
+                            let bin_name = tool_entry
+                                .rename_to
+                                .clone()
+                                .unwrap_or_else(|| file_name.to_string());
+
+                            if let Some(brew_prefix) = get_brew_prefix() {
+                                let path = PathBuf::from(&brew_prefix).join("bin").join(&bin_name);
+                                if path.exists() {
+                                    log_debug!(
+                                        "[SDB::Tools::BrewInstaller] Detected Cask binary at '{}'",
+                                        path.display().to_string().cyan()
+                                    );
+                                    return Some(path);
+                                }
+                            }
+                            if let Some(path) = get_common_brew_paths(&bin_name) {
+                                log_debug!(
+                                    "[SDB::Tools::BrewInstaller] Detected Cask binary at '{}'",
+                                    path.display().to_string().cyan()
+                                );
+                                return Some(path);
+                            }
+                        }
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 /// Determines the accurate installation path for brew-installed binaries.
 ///
 /// This function attempts to locate where Homebrew installed the binary
@@ -612,6 +705,11 @@ fn verify_binary_exists(install_path: PathBuf) -> bool {
 /// - **Intel macOS**: `/usr/local/bin`
 /// - **Linux**: `/home/linuxbrew/.linuxbrew/bin` or `/opt/homebrew/bin`
 fn determine_brew_installation_path(tool_entry: &ToolEntry) -> PathBuf {
+    // 0. Smart detection using JSON API (especially important for Casks)
+    if let Some(path) = get_brew_info_installation_path(tool_entry) {
+        return path;
+    }
+
     // Get the binary name (either the original name or renamed)
     let bin_name = tool_entry
         .rename_to

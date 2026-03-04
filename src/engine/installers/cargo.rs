@@ -528,8 +528,11 @@ fn prepare_git_based_install_command(command_args: &mut Vec<String>, tool_entry:
     command_args.push(tool_entry.name.clone());
 
     // Handle version as git tag if no explicit git options are present
-    if !has_branch && !has_tag && !has_rev && tool_entry.version.is_some() {
-        let version = tool_entry.version.as_ref().unwrap();
+    if !has_branch
+        && !has_tag
+        && !has_rev
+        && let Some(version) = &tool_entry.version
+    {
         let trimmed = version.trim();
         if !trimmed.is_empty() {
             command_args.push("--tag".to_string());
@@ -747,9 +750,7 @@ fn determine_installed_version(tool_entry: &ToolEntry, is_it_already_installed: 
         "[SDB::Tools::CargoInstaller] Checking if other indexes were used to install {}",
         tool_entry.name.bold()
     );
-    if is_it_already_installed && tool_entry.options.is_some() {
-        let options = tool_entry.options.as_ref().unwrap();
-
+    if is_it_already_installed && let Some(options) = &tool_entry.options {
         // Check for --tag first (highest priority for Git)
         if let Some(tag_value) = extract_option_value(options, "--tag") {
             return tag_value;
