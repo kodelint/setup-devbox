@@ -85,7 +85,7 @@ pub fn asset_matches_platform(filename: &str, os: &str, arch: &str) -> bool {
             .extension()
             .is_some_and(|ext| ["dmg", "pkg"].iter().any(|&e| ext.eq_ignore_ascii_case(e)));
 
-    if is_macos_universal_package {
+    if is_macos_universal_package && !has_any_arch_keyword {
         log_debug!(
             "[Utils] Asset '{}' matches as a potential universal macOS package (dmg/pkg).",
             filename.dimmed()
@@ -179,7 +179,7 @@ fn is_excluded_asset(asset_name_lower: &str) -> bool {
 /// * `arch`: A string slice representing a normalized architecture name (e.g., "`arm64`", "`x86_64`").
 ///
 /// # Returns
-/// * `Vec<String>`: A vector of strings containing the input architecture name and its known aliases.
+/// * `Vec<String>`: A vector of strings containing the architecture name and its known aliases.
 fn arch_aliases(arch: &str) -> Vec<String> {
     match arch.to_lowercase().as_str() {
         "arm64" => vec!["arm64", "aarch64"] // Aliases for ARM 64-bit.
@@ -515,4 +515,36 @@ pub fn is_env_var_set(env_var_name: &str) -> bool {
             )
         })
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_asset_matches_platform_macos_architecture_specific() {
+        // Bug reproduction: An architecture-specific DMG should NOT match a different architecture.
+        // For example, 'App-aarch64.dmg' should NOT match 'x86_64'.
+        assert!(!asset_matches_platform(
+            "App-aarch64.dmg",
+            "macos",
+            "x86_64"
+        ));
+
+        // 'App-x86_64.dmg' SHOULD match 'x86_64'.
+        assert!(asset_matches_platform("App-x86_64.dmg", "macos", "x86_64"));
+
+        // 'App-aarch64.dmg' SHOULD match 'arm64'.
+        assert!(asset_matches_platform("App-aarch64.dmg", "macos", "arm64"));
+
+        // 'App-x86_64.dmg' SHOULD match 'arm64' (via Rosetta fallback).
+        assert!(asset_matches_platform("App-x86_64.dmg", "macos", "arm64"));
+    }
+
+    #[test]
+    fn test_asset_matches_platform_macos_universal() {
+        // Truly universal DMG should match both
+        assert!(asset_matches_platform("MyTool.dmg", "macos", "x86_64"));
+        assert!(asset_matches_platform("MyTool.dmg", "macos", "arm64"));
+    }
 }
