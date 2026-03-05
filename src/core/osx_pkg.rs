@@ -162,8 +162,8 @@ pub fn install_pkg(
 ///
 /// # Arguments
 /// * `dmg_path`: The path to the .dmg file.
-/// * `app_name`: The expected name of the application (e.g., "Zed") to correctly
-///   find and copy the `.app` bundle (e.g., "Zed.app").
+/// * `app_name`: The expected name of the application (e.g., "App") to correctly
+///   find and copy the `.app` bundle (e.g., "App.app").
 ///
 /// # Returns
 /// * `io::Result<PathBuf>`: `Ok(PathBuf)` if the DMG was processed successfully,

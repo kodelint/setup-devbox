@@ -458,7 +458,7 @@ impl ConfigurationManagerProcessor {
     ///
     /// If the TOML document contains a single top-level array key (e.g., `keymap`),
     /// this can optionally unwrap it so the resulting JSON is a top-level array,
-    /// fulfilling requirements for files like Zed's `keymap.json`.
+    /// fulfilling requirements for files like the application's `keymap.json`.
     ///
     /// ## Parameters
     /// - `toml_value`: TOML value to convert

@@ -522,22 +522,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_asset_matches_platform_macos_zed() {
-        // Bug reproduction: Zed-aarch64.dmg should NOT match x86_64
+    fn test_asset_matches_platform_macos_architecture_specific() {
+        // Bug reproduction: An architecture-specific DMG should NOT match a different architecture.
+        // For example, 'App-aarch64.dmg' should NOT match 'x86_64'.
         assert!(!asset_matches_platform(
-            "Zed-aarch64.dmg",
+            "App-aarch64.dmg",
             "macos",
             "x86_64"
         ));
 
-        // Zed-x86_64.dmg SHOULD match x86_64
-        assert!(asset_matches_platform("Zed-x86_64.dmg", "macos", "x86_64"));
+        // 'App-x86_64.dmg' SHOULD match 'x86_64'.
+        assert!(asset_matches_platform("App-x86_64.dmg", "macos", "x86_64"));
 
-        // Zed-aarch64.dmg SHOULD match arm64
-        assert!(asset_matches_platform("Zed-aarch64.dmg", "macos", "arm64"));
+        // 'App-aarch64.dmg' SHOULD match 'arm64'.
+        assert!(asset_matches_platform("App-aarch64.dmg", "macos", "arm64"));
 
-        // Zed-x86_64.dmg SHOULD match arm64 (via Rosetta fallback)
-        assert!(asset_matches_platform("Zed-x86_64.dmg", "macos", "arm64"));
+        // 'App-x86_64.dmg' SHOULD match 'arm64' (via Rosetta fallback).
+        assert!(asset_matches_platform("App-x86_64.dmg", "macos", "arm64"));
     }
 
     #[test]
