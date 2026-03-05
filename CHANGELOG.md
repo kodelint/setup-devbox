@@ -2,7 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.2] - 2026-03-05
+
+### ♻️ Refactor
+
+- Replace hardcoded 'Zed' with generic names in core and tests ([8d728a4](https://github.com/kodelint/setup-devbox/commit/8d728a4dadc1bcc2aa3c9ff17bd0fd3c5d840da7))(by kodelint)
+
+### 🐛 Bug Fixes
+
+- **core**: Refine macOS package matching in asset selection ([c439c45](https://github.com/kodelint/setup-devbox/commit/c439c4550c9e5c7b7fdec242c52cebdfa67abf60))(by kodelint)
+
 ## [1.0.1] - 2026-03-04
+
+### 🏠 Miscellaneous Tasks
+
+- **release**: 1.0.1 [skip ci] ([ffdb2cd](https://github.com/kodelint/setup-devbox/commit/ffdb2cd533f8e826993d3a8b7de1f36edff44916))(by github-actions[bot])
 
 ### 🚀 Features
 
