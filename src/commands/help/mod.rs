@@ -1,7 +1,7 @@
 pub mod add_help;
+pub mod bootstrap_help;
 pub mod check_updates_help;
 pub mod edit_help;
-pub mod generate_help;
 pub mod installers_help;
 pub mod now_help;
 pub mod remove_help;
@@ -9,9 +9,9 @@ pub mod reset_help;
 pub mod sync_config_help;
 
 use self::add_help::show_add_help;
+use self::bootstrap_help::show_bootstrap_help;
 use self::check_updates_help::show_check_updates_help;
 use self::edit_help::show_edit_help;
-use self::generate_help::show_generate_help;
 use self::installers_help::{add_supported_installers, show_installers_help};
 use self::now_help::show_now_help;
 use self::remove_help::show_remove_help;
@@ -24,7 +24,7 @@ pub fn run(topic: Option<String>, detailed: bool, filter: Option<String>) {
     match topic.as_deref() {
         Some("add") => show_add_help(detailed),
         Some("edit") => show_edit_help(detailed),
-        Some("generate") => show_generate_help(detailed),
+        Some("bootstrap") => show_bootstrap_help(detailed),
         Some("installers") => show_installers_help(detailed, filter),
         Some("now") => show_now_help(detailed),
         Some("remove") => show_remove_help(detailed),
@@ -47,7 +47,7 @@ fn show_unknown_topic_error(topic: &str) {
     const TOPICS: [(&str, &str); 10] = [
         ("add", "Show help for the 'add' command"),
         ("edit", "Show help for the 'edit' command"),
-        ("generate", "Show help for the 'generate' command"),
+        ("bootstrap", "Show help for the 'bootstrap' command"),
         ("installers", "Show all supported installers"),
         ("now", "Show help for the 'now' command"),
         ("remove", "Show help for the 'remove' command"),
@@ -97,7 +97,7 @@ fn add_commands_info(output: &mut String) {
             "now",
             "Installs and Configures Tools, Fonts, OS Settings and Shell Configs",
         ),
-        ("generate", "Generates default configuration files"),
+        ("bootstrap", "Bootstraps the development environment"),
         (
             "sync-config",
             "Synchronizes or generates configurations from a state file",

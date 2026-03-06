@@ -6,10 +6,11 @@
 //!
 //! ## Purpose
 //!
-//! The generate command serves multiple use cases:
+//! The bootstrap command serves multiple use cases:
 //! - **New User Onboarding**: Creates initial configuration templates with sensible defaults
 //! - **Configuration Reset**: Allows users to regenerate specific config files
 //! - **Recovery**: Helps restore missing configuration files without losing existing ones
+//! - **Environment Setup**: Installs core dependencies like Homebrew
 //!
 //! ## Design Philosophy
 //!
@@ -31,6 +32,7 @@ use colored::Colorize;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 // ============================================================================
 // CONFIGURATION FILE DEFINITIONS
@@ -74,14 +76,6 @@ mod templates {
   # This file defines all development tools to install      #
   # Uncomment and configure the tools you need              #
   ############################################################
-
-  # Package Manager: Homebrew
-  # Homebrew is the foundation for many other installations
-  - name: brew
-    version: 4.5.10
-    source: github
-    repo: Homebrew/brew
-    tag: 4.5.10
 
   # Version Control: Git
   # Essential for most development workflows
@@ -309,7 +303,7 @@ fonts: {}
 
 /// Errors that can occur during configuration file generation
 #[derive(Debug)]
-pub enum GenerateError {
+pub enum BootstrapError {
     /// Failed to create directory
     DirectoryCreation(std::io::Error),
 
@@ -318,28 +312,40 @@ pub enum GenerateError {
 
     /// Failed to write content to file
     FileWrite(std::io::Error),
+
+    /// Failed to check for brew
+    BrewCheckFailed(std::io::Error),
+
+    /// Failed to install brew
+    BrewInstallationFailed(String),
 }
 
-impl std::fmt::Display for GenerateError {
+impl std::fmt::Display for BootstrapError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GenerateError::DirectoryCreation(e) => {
+            BootstrapError::DirectoryCreation(e) => {
                 write!(f, "Failed to create directory: {}", e.to_string().red())
             }
-            GenerateError::FileCreation(e) => {
+            BootstrapError::FileCreation(e) => {
                 write!(f, "Failed to create file: {}", e.to_string().red())
             }
-            GenerateError::FileWrite(e) => {
+            BootstrapError::FileWrite(e) => {
                 write!(f, "Failed to write to file: {}", e.to_string().red())
+            }
+            BootstrapError::BrewCheckFailed(e) => {
+                write!(f, "Failed to check for Homebrew: {}", e.to_string().red())
+            }
+            BootstrapError::BrewInstallationFailed(e) => {
+                write!(f, "Failed to install Homebrew: {}", e.red())
             }
         }
     }
 }
 
-impl std::error::Error for GenerateError {}
+impl std::error::Error for BootstrapError {}
 
-/// Result type for generation operations
-type GenerateResult<T> = Result<T, GenerateError>;
+/// Result type for bootstrap operations
+type BootstrapResult<T> = Result<T, BootstrapError>;
 
 // ============================================================================
 // FILE GENERATOR
@@ -412,33 +418,33 @@ impl ConfigFile {
     ///
     /// - `Ok(true)` if file was created
     /// - `Ok(false)` if file already exists (skipped)
-    /// - `Err(GenerateError)` if creation or writing failed
-    fn generate(&self, config_dir: &Path) -> GenerateResult<bool> {
+    /// - `Err(BootstrapError)` if creation or writing failed
+    fn generate(&self, config_dir: &Path) -> BootstrapResult<bool> {
         let file_path = config_dir.join(self.filename);
 
         // Skip if file already exists to preserve user modifications
         if file_path.exists() {
             log_info!(
-                "[Generate] Skipping existing file: {} (preserving your changes)",
+                "[Bootstrap] Skipping existing file: {} (preserving your changes)",
                 file_path.display().to_string().yellow()
             );
             return Ok(false);
         }
 
         log_debug!(
-            "[Generate] Creating {} ({})",
+            "[Bootstrap] Creating {} ({})",
             self.filename.cyan(),
             self.description
         );
 
         // Create and write to file
-        let mut file = fs::File::create(&file_path).map_err(GenerateError::FileCreation)?;
+        let mut file = fs::File::create(&file_path).map_err(BootstrapError::FileCreation)?;
 
         file.write_all(self.content.as_bytes())
-            .map_err(GenerateError::FileWrite)?;
+            .map_err(BootstrapError::FileWrite)?;
 
         log_info!(
-            "[Generate] Created: {}",
+            "[Bootstrap] Created: {}",
             file_path.display().to_string().green()
         );
 
@@ -450,11 +456,11 @@ impl ConfigFile {
 // CONFIGURATION GENERATOR
 // ============================================================================
 
-/// Orchestrates the generation of all configuration files
+/// Orchestrates the bootstrap process
 ///
-/// This struct manages the complete configuration generation workflow,
-/// including directory setup, file generation, and error handling.
-pub struct ConfigGenerator {
+/// This struct manages the complete bootstrap workflow,
+/// including directory setup, file generation, and dependency installation.
+pub struct Bootstrapper {
     /// Target directory for generated files (typically ~/.setup-devbox/configs)
     configs_dir: PathBuf,
 
@@ -462,8 +468,8 @@ pub struct ConfigGenerator {
     config_files: Vec<ConfigFile>,
 }
 
-impl ConfigGenerator {
-    /// Creates a new ConfigGenerator for the specified directory
+impl Bootstrapper {
+    /// Creates a new Bootstrapper for the specified directory
     ///
     /// # Arguments
     ///
@@ -471,7 +477,7 @@ impl ConfigGenerator {
     ///
     /// # Returns
     ///
-    /// A ConfigGenerator instance ready to generate files
+    /// A Bootstrapper instance ready to initialize the environment
     pub fn new(configs_dir: PathBuf) -> Self {
         // Generate the main config content with actual paths
         let config_content = templates::config(&configs_dir);
@@ -506,7 +512,7 @@ impl ConfigGenerator {
             ),
         ];
 
-        ConfigGenerator {
+        Bootstrapper {
             configs_dir,
             config_files,
         }
@@ -520,23 +526,23 @@ impl ConfigGenerator {
     /// # Returns
     ///
     /// - `Ok(())` if directory exists or was created successfully
-    /// - `Err(GenerateError)` if directory creation failed
-    fn ensure_directory_exists(&self) -> GenerateResult<()> {
+    /// - `Err(BootstrapError)` if directory creation failed
+    fn ensure_directory_exists(&self) -> BootstrapResult<()> {
         if !self.configs_dir.exists() {
             log_debug!(
-                "[Generate] Creating config directory: {}",
+                "[Bootstrap] Creating config directory: {}",
                 self.configs_dir.display()
             );
 
-            fs::create_dir_all(&self.configs_dir).map_err(GenerateError::DirectoryCreation)?;
+            fs::create_dir_all(&self.configs_dir).map_err(BootstrapError::DirectoryCreation)?;
 
             log_info!(
-                "[Generate] Created directory: {}",
+                "[Bootstrap] Created directory: {}",
                 self.configs_dir.display().to_string().green()
             );
         } else {
             log_debug!(
-                "[Generate] Directory already exists: {}",
+                "[Bootstrap] Directory already exists: {}",
                 self.configs_dir.display()
             );
         }
@@ -544,31 +550,66 @@ impl ConfigGenerator {
         Ok(())
     }
 
-    /// Executes the complete configuration generation process
+    /// Checks if Homebrew is installed and installs it if missing.
+    ///
+    /// This is part of the bootstrap process to ensure the primary package manager
+    /// is available for subsequent tool installations.
+    fn ensure_brew_installed(&self) -> BootstrapResult<()> {
+        log_info!("[Bootstrap] Checking for Homebrew installation...");
+
+        // Check if brew is in PATH
+        let brew_check = Command::new("which")
+            .arg("brew")
+            .output()
+            .map_err(BootstrapError::BrewCheckFailed)?;
+
+        if brew_check.status.success() {
+            log_info!("[Bootstrap] Homebrew is already installed.");
+            return Ok(());
+        }
+
+        log_info!("[Bootstrap] Homebrew not found. Starting installation...");
+
+        // Use the official installation script
+        let status = Command::new("/bin/bash")
+            .arg("-c")
+            .arg("$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)")
+            .status()
+            .map_err(BootstrapError::BrewCheckFailed)?;
+
+        if status.success() {
+            log_info!("[Bootstrap] Homebrew installed successfully.");
+            Ok(())
+        } else {
+            let error_msg = format!(
+                "Homebrew installation script failed with exit code: {}",
+                status
+            );
+            log_error!("[Bootstrap] {}", error_msg);
+            Err(BootstrapError::BrewInstallationFailed(error_msg))
+        }
+    }
+
+    /// Executes the complete bootstrap process
     ///
     /// This method orchestrates the entire workflow:
     /// 1. Ensure configuration directory exists
     /// 2. Generate each configuration file
-    /// 3. Track and report statistics
+    /// 3. Install Homebrew if missing
+    /// 4. Track and report statistics
     ///
     /// ## Non-Destructive Behavior
     ///
     /// Files are never overwritten. If a file already exists, it is skipped
-    /// to preserve user customizations. This allows safe re-running of the
-    /// generate command.
+    /// to preserve user customizations.
     ///
     /// # Returns
     ///
-    /// A summary of the generation operation including counts of created,
+    /// A summary of the bootstrap operation including counts of created,
     /// skipped, and failed files.
-    ///
-    /// # Errors
-    ///
-    /// Returns `GenerateError` if directory creation fails. Individual file
-    /// generation errors are logged but don't stop the process.
-    pub fn generate(&self) -> GenerateResult<GenerationSummary> {
+    pub fn bootstrap(&self) -> BootstrapResult<BootstrapSummary> {
         log_info!(
-            "[Generate] Starting configuration generation in: {}",
+            "[Bootstrap] Starting environment bootstrap in: {}",
             self.configs_dir.display().to_string().cyan()
         );
 
@@ -576,7 +617,7 @@ impl ConfigGenerator {
         self.ensure_directory_exists()?;
 
         // Generate each configuration file
-        let mut summary = GenerationSummary::new();
+        let mut summary = BootstrapSummary::new();
 
         for config_file in &self.config_files {
             match config_file.generate(&self.configs_dir) {
@@ -588,7 +629,7 @@ impl ConfigGenerator {
                 }
                 Err(e) => {
                     log_error!(
-                        "[Generate] Failed to generate {}: {}",
+                        "[Bootstrap] Failed to generate {}: {}",
                         config_file.filename.red(),
                         e
                     );
@@ -597,23 +638,31 @@ impl ConfigGenerator {
             }
         }
 
-        log_info!("[Generate] Configuration generation completed");
-        log_debug!("[Generate] Summary: {}", summary);
+        // Install brew if missing
+        if let Err(e) = self.ensure_brew_installed() {
+            log_error!("[Bootstrap] Dependency installation failed: {}", e);
+            summary.brew_installed = false;
+        } else {
+            summary.brew_installed = true;
+        }
+
+        log_info!("[Bootstrap] Environment bootstrap completed");
+        log_debug!("[Bootstrap] Summary: {}", summary);
 
         Ok(summary)
     }
 }
 
 // ============================================================================
-// GENERATION SUMMARY
+// BOOTSTRAP SUMMARY
 // ============================================================================
 
-/// Statistics about the configuration generation process
+/// Statistics about the bootstrap process
 ///
-/// Tracks how many files were created, skipped, or failed during generation.
-/// This provides useful feedback to users about what happened.
+/// Tracks how many files were created, skipped, or failed, and status of
+/// dependency installation.
 #[derive(Debug, Default)]
-pub struct GenerationSummary {
+pub struct BootstrapSummary {
     /// Number of files successfully created
     pub created: usize,
 
@@ -622,9 +671,12 @@ pub struct GenerationSummary {
 
     /// Number of files that failed to generate
     pub failed: usize,
+
+    /// Whether brew installation was successful or already present
+    pub brew_installed: bool,
 }
 
-impl GenerationSummary {
+impl BootstrapSummary {
     fn new() -> Self {
         Self::default()
     }
@@ -634,20 +686,21 @@ impl GenerationSummary {
         self.created + self.skipped + self.failed
     }
 
-    /// Whether the generation was completely successful
+    /// Whether the bootstrap was completely successful
     pub fn is_success(&self) -> bool {
-        self.failed == 0
+        self.failed == 0 && self.brew_installed
     }
 }
 
-impl std::fmt::Display for GenerationSummary {
+impl std::fmt::Display for BootstrapSummary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "created: {}, skipped: {}, failed: {}, total: {}",
+            "created: {}, skipped: {}, failed: {}, brew: {}, total: {}",
             self.created,
             self.skipped,
             self.failed,
+            if self.brew_installed { "OK" } else { "FAIL" },
             self.total()
         )
     }
@@ -657,92 +710,25 @@ impl std::fmt::Display for GenerationSummary {
 // PUBLIC API
 // ============================================================================
 
-/// Main entry point for the generate command
+/// Main entry point for the bootstrap command
 ///
-/// This function serves as the CLI command handler for configuration
-/// generation. It coordinates the entire workflow and provides user-friendly
-/// feedback for both success and failure scenarios.
-///
-/// ## Workflow
-///
-/// 1. Accept optional config and state paths (from PathResolver)
-/// 2. Create ConfigGenerator instance with provided paths
-/// 3. Execute generation process
-/// 4. Report results to user
-///
-/// ## User Feedback
-///
-/// Success output includes:
-/// - Summary of files created, skipped, and any failures
-/// - Color-coded status messages
-/// - Total files processed
-/// - Next steps guidance
-///
-/// Partial failure output includes:
-/// - Details about which files failed
-/// - Summary statistics
-/// - Non-zero exit code
-///
-/// Complete failure output includes:
-/// - Error message with details
-/// - Helpful guidance for resolution
-/// - Non-zero exit code
-///
-/// # Arguments
-///
-/// * `config_dir` - Directory where configuration files will be generated
-///   (typically from `PathResolver::configs_dir()`)
-/// * `_state_path` - State file path (unused but accepted for API consistency)
-///
-/// # Exit Behavior
-///
-/// - **Success**: Returns normally after printing summary
-/// - **Partial Failure**: Continues but reports issues and exits with code 1
-/// - **Complete Failure**: Exits with code 1 after error message
-///
-/// # Example Usage
-///
-/// ```rust
-/// let paths = PathResolver::new(None, None)?;
-/// generate::run(paths.configs_dir(), paths.state_file().to_path_buf());
-/// ```
-///
-/// # Example Output (Success)
-///
-/// ```text
-/// [INFO] Starting configuration generation in: /Users/user/.setup-devbox/configs
-/// [INFO] Created: /Users/user/.setup-devbox/configs/tools.yaml
-/// [INFO] Created: /Users/user/.setup-devbox/configs/settings.yaml
-/// [INFO] Skipping existing file: /Users/user/.setup-devbox/configs/shellrc.yaml
-/// [INFO] Created: /Users/user/.setup-devbox/configs/fonts.yaml
-/// [INFO] Created: /Users/user/.setup-devbox/configs/config.yaml
-/// [INFO] Configuration generation completed
-///
-/// ================================================================================
-/// Generation Summary:
-///   Created: 4 files
-///   Skipped: 1 file (already existed)
-///   Failed:  0 files
-///   Total:   5 files processed
-/// ================================================================================
-///
-/// Configuration files are ready to use!
-/// Next step: Review and customize the generated files for your needs.
-/// ```
+/// This function serves as the CLI command handler for environment
+/// bootstrap. It coordinates the entire workflow and provides user-friendly
+/// feedback.
 pub fn run(config_dir: PathBuf, _state_path: PathBuf) {
     log_debug!(
-        "[Generate] Command invoked with config_dir: {}",
+        "[Bootstrap] Command invoked with config_dir: {}",
         config_dir.display()
     );
 
-    // Create generator with the provided configs directory
-    let generator = ConfigGenerator::new(config_dir);
+    // Create bootstrapper with the provided configs directory
+    let bootstrapper = Bootstrapper::new(config_dir);
 
-    match generator.generate() {
+    match bootstrapper.bootstrap() {
         Ok(summary) => {
             // Print formatted summary
             println!("\n{}", "=".repeat(80).blue());
-            println!("{}", "Generation Summary:".bold());
+            println!("{}", "Bootstrap Summary:".bold());
             println!(
                 "  {}: {} file{}",
                 "Created".green(),
@@ -765,37 +751,50 @@ pub fn run(config_dir: PathBuf, _state_path: PathBuf) {
                 );
             }
 
+            println!(
+                "  {}: {}",
+                "Homebrew".cyan(),
+                if summary.brew_installed {
+                    "Ready".green()
+                } else {
+                    "Failed".red()
+                }
+            );
+
             println!("  {}: {} files processed", "Total".cyan(), summary.total());
             println!("{}\n", "=".repeat(80).blue());
 
             if summary.is_success() {
-                println!("{}", "Configuration files are ready to use!".green());
                 println!(
                     "{}",
-                    "Next step: Review and customize the generated files for your needs.".cyan()
+                    "Environment bootstrap completed successfully!".green()
+                );
+                println!(
+                    "{}",
+                    "Next step: Review and customize the generated files, then run 'setup-devbox now'.".cyan()
                 );
             } else {
                 println!(
                     "{}",
-                    "⚠ Some files failed to generate. Check logs above for details.".yellow()
+                    "⚠ Bootstrap completed with issues. Check logs above for details.".yellow()
                 );
                 std::process::exit(1);
             }
         }
         Err(e) => {
-            log_error!("[Generate] Fatal error: {}", e);
+            log_error!("[Bootstrap] Fatal error: {}", e);
             eprintln!(
                 "\n{} {}",
-                "✗ Generation failed:".red().bold(),
+                "✗ Bootstrap failed:".red().bold(),
                 e.to_string().red()
             );
             eprintln!(
                 "{}",
-                "  Unable to create configuration directory or files.".yellow()
+                "  Unable to initialize environment or create configurations.".yellow()
             );
             std::process::exit(1);
         }
     }
 
-    log_debug!("[Generate] Command execution completed");
+    log_debug!("[Bootstrap] Command execution completed");
 }

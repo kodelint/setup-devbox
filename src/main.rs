@@ -26,7 +26,7 @@
 //!
 //! ## Module Structure
 //!
-//! - `commands/`: Individual subcommand implementations (now, generate, sync, etc.)
+//! - `commands/`: Individual subcommand implementations (now, bootstrap, sync, etc.)
 //! - `installers/`: Tool-specific installation logic (brew, cargo, github, rustup, etc.)
 //! - `schemas/`: Configuration file structures and validation
 //! - `libs/`: Shared utilities and helper functions
@@ -51,7 +51,7 @@
 //!
 //! Commands:
 //!   now          Installs and Configures Tools, Fonts, OS Settings and Shell Configs
-//!   generate     Generates default configuration files
+//!   bootstrap    Bootstraps the development environment by generating default configurations and installing Homebrew
 //!   sync         Synchronizes or generates configurations from a state file
 //!   edit         Edit configuration files or state file in your preferred editor
 //!   add          Add a new tool, font, setting, or alias to configuration files
@@ -118,9 +118,8 @@ use colored::Colorize;
 // ============================================================================
 
 use crate::cli::cmd_enums::{Cli, Commands, RemoveCommands};
-use crate::commands::{add, check_updates, edit, help, reset};
+use crate::commands::{add, bootstrap, check_updates, edit, help, now, reset, sync, version};
 use crate::schemas::path_resolver::PathResolver;
-use commands::{generate, now, sync, version};
 
 // ============================================================================
 // MAIN ENTRY POINT
@@ -231,25 +230,25 @@ fn main() -> Result<()> {
             edit::run(state, config_str);
         }
         // ====================================================================
-        // GENERATE COMMAND - Create default configuration files
+        // BOOTSTRAP COMMAND - Create default configuration files and initial setup
         // ====================================================================
-        Commands::Generate { config, state } => {
-            log_debug!("[SDB] 'Generate' subcommand detected.");
+        Commands::Bootstrap { config, state } => {
+            log_debug!("[SDB] 'Bootstrap' subcommand detected.");
 
             // Initialize path resolver with command overrides for custom file locations
             let paths = PathResolver::new(config, state).map_err(|e| anyhow::anyhow!(e))?;
 
             log_debug!(
-                "[SDB] 'Generate' subcommand using config dir: {}",
+                "[SDB] 'Bootstrap' subcommand using config dir: {}",
                 paths.configs_dir().display()
             );
             log_debug!(
-                "[SDB] 'Generate' subcommand using state file: {}",
+                "[SDB] 'Bootstrap' subcommand using state file: {}",
                 paths.state_file().display()
             );
 
-            // Generate default configuration files at the specified locations
-            generate::run(paths.configs_dir(), paths.state_file().to_path_buf());
+            // Bootstrap default configuration files at the specified locations
+            bootstrap::run(paths.configs_dir(), paths.state_file().to_path_buf());
         }
         // ====================================================================
         // HELP COMMAND - Display comprehensive documentation

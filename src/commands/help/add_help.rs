@@ -488,7 +488,7 @@ fn add_add_detailed_info(output: &mut String) {
     writeln!(
         output,
         "    Run {} first if they don't exist.",
-        "setup-devbox generate".cyan()
+        "setup-devbox bootstrap".cyan()
     )
     .unwrap();
     writeln!(output).unwrap();

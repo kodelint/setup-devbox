@@ -42,9 +42,9 @@ pub enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Generates default configuration files with sensible defaults.
-    /// Useful for initial setup or creating template configurations.
-    Generate {
+    /// Bootstraps the development environment by generating default configurations and installing Homebrew.
+    /// Useful for initial setup and ensuring basic requirements are met.
+    Bootstrap {
         /// Optional path to save the generated configuration files.
         #[arg(long)]
         config: Option<String>,
