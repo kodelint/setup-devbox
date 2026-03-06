@@ -344,7 +344,11 @@ impl std::fmt::Display for BootstrapError {
                 write!(f, "Failed to check for Homebrew: {}", e.to_string().red())
             }
             BootstrapError::BrewInstallationStartFailed(e) => {
-                write!(f, "Failed to start Homebrew installation: {}", e.to_string().red())
+                write!(
+                    f,
+                    "Failed to start Homebrew installation: {}",
+                    e.to_string().red()
+                )
             }
             BootstrapError::BrewInstallationFailed(e) => {
                 write!(f, "Failed to install Homebrew: {}", e.red())
@@ -586,9 +590,13 @@ impl Bootstrapper {
 
         // Robust installation: Download the script first, then execute it.
         // This is safer than curl | bash and allows for verification.
-        let install_script_url = "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh";
-        
-        log_debug!("[Bootstrap] Downloading Homebrew installation script from: {}", install_script_url);
+        let install_script_url =
+            "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh";
+
+        log_debug!(
+            "[Bootstrap] Downloading Homebrew installation script from: {}",
+            install_script_url
+        );
 
         let response = ureq::get(install_script_url)
             .call()
@@ -608,7 +616,7 @@ impl Bootstrapper {
         // Create a temporary file for the script
         let mut temp_file = tempfile::NamedTempFile::new()
             .map_err(|e| BootstrapError::BrewInstallationStartFailed(e))?;
-        
+
         temp_file
             .write_all(script_content.as_bytes())
             .map_err(|e| BootstrapError::BrewInstallationStartFailed(e))?;
