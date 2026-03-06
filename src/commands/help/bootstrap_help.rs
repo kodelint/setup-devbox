@@ -10,27 +10,17 @@ use colored::Colorize;
 /// * `detailed` - If true, shows extended information and examples.
 pub fn show_bootstrap_help(detailed: bool) {
     println!("{}", "setup-devbox bootstrap".bold().blue());
-    println!(
-        "Bootstraps the development environment by generating default configurations and installing Homebrew.\n"
-    );
+    println!("Bootstraps the development environment by generating default configurations and installing Homebrew.\n");
 
     println!("{}", "Usage:".bold().yellow());
     println!("  setup-devbox bootstrap [OPTIONS]\n");
 
     println!("{}", "Options:".bold().yellow());
-    println!(
-        "  --config <PATH>  Optional path to save generated configuration files (Overrides $SDB_CONFIG_PATH)"
-    );
-    println!(
-        "  --state <PATH>   Optional path to save the generated state file (Overrides $SDB_STATE_FILE_PATH)"
-    );
+    println!("  --config <PATH>  Optional path to save generated configuration files (Overrides $SDB_CONFIG_PATH)");
     println!("  --detailed       Show this detailed help information\n");
 
     println!("{}", "Environment Variables:".bold().yellow());
-    println!(
-        "  SDB_CONFIG_PATH       Base directory for configurations (default: ~/.setup-devbox)"
-    );
-    println!("  SDB_STATE_FILE_PATH   Specific path for the state file\n");
+    println!("  SDB_CONFIG_PATH       Base directory for configurations (default: ~/.setup-devbox)\n");
 
     if detailed {
         show_bootstrap_detailed_help();
@@ -52,26 +42,11 @@ pub fn show_bootstrap_detailed_help() {
     println!("or starting to use setup-devbox for the first time.\n");
 
     println!("{}", "Generated Files:".bold().yellow());
-    println!(
-        "  • {} - Main configuration file linking all others",
-        "config.yaml".cyan()
-    );
-    println!(
-        "  • {} - Definitions for development tools and packages",
-        "tools.yaml".cyan()
-    );
-    println!(
-        "  • {} - macOS system settings and preferences",
-        "settings.yaml".cyan()
-    );
-    println!(
-        "  • {} - Shell aliases and initialization commands",
-        "shellrc.yaml".cyan()
-    );
-    println!(
-        "  • {} - Font installation configurations",
-        "fonts.yaml".cyan()
-    );
+    println!("  • {} - Main configuration file linking all others", "config.yaml".cyan());
+    println!("  • {} - Definitions for development tools and packages", "tools.yaml".cyan());
+    println!("  • {} - macOS system settings and preferences", "settings.yaml".cyan());
+    println!("  • {} - Shell aliases and initialization commands", "shellrc.yaml".cyan());
+    println!("  • {} - Font installation configurations", "fonts.yaml".cyan());
     println!("\nConfiguration directory resolution precedence:");
     println!("  1. User provided --config <PATH> argument");
     println!("  2. Environment variable $SDB_CONFIG_PATH/configs/");
@@ -80,8 +55,7 @@ pub fn show_bootstrap_detailed_help() {
 
     println!("{}", "Advanced Examples:".bold().yellow());
     println!("  setup-devbox bootstrap");
-    println!("  setup-devbox bootstrap --config ./project-configs");
-    println!("  setup-devbox bootstrap --config dev --state dev-state.json\n");
+    println!("  setup-devbox bootstrap --config ./project-configs\n");
 
     println!("{}", "Workflow:".bold().yellow());
     println!("  1. Run 'setup-devbox bootstrap' to initialize your environment.");

@@ -280,6 +280,8 @@ aliases:
     /// A formatted string containing the main config template with actual paths
     #[allow(clippy::needless_raw_string_hashes)]
     pub fn config(configs_dir: &Path) -> String {
+        // SECURITY: We use .display() for paths which is generally safe for YAML generation
+        // as long as the directory path itself doesn't contain malicious control characters.
         format!(
             r#"# Main Configuration File
 # This file references all other configuration files
@@ -316,8 +318,14 @@ pub enum BootstrapError {
     /// Failed to check for brew
     BrewCheckFailed(std::io::Error),
 
+    /// Failed to start brew installation process
+    BrewInstallationStartFailed(std::io::Error),
+
     /// Failed to install brew
     BrewInstallationFailed(String),
+
+    /// Failed to download brew installer
+    BrewDownloadFailed(String),
 }
 
 impl std::fmt::Display for BootstrapError {
@@ -335,8 +343,14 @@ impl std::fmt::Display for BootstrapError {
             BootstrapError::BrewCheckFailed(e) => {
                 write!(f, "Failed to check for Homebrew: {}", e.to_string().red())
             }
+            BootstrapError::BrewInstallationStartFailed(e) => {
+                write!(f, "Failed to start Homebrew installation: {}", e.to_string().red())
+            }
             BootstrapError::BrewInstallationFailed(e) => {
                 write!(f, "Failed to install Homebrew: {}", e.red())
+            }
+            BootstrapError::BrewDownloadFailed(e) => {
+                write!(f, "Failed to download Homebrew installer: {}", e.red())
             }
         }
     }
@@ -570,12 +584,44 @@ impl Bootstrapper {
 
         log_info!("[Bootstrap] Homebrew not found. Starting installation...");
 
-        // Use the official installation script
+        // Robust installation: Download the script first, then execute it.
+        // This is safer than curl | bash and allows for verification.
+        let install_script_url = "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh";
+        
+        log_debug!("[Bootstrap] Downloading Homebrew installation script from: {}", install_script_url);
+
+        let response = ureq::get(install_script_url)
+            .call()
+            .map_err(|e| BootstrapError::BrewDownloadFailed(e.to_string()))?;
+
+        if response.status() != 200 {
+            return Err(BootstrapError::BrewDownloadFailed(format!(
+                "Failed to download installer, HTTP status: {}",
+                response.status()
+            )));
+        }
+
+        let script_content = response
+            .into_string()
+            .map_err(|e| BootstrapError::BrewDownloadFailed(e.to_string()))?;
+
+        // Create a temporary file for the script
+        let mut temp_file = tempfile::NamedTempFile::new()
+            .map_err(|e| BootstrapError::BrewInstallationStartFailed(e))?;
+        
+        temp_file
+            .write_all(script_content.as_bytes())
+            .map_err(|e| BootstrapError::BrewInstallationStartFailed(e))?;
+
+        let script_path = temp_file.path();
+
+        log_info!("[Bootstrap] Executing Homebrew installation script...");
+
+        // Execute the script with bash
         let status = Command::new("/bin/bash")
-            .arg("-c")
-            .arg("$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)")
+            .arg(script_path)
             .status()
-            .map_err(BootstrapError::BrewCheckFailed)?;
+            .map_err(BootstrapError::BrewInstallationStartFailed)?;
 
         if status.success() {
             log_info!("[Bootstrap] Homebrew installed successfully.");
@@ -715,7 +761,7 @@ impl std::fmt::Display for BootstrapSummary {
 /// This function serves as the CLI command handler for environment
 /// bootstrap. It coordinates the entire workflow and provides user-friendly
 /// feedback.
-pub fn run(config_dir: PathBuf, _state_path: PathBuf) {
+pub fn run(config_dir: PathBuf) {
     log_debug!(
         "[Bootstrap] Command invoked with config_dir: {}",
         config_dir.display()

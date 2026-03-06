@@ -232,23 +232,19 @@ fn main() -> Result<()> {
         // ====================================================================
         // BOOTSTRAP COMMAND - Create default configuration files and initial setup
         // ====================================================================
-        Commands::Bootstrap { config, state } => {
+        Commands::Bootstrap { config } => {
             log_debug!("[SDB] 'Bootstrap' subcommand detected.");
 
             // Initialize path resolver with command overrides for custom file locations
-            let paths = PathResolver::new(config, state).map_err(|e| anyhow::anyhow!(e))?;
+            let paths = PathResolver::new(config, None).map_err(|e| anyhow::anyhow!(e))?;
 
             log_debug!(
                 "[SDB] 'Bootstrap' subcommand using config dir: {}",
                 paths.configs_dir().display()
             );
-            log_debug!(
-                "[SDB] 'Bootstrap' subcommand using state file: {}",
-                paths.state_file().display()
-            );
 
             // Bootstrap default configuration files at the specified locations
-            bootstrap::run(paths.configs_dir(), paths.state_file().to_path_buf());
+            bootstrap::run(paths.configs_dir());
         }
         // ====================================================================
         // HELP COMMAND - Display comprehensive documentation

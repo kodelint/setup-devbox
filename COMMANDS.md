@@ -121,8 +121,6 @@ setup-devbox is designed to automate the setup and configuration of your develop
   ##### Options
   - `--config <CONFIG>`: Optional argument to specify the target directory where the main configuration file (e.g., `config.yaml`) should be generated.
      If not provided, the default config directory (typically `~/.setup-devbox/configs/` or `$SDB_CONFIG_PATH/configs/`) will be used.
-  - `--state <STATE>`: Optional argument to specify the target directory where the state file (e.g., `state.json`) should be generated.
-     If not provided, the default state file path (typically `~/.setup-devbox/state.json` or `$SDB_STATE_FILE_PATH/state.json`) will be used.
   - `-h`, `--help`: Print help for the bootstrap command.
 
   ##### Examples
@@ -132,7 +130,7 @@ setup-devbox is designed to automate the setup and configuration of your develop
     setup-devbox bootstrap
 
     # Bootstrap the environment in a custom directory
-    setup-devbox bootstrap --config /my/custom/configs/ --state /my/custom/data/state.json
+    setup-devbox bootstrap --config /my/custom/configs/
     ```
 
 - #### `remove` to **remove** tool, font, setting or alias from command line.
