@@ -7,8 +7,8 @@ pub mod add_interactive;
 pub mod check_updates;
 // Help with editing configuration and state file.
 pub mod edit;
-// Manages the creation of default configuration files.
-pub mod generate;
+// Manages the creation of default configuration files and initial setup.
+pub mod bootstrap;
 // Generates help command
 pub mod help;
 // Orchestrates the main setup and installation process.;

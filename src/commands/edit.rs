@@ -173,7 +173,7 @@ fn handle_config_edit(config_type: &str) {
         );
         log_error!(
             "{}",
-            "You may want to run 'setup-devbox generate' first to create default \
+            "You may want to run 'setup-devbox bootstrap' first to create default \
         configuration files."
                 .yellow()
         );
@@ -329,7 +329,7 @@ fn get_config_file_path(config_type: &str) -> PathBuf {
             eprintln!("{}", format!("Error reading main config file: {e}").red());
             eprintln!(
                 "{}",
-                "You may want to run 'setup-devbox generate' first.".yellow()
+                "You may want to run 'setup-devbox bootstrap' first.".yellow()
             );
             std::process::exit(1);
         }

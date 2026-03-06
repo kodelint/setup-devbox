@@ -46,7 +46,7 @@ setup-devbox is designed to automate the setup and configuration of your develop
     |---------------|------------------------------------------------------------------|
     | `add`           | Add tool, font, setting or alias                                 |
     | `check-updates` | Show help for the 'check-updates' command                       |
-    | `generate`      | Generates default configuration files                            |
+    | `bootstrap`     | Bootstraps the development environment                           |
     | `now`           | Installs and Configures Tools, Fonts, OS Settings and Shell Configs |
     | `sync-config`   | Synchronizes or generates configurations from a state file       |
     | `version`       | Show the current Version of the tool                             |
@@ -106,33 +106,31 @@ setup-devbox is designed to automate the setup and configuration of your develop
     setup-devbox check-updates
     ```
 
-- #### `generate` Generates the default configs.
+- #### `bootstrap` Bootstraps the environment.
 
   ##### **Description:**
   This command helps you get started quickly by creating boilerplate configuration files (`config.yaml`, `tools.yaml`, `settings.yaml`, `shellrc.yaml`, `fonts.yaml`)
   in a specified or default configuration directory. These generated files serve as a template,
   which you can then customize to define your specific development environment.
-  This command will typically not overwrite existing files without explicit confirmation.
+  Additionally, it checks for and installs Homebrew if it's not already present on your system.
 
   **Usage:**
     ```bash
-    setup-devbox generate [OPTIONS]
+    setup-devbox bootstrap [OPTIONS]
     ```
   ##### Options
   - `--config <CONFIG>`: Optional argument to specify the target directory where the main configuration file (e.g., `config.yaml`) should be generated.
-     If not provided, the default config directory (typically `~/.setup-devbox/configs/`) will be used.
-  - `--state <STATE>`: Optional argument to specify the target directory where the state file (e.g., `state.json`) should be generated.
-     If not provided, the default state file path (typically `~/.setup-devbox/state.json`) will be used.
-  - `-h`, `--help`: Print help for the generate command.
+     If not provided, the default config directory (typically `~/.setup-devbox/configs/` or `$SDB_CONFIG_PATH/configs/`) will be used.
+  - `-h`, `--help`: Print help for the bootstrap command.
 
   ##### Examples
 
     ```bash
-    # Generate all default configuration files in the default location
-    setup-devbox generate
+    # Bootstrap the environment using default locations
+    setup-devbox bootstrap
 
-    # Generate default configurations in a custom directory
-    setup-devbox generate --config /my/custom/configs/ --state /my/custom/data/state.json
+    # Bootstrap the environment in a custom directory
+    setup-devbox bootstrap --config /my/custom/configs/
     ```
 
 - #### `remove` to **remove** tool, font, setting or alias from command line.
