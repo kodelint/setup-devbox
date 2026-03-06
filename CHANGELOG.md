@@ -2,11 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.3] - 2026-03-06
+
+### 🐛 Bug Fixes
+
+- Address PR review comments for bootstrap command ([2651095](https://github.com/kodelint/setup-devbox/commit/2651095ec7294577a6c2e34cfb207400ad747dd3))(by kodelint)
+
+### 🚀 Features
+
+- Rename generate to bootstrap and add brew install ([193725c](https://github.com/kodelint/setup-devbox/commit/193725c760dbba56722a2cdefee6636465478803))(by kodelint)
+
 ## [1.0.2] - 2026-03-05
 
 ### ♻️ Refactor
 
 - Replace hardcoded 'Zed' with generic names in core and tests ([8d728a4](https://github.com/kodelint/setup-devbox/commit/8d728a4dadc1bcc2aa3c9ff17bd0fd3c5d840da7))(by kodelint)
+
+### 🏠 Miscellaneous Tasks
+
+- **release**: 1.0.2 [skip ci] ([409dbf0](https://github.com/kodelint/setup-devbox/commit/409dbf0e1061e4309334aa67545d8f26e594de20))(by github-actions[bot])
 
 ### 🐛 Bug Fixes
 
