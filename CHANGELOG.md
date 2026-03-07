@@ -4,19 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [1.0.3] - 2026-03-06
 
-### 🐛 Bug Fixes
-
-- Address PR review comments for bootstrap command ([2651095](https://github.com/kodelint/setup-devbox/commit/2651095ec7294577a6c2e34cfb207400ad747dd3))(by kodelint)
-
 ### 🚀 Features
 
 - Rename generate to bootstrap and add brew install ([193725c](https://github.com/kodelint/setup-devbox/commit/193725c760dbba56722a2cdefee6636465478803))(by kodelint)
 
 ## [1.0.2] - 2026-03-05
-
-### ♻️ Refactor
-
-- Replace hardcoded 'Zed' with generic names in core and tests ([8d728a4](https://github.com/kodelint/setup-devbox/commit/8d728a4dadc1bcc2aa3c9ff17bd0fd3c5d840da7))(by kodelint)
 
 ### 🏠 Miscellaneous Tasks
 
@@ -271,7 +263,7 @@ All notable changes to this project will be documented in this file.
 ### ♻️ Refactor
 
 - Aesthetic changes. ([9820597](https://github.com/kodelint/setup-devbox/commit/98205973ca4b8030f2d66f2030c157234d451458))(by kodelint)
-- Break  implementation into a module ([605ce5c](https://github.com/kodelint/setup-devbox/commit/605ce5c470efd647a2f54048de3efbf3aa2e5a3e))(by kodelint)
+- Break implementation into a module ([605ce5c](https://github.com/kodelint/setup-devbox/commit/605ce5c470efd647a2f54048de3efbf3aa2e5a3e))(by kodelint)
 - Fix the imports ([8877b49](https://github.com/kodelint/setup-devbox/commit/8877b49891a7100f4b1c5a37dc7a65c7798220f7))(by kodelint)
 - Schema Refactor ([e25f707](https://github.com/kodelint/setup-devbox/commit/e25f707b0f5f82945a87615f24be2a4268e6e303))(by kodelint)
 - Schema imports ([469a2fd](https://github.com/kodelint/setup-devbox/commit/469a2fd898991d7ba7081ac69def805445830616))(by kodelint)
