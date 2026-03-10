@@ -234,32 +234,35 @@ pre-pr-with-linux: quality test build check-linux
 # ============================================================================
 # RELEASE COMMANDS (standalone - don't run these casually!)
 # ============================================================================
-
-# Analyze what version bump is needed
-analyze-version:
+# Release (standalone):
+analyze-version: release-check
+release-check:
 	@current_version=$$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
 	echo "Current version: $$current_version"; \
-	echo ""; \
-	last_tag=$$(git describe --tags --abbrev=0 2>/dev/null || echo ""); \
-	if [ -z "$$last_tag" ]; then \
-		echo "No previous tags found - this will be initial release"; \
-		echo "Suggested: minor bump"; \
-		exit 0; \
-	fi; \
+	last_tag=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"); \
 	echo "Last tag: $$last_tag"; \
-	echo ""; \
-	echo "Commits since last release:"; \
-	git log $$last_tag..HEAD --oneline; \
-	echo ""; \
-	if git log $$last_tag..HEAD --grep="BREAKING CHANGE" | grep -q "BREAKING CHANGE"; then \
-		echo "⚠️  Breaking changes detected → MAJOR bump needed"; \
-	elif git log $$last_tag..HEAD --oneline | grep -q "feat:"; then \
+	commits=$$(git log $$last_tag..HEAD --oneline --grep="^feat" --grep="^fix" --grep="^bug" --grep="^build" --grep="^perf" --grep="^refactor" --grep="BREAKING CHANGE" || echo ""); \
+	if [ -z "$$commits" ]; then \
+		echo "No release-worthy commits found."; \
+	elif git log $$last_tag..HEAD --grep="BREAKING CHANGE" | grep -q "BREAKING CHANGE"; then \
+		echo "⚠️  Breaking changes detected → MAJOR bump suggested"; \
+	elif echo "$$commits" | grep -q "feat:"; then \
 		echo "✨ Features detected → MINOR bump suggested"; \
-	elif git log $$last_tag..HEAD --oneline | grep -qE "fix:|perf:|refactor:"; then \
-		echo "🐛 Patches/fixes detected → PATCH bump suggested"; \
 	else \
-		echo "ℹ️  No conventional commits found"; \
+		echo "🐛 Patches/fixes detected → PATCH bump suggested"; \
 	fi
+
+build-all:
+	@echo "🔨 Building for both architectures..."
+	@rustup target add x86_64-apple-darwin aarch64-apple-darwin
+	@cargo build --release --target x86_64-apple-darwin
+	@cargo build --release --target aarch64-apple-darwin
+	@echo "✅ Build complete: target/x86_64-apple-darwin/release/setup-devbox and target/aarch64-apple-darwin/release/setup-devbox"
+
+dry-run-release:
+	@echo "🧪 Simulating release..."
+	@git-cliff --unreleased --strip header
+
 
 # Internal release helper (don't call directly)
 _do-release:
