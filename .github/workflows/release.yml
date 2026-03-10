@@ -20,20 +20,25 @@ on:
         required: false
         type: boolean
         default: false
+      dry_run:
+        description: "Dry run (no tags or releases created)"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
-  # Analyze what we should do based on branch and commits
   analyze:
+    name: 🔍 Analyze & Version
     runs-on: ubuntu-latest
     outputs:
-      should_release: ${{ steps.version.outputs.should_release || 'false' }}
-      should_build: ${{ steps.check.outputs.should_build }}
-      new_version: ${{ steps.version.outputs.new_version || steps.feature_version.outputs.new_version }}
-      is_prerelease: ${{ steps.check.outputs.is_prerelease }}
-      branch_type: ${{ steps.check.outputs.branch_type }}
-      release_type: ${{ steps.version.outputs.release_type || 'none' }}
-      no_release_reason: ${{ steps.version.outputs.no_release_reason || 'Unknown' }}
+      should_release: ${{ steps.decide.outputs.should_release }}
+      should_build: ${{ steps.decide.outputs.should_build }}
+      new_version: ${{ steps.version.outputs.new_version }}
+      is_prerelease: ${{ steps.decide.outputs.is_prerelease }}
+      branch_type: ${{ steps.decide.outputs.branch_type }}
+      release_type: ${{ steps.version.outputs.release_type }}
       is_manual: ${{ github.event_name == 'workflow_dispatch' }}
+      is_dry_run: ${{ github.event.inputs.dry_run == 'true' }}
 
     steps:
       - name: Checkout code
@@ -42,515 +47,172 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.TOKEN }}
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-tools-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install Rust tools
-        run: |
-          cargo install cargo-release git-cliff --locked
-
-      - name: Determine branch type and actions
-        id: check
+      - name: Determine branch type
+        id: decide
         run: |
           branch="${{ github.ref_name }}"
-          echo "Branch: $branch"
+          echo "branch_type=other" >> $GITHUB_OUTPUT
+          echo "should_build=true" >> $GITHUB_OUTPUT
+          echo "should_release=false" >> $GITHUB_OUTPUT
+          echo "is_prerelease=false" >> $GITHUB_OUTPUT
 
           if [[ "$branch" == "main" ]]; then
             echo "branch_type=main" >> $GITHUB_OUTPUT
-            echo "should_build=true" >> $GITHUB_OUTPUT
-            echo "is_prerelease=false" >> $GITHUB_OUTPUT
           elif [[ "$branch" == "development" ]]; then
             echo "branch_type=development" >> $GITHUB_OUTPUT
-            echo "should_build=true" >> $GITHUB_OUTPUT
             echo "is_prerelease=true" >> $GITHUB_OUTPUT
           elif [[ "$branch" == feature/* ]] || [[ "$branch" == hotfix/* ]] || [[ "$branch" == bugfix/* ]]; then
             echo "branch_type=feature" >> $GITHUB_OUTPUT
-            echo "should_build=true" >> $GITHUB_OUTPUT
-            echo "is_prerelease=false" >> $GITHUB_OUTPUT
-          else
-            echo "branch_type=other" >> $GITHUB_OUTPUT
-            echo "should_build=false" >> $GITHUB_OUTPUT
-            echo "is_prerelease=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Handle manual workflow dispatch
-        if: github.event_name == 'workflow_dispatch'
-        id: manual_release
-        run: |
-          echo "Manual release triggered"
-          echo "should_release=true" >> $GITHUB_OUTPUT
-          echo "release_type=${{ inputs.release_type }}" >> $GITHUB_OUTPUT
-
-          current_version=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-
-          if [[ "${{ inputs.release_type }}" == "major" ]]; then
-            new_version=$(cargo release version --dry-run major 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
-          elif [[ "${{ inputs.release_type }}" == "minor" ]]; then
-            new_version=$(cargo release version --dry-run minor 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
-          else
-            new_version=$(cargo release version --dry-run patch 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
-          fi
-
-          if [[ "${{ inputs.prerelease }}" == "true" ]]; then
-            new_version="${new_version}-beta.1"
-          fi
-
-          echo "new_version=$new_version" >> $GITHUB_OUTPUT
-
-      - name: Analyze version changes
-        if: github.event_name != 'workflow_dispatch' && (steps.check.outputs.branch_type == 'main' || steps.check.outputs.branch_type == 'development')
+      - name: Calculate Version
         id: version
         run: |
           current_version=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          echo "Current version: $current_version"
-
-          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [[ -z "$last_tag" ]]; then
-            echo "No previous tags found, this will be initial release"
-            release_type="minor"
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            release_type="${{ github.event.inputs.release_type }}"
             should_release="true"
-            no_release_reason=""
           else
-            echo "Last tag: $last_tag"
-
-            # Updated grep patterns to match both 'fix:' and 'bug:' prefixes
+            # Automated analysis
             commits=$(git log ${last_tag}..HEAD --oneline --grep="^feat" --grep="^fix" --grep="^bug" --grep="^build" --grep="^perf" --grep="^refactor" --grep="BREAKING CHANGE" || echo "")
-
-            echo "=== Commits since last tag ==="
-            echo "$commits"
-            echo "=============================="
-
+            
             if [[ -z "$commits" ]]; then
-              echo "No release-worthy commits found"
-              should_release="false"
               release_type="none"
-
-              # Provide detailed reason
-              all_commits=$(git log ${last_tag}..HEAD --oneline || echo "")
-              if [[ -z "$all_commits" ]]; then
-                no_release_reason="No commits since last release"
-              else
-                echo "=== All commits (not matching patterns) ==="
-                echo "$all_commits"
-                echo "=========================================="
-                no_release_reason="No commits matching conventional commit patterns (feat:, fix:, bug:, etc.). Found $(echo "$all_commits" | wc -l | tr -d ' ') commits that don't trigger releases."
-              fi
+              should_release="false"
             elif git log ${last_tag}..HEAD --grep="BREAKING CHANGE" | grep -q "BREAKING CHANGE"; then
-              echo "Breaking changes detected"
               release_type="major"
               should_release="true"
-              no_release_reason=""
             elif echo "$commits" | grep -q "feat:"; then
-              echo "Features detected"
               release_type="minor"
               should_release="true"
-              no_release_reason=""
             else
-              echo "Patches/fixes/refactors detected"
               release_type="patch"
               should_release="true"
-              no_release_reason=""
             fi
           fi
 
-          if [[ "$should_release" == "true" ]]; then
-            if [[ "${{ steps.check.outputs.branch_type }}" == "development" ]]; then
-              if [[ "$release_type" == "major" ]]; then
-                new_version=$(cargo release version --dry-run major 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
-              elif [[ "$release_type" == "minor" ]]; then
-                new_version=$(cargo release version --dry-run minor 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
-              else
-                new_version=$(cargo release version --dry-run patch 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
-              fi
-              if [[ -n "$new_version" ]]; then
-                new_version="${new_version}-beta.1"
-              fi
-            else
-              if [[ "$release_type" == "major" ]]; then
-                new_version=$(cargo release version --dry-run major 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
-              elif [[ "$release_type" == "minor" ]]; then
-                new_version=$(cargo release version --dry-run minor 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
-              else
-                new_version=$(cargo release version --dry-run patch 2>&1 | grep "would bump" | sed 's/.*would bump version to \(.*\)/\1/' || echo "")
-              fi
-            fi
+          # Only release from main/development unless manual
+          if [[ "${{ steps.decide.outputs.branch_type }}" == "other" || "${{ steps.decide.outputs.branch_type }}" == "feature" ]] && [[ "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+            should_release="false"
+          fi
 
-            if [[ -z "$new_version" ]]; then
-              IFS='.' read -ra VERSION_PARTS <<< "$current_version"
-              major=${VERSION_PARTS[0]}
-              minor=${VERSION_PARTS[1]:-0}
-              patch=${VERSION_PARTS[2]:-0}
+          # Predict new version using semver logic if cargo-release isn't available yet
+          IFS='.' read -ra V <<< "${current_version/-*/}"
+          major=${V[0]}; minor=${V[1]}; patch=${V[2]}
+          
+          case "$release_type" in
+            major) new_version="$((major + 1)).0.0" ;;
+            minor) new_version="${major}.$((minor + 1)).0" ;;
+            patch) new_version="${major}.${minor}.$((patch + 1))" ;;
+            *) new_version="$current_version" ;;
+          esac
 
-              case "$release_type" in
-                major) new_version="$((major + 1)).0.0" ;;
-                minor) new_version="${major}.$((minor + 1)).0" ;;
-                patch) new_version="${major}.${minor}.$((patch + 1))" ;;
-              esac
-
-              if [[ "${{ steps.check.outputs.branch_type }}" == "development" ]]; then
-                new_version="${new_version}-beta.1"
-              fi
-            fi
-          else
-            new_version="$current_version"
+          if [[ "${{ steps.decide.outputs.is_prerelease }}" == "true" || "${{ github.event.inputs.prerelease }}" == "true" ]]; then
+            new_version="${new_version}-beta.1"
+          fi
+          
+          if [[ "${{ steps.decide.outputs.branch_type }}" == "feature" ]]; then
+             short_sha=$(echo "${{ github.sha }}" | cut -c1-7)
+             new_version="${current_version}-dev.${short_sha}"
           fi
 
           echo "release_type=$release_type" >> $GITHUB_OUTPUT
           echo "new_version=$new_version" >> $GITHUB_OUTPUT
-          echo "should_release=$should_release" >> $GITHUB_OUTPUT
-          echo "no_release_reason=$no_release_reason" >> $GITHUB_OUTPUT
-
-      - name: Set feature version for artifacts
-        if: steps.check.outputs.branch_type == 'feature'
-        id: feature_version
-        run: |
-          current_version=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          short_sha=$(echo "${{ github.sha }}" | cut -c1-7)
-          clean_branch=$(echo "${{ github.ref_name }}" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
-          feature_version="${current_version}-${clean_branch}-${short_sha}"
-          echo "new_version=$feature_version" >> $GITHUB_OUTPUT
-
-      - name: Create release decision summary
-        if: always()
-        run: |
-          echo "## 📊 Release Analysis Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Current Status" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch Type**: \`${{ steps.check.outputs.branch_type }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Trigger**: \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "### ✅ Manual Release Triggered" >> $GITHUB_STEP_SUMMARY
-            echo "- **Release Type**: \`${{ inputs.release_type }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **New Version**: \`${{ steps.manual_release.outputs.new_version }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Prerelease**: \`${{ inputs.prerelease }}\`" >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ steps.version.outputs.should_release }}" == "true" ]]; then
-            echo "### ✅ Release Will Be Created" >> $GITHUB_STEP_SUMMARY
-            echo "- **Release Type**: \`${{ steps.version.outputs.release_type }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **New Version**: \`${{ steps.version.outputs.new_version }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Prerelease**: \`${{ steps.check.outputs.is_prerelease }}\`" >> $GITHUB_STEP_SUMMARY
+          if [[ "$should_release" == "true" ]]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
           else
-            echo "### ⚠️ No Release Will Be Created" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Reason**: ${{ steps.version.outputs.no_release_reason || 'Branch type does not trigger releases or no qualifying commits found' }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "#### What triggers a release?" >> $GITHUB_STEP_SUMMARY
-            echo "Commits must follow conventional commit format:" >> $GITHUB_STEP_SUMMARY
-            echo "- \`feat:\` - New features (triggers minor version bump)" >> $GITHUB_STEP_SUMMARY
-            echo "- \`fix:\` or \`bug:\` - Bug fixes (triggers patch version bump)" >> $GITHUB_STEP_SUMMARY
-            echo "- \`BREAKING CHANGE:\` in commit body (triggers major version bump)" >> $GITHUB_STEP_SUMMARY
-            echo "- \`build:\`, \`perf:\`, \`refactor:\` - Also trigger patch bumps" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "#### Need to create a release anyway?" >> $GITHUB_STEP_SUMMARY
-            echo "You can manually trigger a release:" >> $GITHUB_STEP_SUMMARY
-            echo "1. Go to **Actions** tab" >> $GITHUB_STEP_SUMMARY
-            echo "2. Select **Smart Release** workflow" >> $GITHUB_STEP_SUMMARY
-            echo "3. Click **Run workflow**" >> $GITHUB_STEP_SUMMARY
-            echo "4. Choose release type (major/minor/patch)" >> $GITHUB_STEP_SUMMARY
+            echo "should_release=false" >> $GITHUB_OUTPUT
           fi
-
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-quality-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install additional tools
-        run: |
-          cargo install cargo-audit cargo-outdated cargo-machete --locked
-
-      - name: Check formatting
-        run: |
-          echo "🎨 Checking code formatting..."
-          if ! cargo fmt -- --check; then
-            echo "❌ Code is not properly formatted"
-            echo "Run 'cargo fmt' to fix formatting issues"
-            exit 1
-          fi
-          echo "✅ Code formatting is correct"
-
-      - name: Check for unused dependencies
-        run: |
-          echo "🔍 Checking for unused dependencies..."
-          cargo machete
-          echo "✅ No unused dependencies found"
-
-      - name: Security audit
-        run: |
-          echo "🔒 Running security audit..."
-          cargo audit
-          echo "✅ No security vulnerabilities found"
-
-      - name: Check for outdated dependencies
-        continue-on-error: true
-        run: |
-          echo "📦 Checking for outdated dependencies..."
-          cargo outdated --exit-code 1 || echo "⚠️ Some dependencies are outdated (not blocking)"
-
-      - name: Validate Cargo.toml
-        run: |
-          echo "📋 Validating Cargo.toml..."
-          cargo metadata --format-version 1 > /dev/null
-
-          if ! grep -q '^description = ' Cargo.toml; then
-            echo "⚠️ Consider adding a description field to Cargo.toml"
-          fi
-
-          if ! grep -q '^license = ' Cargo.toml && ! grep -q '^license-file = ' Cargo.toml; then
-            echo "⚠️ Consider adding a license field to Cargo.toml"
-          fi
-
-          if ! grep -q '^repository = ' Cargo.toml; then
-            echo "⚠️ Consider adding a repository field to Cargo.toml"
-          fi
-
-          echo "✅ Cargo.toml validation complete"
-
-      - name: Check compilation with different feature combinations
-        run: |
-          echo "🔧 Checking compilation with different features..."
-          cargo check
-          echo "✅ Default features compile"
-          cargo check --no-default-features
-          echo "✅ No default features compile"
-          cargo check --all-features
-          echo "✅ All features compile"
-
-      - name: Check documentation
-        run: |
-          echo "📚 Checking documentation generation..."
-          RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items
-          echo "✅ Documentation generates without warnings"
-
-      - name: Quality check summary
-        if: always()
-        run: |
-          echo "## 🔍 Code Quality Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Completed Checks:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Code formatting (rustfmt)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Unused dependencies (cargo-machete)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Security audit (cargo-audit)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Outdated dependencies check" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Cargo.toml validation" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Feature combination compilation" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Documentation generation" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎉 All quality checks completed!"
-
-  advanced-checks:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Check binary size and analyze
-        run: |
-          echo "📏 Analyzing binary size..."
-          cargo build --release
-          ls -lah target/release/setup-devbox
-
-          if command -v bloaty &> /dev/null; then
-            bloaty target/release/setup-devbox
-          fi
-          echo "✅ Binary size analysis complete"
-
-      - name: Performance and bench checks
-        run: |
-          echo "🏎️ Running performance checks..."
-          if find . -name "*.rs" -exec grep -l "#\[bench\]" {} \; | head -1 | grep -q .; then
-            cargo bench --no-run
-            echo "✅ Benchmarks compile successfully"
-          else
-            echo "ℹ️ No benchmarks found"
-          fi
-
-      - name: Advanced checks summary
-        if: always()
-        run: |
-          echo "## 🔬 Advanced Analysis Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Advanced Checks Completed:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Binary size analysis" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Benchmark compilation check" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "💡 These advanced checks help maintain code quality but won't block releases."
 
   build:
-    needs: [analyze, quality]
+    name: 🔨 Build (${{ matrix.target }})
+    needs: analyze
     if: needs.analyze.outputs.should_build == 'true'
     runs-on: macos-latest
-
+    strategy:
+      matrix:
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          targets: ${{ matrix.target }}
 
-      - name: Run additional checks
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename binary
         run: |
-          echo "🔍 Running additional Rust checks..."
-          cargo check --release
-          cargo doc --no-deps --quiet
-          echo "✅ Additional checks passed"
+          arch=$(echo ${{ matrix.target }} | cut -d'-' -f1)
+          cp target/${{ matrix.target }}/release/setup-devbox setup-devbox-macos-$arch
 
-      - name: Run tests (if any exist)
-        run: |
-          if find . -name "*.rs" -path "*/tests/*" -o -name "lib.rs" -exec grep -l "#\[cfg(test)\]" {} \; | head -1 | grep -q .; then
-            echo "🧪 Running tests..."
-            cargo test --release
-          else
-            echo "ℹ️ No tests found, skipping test execution"
-          fi
-
-      - name: Build release binary for macOS
-        run: cargo build --release
-
-      - name: Upload artifact (macOS)
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: setup-devbox-macos-x86_64-${{ needs.analyze.outputs.new_version }}
-          path: target/release/setup-devbox
-          retention-days: ${{ needs.analyze.outputs.branch_type == 'feature' && '7' || '30' }}
-
-      - name: Add build summary
-        run: |
-          echo "## 🔨 Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch Type**: ${{ needs.analyze.outputs.branch_type }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Version**: ${{ needs.analyze.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Release Type**: ${{ needs.analyze.outputs.release_type }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Will Release**: ${{ needs.analyze.outputs.should_release }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ needs.analyze.outputs.branch_type }}" == "feature" ]]; then
-            echo "✅ Feature branch build successful! Artifact uploaded for testing." >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Download artifact**: Check the Actions tab to download the built binary." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ Build successful!" >> $GITHUB_STEP_SUMMARY
-          fi
+          name: setup-devbox-${{ matrix.target }}
+          path: setup-devbox-macos-*
+          retention-days: 5
 
   release:
+    name: 🚀 Release
     needs: [analyze, build]
-    if: (needs.analyze.outputs.should_release == 'true' || needs.analyze.outputs.is_manual == 'true') && needs.build.result == 'success'
+    if: needs.analyze.outputs.should_release == 'true' && needs.analyze.outputs.is_dry_run == 'false'
     runs-on: ubuntu-latest
-
     steps:
-      - name: Debug outputs
-        run: |
-          echo "should_release: '${{ needs.analyze.outputs.should_release }}'"
-          echo "is_manual: '${{ needs.analyze.outputs.is_manual }}'"
-          echo "branch_type: '${{ needs.analyze.outputs.branch_type }}'"
-          echo "release_type: '${{ needs.analyze.outputs.release_type }}'"
-          echo "new_version: '${{ needs.analyze.outputs.new_version }}'"
-
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.TOKEN }}
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo
-        uses: actions/cache@v4
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-tools-${{ hashFiles('**/Cargo.lock') }}
+          path: ./dist
+          pattern: setup-devbox-*
+          merge-multiple: true
 
-      - name: Install Rust release tools
-        run: |
-          cargo install cargo-release git-cliff --locked
-
-      - name: Configure git
+      - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Download macOS artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: setup-devbox-macos-x86_64-${{ needs.analyze.outputs.new_version }}
-          path: ./artifacts
+      - name: Install tools
+        run: cargo install cargo-release git-cliff --locked
 
-      - name: Make binary executable
-        run: chmod +x ./artifacts/setup-devbox
-
-      - name: Update version and create changelog
+      - name: Bump Version & Changelog
         run: |
-          if [[ "${{ needs.analyze.outputs.release_type }}" == "major" ]]; then
-            cargo release version --execute major --no-confirm
-          elif [[ "${{ needs.analyze.outputs.release_type }}" == "minor" ]]; then
-            cargo release version --execute minor --no-confirm
-          elif [[ "${{ needs.analyze.outputs.release_type }}" == "patch" ]]; then
-            cargo release version --execute patch --no-confirm
-          fi
-
-          git-cliff --tag v${{ needs.analyze.outputs.new_version }} > CHANGELOG.md
-
+          new_ver="${{ needs.analyze.outputs.new_version }}"
+          # Use cargo-release to update files but we handle the git part for robustness
+          cargo release version $new_ver --execute --no-confirm
+          git-cliff --tag v$new_ver > CHANGELOG.md
+          
           git add Cargo.toml Cargo.lock CHANGELOG.md
-          git commit -m "chore(release): ${{ needs.analyze.outputs.new_version }} [skip ci]"
-
-          git tag -a "v${{ needs.analyze.outputs.new_version }}" -m "Release v${{ needs.analyze.outputs.new_version }}"
+          git commit -m "chore(release): $new_ver [skip ci]"
+          git tag -a "v$new_ver" -m "Release v$new_ver"
+          
           git push origin ${{ github.ref_name }}
-          git push origin "v${{ needs.analyze.outputs.new_version }}"
+          git push origin "v$new_ver"
 
-      - name: Generate release notes
-        id: release_notes
-        run: |
-          git-cliff --tag v${{ needs.analyze.outputs.new_version }} --strip header --unreleased > release_notes.md
-          echo "Generated release notes:"
-          cat release_notes.md
+      - name: Generate Release Notes
+        run: git-cliff --tag v${{ needs.analyze.outputs.new_version }} --strip header --unreleased > release_notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ needs.analyze.outputs.new_version }}
-          files: ./artifacts/setup-devbox
-          name: |
-            ${{ needs.analyze.outputs.is_prerelease == 'true' && format('🚧 Pre-release v{0}', needs.analyze.outputs.new_version) || format('📦 Release v{0}', needs.analyze.outputs.new_version) }}
+          files: ./dist/setup-devbox-macos-*
           prerelease: ${{ needs.analyze.outputs.is_prerelease == 'true' }}
           body_path: release_notes.md
         env:

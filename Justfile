@@ -194,67 +194,40 @@ pre-pr-with-linux: quality test build check-linux
 # RELEASE COMMANDS (standalone - don't run these casually!)
 # ============================================================================
 
-# Analyze what version bump is needed (now supports both 'fix:' and 'bug:')
-analyze-version:
+# Analyze what version bump is needed
+analyze-version: release-check
+
+# Check what kind of release is going to be created
+release-check:
     #!/usr/bin/env bash
     set -euo pipefail
-
     current_version=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
     echo "📦 Current version: $current_version"
-    echo ""
-
-    last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-    if [[ -z "$last_tag" ]]; then
-        echo "ℹ️  No previous tags found - this will be initial release"
-        echo "✨ Suggested: minor bump"
-        exit 0
-    fi
-
+    last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
     echo "🏷️  Last tag: $last_tag"
-    echo ""
-    echo "📝 All commits since last release:"
-    echo "════════════════════════════════════════"
-    git log ${last_tag}..HEAD --oneline
-    echo "════════════════════════════════════════"
-    echo ""
-
-    # Check for release-worthy commits (matching the workflow logic)
-    release_commits=$(git log ${last_tag}..HEAD --oneline --grep="^feat:" --grep="^fix:" --grep="^bug:" --grep="^build:" --grep="^perf:" --grep="^refactor:" --grep="BREAKING CHANGE" || echo "")
-
-    if [[ -z "$release_commits" ]]; then
-        echo "⚠️  No release-worthy commits found"
-        echo ""
-        echo "Commits must follow conventional commit format:"
-        echo "  • feat: - New features (minor bump)"
-        echo "  • fix: or bug: - Bug fixes (patch bump)"
-        echo "  • BREAKING CHANGE: - Breaking changes (major bump)"
-        echo "  • build:, perf:, refactor: - Also trigger patch bumps"
-        echo ""
-        echo "💡 You can still create a manual release if needed:"
-        echo "   just release patch|minor|major"
-        exit 0
-    fi
-
-    echo "✅ Release-worthy commits found:"
-    echo "════════════════════════════════════════"
-    echo "$release_commits"
-    echo "════════════════════════════════════════"
-    echo ""
-
-    # Determine bump type
-    if git log ${last_tag}..HEAD --grep="BREAKING CHANGE" | grep -q "BREAKING CHANGE"; then
-        echo "💥 Breaking changes detected → MAJOR bump needed"
-        recommended="major"
-    elif echo "$release_commits" | grep -q "^[a-f0-9]* feat:"; then
+    commits=$(git log ${last_tag}..HEAD --oneline --grep="^feat" --grep="^fix" --grep="^bug" --grep="^build" --grep="^perf" --grep="^refactor" --grep="BREAKING CHANGE" || echo "")
+    if [[ -z "$commits" ]]; then
+        echo "No release-worthy commits found."
+    elif git log ${last_tag}..HEAD --grep="BREAKING CHANGE" | grep -q "BREAKING CHANGE"; then
+        echo "⚠️  Breaking changes detected → MAJOR bump suggested"
+    elif echo "$commits" | grep -q "feat:"; then
         echo "✨ Features detected → MINOR bump suggested"
-        recommended="minor"
     else
-        echo "🐛 Patches/fixes/refactors detected → PATCH bump suggested"
-        recommended="patch"
+        echo "🐛 Patches/fixes detected → PATCH bump suggested"
     fi
 
-    echo ""
-    echo "🎯 Recommended action: just release $recommended"
+# Build for both architectures
+build-all:
+    @echo "🔨 Building for both architectures..."
+    rustup target add x86_64-apple-darwin aarch64-apple-darwin
+    cargo build --release --target x86_64-apple-darwin
+    cargo build --release --target aarch64-apple-darwin
+    @echo "✅ Build complete"
+
+# Dry run release (changelog preview)
+dry-run-release:
+    @echo "🧪 Simulating release..."
+    git-cliff --unreleased --strip header
 
 # Explain why a release would or wouldn't be created
 explain-release:
