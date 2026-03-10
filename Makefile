@@ -324,6 +324,10 @@ preview-release:
 
 # View current changelog
 changelog:
-	@echo "📖 Current changelog:"
-	@echo ""
 	@if [ -f CHANGELOG.md ]; then cat CHANGELOG.md; else echo "No CHANGELOG.md found"; fi
+
+# Generate/Update the changelog file
+generate-changelog:
+	@echo "📝 Updating CHANGELOG.md..."
+	@git-cliff > CHANGELOG.md
+	@echo "✅ CHANGELOG.md updated"

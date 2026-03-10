@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [1.1.0] - 2026-03-10
 
+### 🏠 Miscellaneous Tasks
+
+- **release**: 1.1.0 [skip ci] ([99a3bd6](https://github.com/kodelint/setup-devbox/commit/99a3bd61af738580b9a3a5f9ec78331367a57c08))(by github-actions[bot])
+
 ### 🐛 Bug Fixes
 
 - Correct release job output mapping in workflow ([aa0fffd](https://github.com/kodelint/setup-devbox/commit/aa0fffd03f63f81660e89d8aa894c758012d8910))(by kodelint)
