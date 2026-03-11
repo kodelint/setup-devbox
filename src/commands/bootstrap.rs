@@ -615,11 +615,11 @@ impl Bootstrapper {
 
         // Create a temporary file for the script
         let mut temp_file = tempfile::NamedTempFile::new()
-            .map_err(|e| BootstrapError::BrewInstallationStartFailed(e))?;
+            .map_err(BootstrapError::BrewInstallationStartFailed)?;
 
         temp_file
             .write_all(script_content.as_bytes())
-            .map_err(|e| BootstrapError::BrewInstallationStartFailed(e))?;
+            .map_err(BootstrapError::BrewInstallationStartFailed)?;
 
         let script_path = temp_file.path();
 
