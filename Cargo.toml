@@ -93,7 +93,7 @@ tempfile = "3.20.0"
 # 'xz2' provides bindings to the `liblzma` (XZ) compression library.
 # This crate allows your application to handle `.xz` compressed files and `.tar.xz` archives,
 # which are known for high compression ratios.
-xz2 = "0.1.7"
+xz2 = { version = "0.1.7", features = ["static"] }
 
 # 'goblin' is a crate for parsing various binary executable formats (ELF, Mach-O, PE).
 # This can be useful for inspecting executable files, understanding their structure,
