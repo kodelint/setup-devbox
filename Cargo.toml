@@ -69,7 +69,7 @@ flate2 = "1.1.2"
 # 'tar' is a crate for creating, reading, and extracting `.tar` archives.
 # These archives are commonly used on Unix-like systems to bundle multiple files into one.
 # It's often used in conjunction with a compression library like `flate2` or `bzip2`.
-tar = "0.4.44"
+tar = "0.4.45"
 
 # 'zip' is a library for working with `.zip` archives.
 # Zip files are another popular format for bundling and compressing files, especially common on Windows.
