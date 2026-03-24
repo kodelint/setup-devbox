@@ -158,9 +158,21 @@ fn is_excluded_asset(asset_name_lower: &str) -> bool {
         asset_name_lower.contains("debug") ||
         asset_name_lower.contains("checksum") ||
         asset_name_lower.contains("sha256") ||
+        asset_name_lower.contains("sha512") ||
+        asset_name_lower.contains("sha1") ||
+        asset_name_lower.contains("md5") ||
+        asset_name_lower.contains("sums") || // Matches B3SUMS, SHASUMS, etc.
+        asset_name_lower.contains("license") ||
+        asset_name_lower.contains("readme") ||
+        asset_name_lower.contains("changelog") ||
         asset_name_lower.contains("tar.gz.sig") || // Common signature file for tar.gz
+        asset_name_lower.contains(".sig") || // General signature
+        asset_name_lower.contains(".sign") || // General signature
         std::path::Path::new(asset_name_lower).extension
-            ().is_some_and(|ext| ext.eq_ignore_ascii_case("asc")); // Common detached signature file extension
+            ().is_some_and(|ext| {
+                let e = ext.to_string_lossy().to_lowercase();
+                ["asc", "txt", "md", "html", "pdf", "sig", "sign"].contains(&e.as_str())
+            });
 
     if is_excluded {
         log_debug!(
@@ -546,5 +558,21 @@ mod tests {
         // Truly universal DMG should match both
         assert!(asset_matches_platform("MyTool.dmg", "macos", "x86_64"));
         assert!(asset_matches_platform("MyTool.dmg", "macos", "arm64"));
+    }
+
+    #[test]
+    fn test_is_excluded_asset() {
+        assert!(is_excluded_asset("b3sums"));
+        assert!(is_excluded_asset("shasums"));
+        assert!(is_excluded_asset("sha256sums"));
+        assert!(is_excluded_asset("checksums.txt"));
+        assert!(is_excluded_asset("license.md"));
+        assert!(is_excluded_asset("readme.txt"));
+        assert!(is_excluded_asset("changelog"));
+        assert!(is_excluded_asset("mytool.tar.gz.sig"));
+        assert!(is_excluded_asset("mytool.asc"));
+
+        assert!(!is_excluded_asset("mytool-darwin-arm64.tar.gz"));
+        assert!(!is_excluded_asset("mytool"));
     }
 }

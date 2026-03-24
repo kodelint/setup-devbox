@@ -456,49 +456,26 @@ pub fn move_and_rename_binary(
         "[SDB::Tools::{tool_source}::BinaryInstaller] Source file exists, proceeding with operation"
     );
 
-    // Determine the final destination path based on rename_to
-    let final_destination = if let Some(ref new_name) = tool_entry.rename_to {
+    // Determine the final destination path based on rename_to or tool_name
+    let final_destination = {
+        let target_name = tool_entry.rename_to.as_ref().unwrap_or(&tool_entry.name);
         log_debug!(
-            "[SDB::Tools::{tool_source}::BinaryInstaller] rename_to is set to: {}",
-            new_name.green()
+            "[SDB::Tools::{tool_source}::BinaryInstaller] Target filename: {}",
+            target_name.green()
         );
 
-        // Check if 'to' is a directory
         if to.is_dir() {
             log_debug!(
-                "[SDB::Tools::{tool_source}::BinaryInstaller] Destination is a directory, appending new filename: {}",
-                new_name
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Destination is a directory, appending target filename"
             );
-            to.join(new_name)
-        } else {
+            to.join(target_name)
+        } else if to.parent().is_some() {
             log_debug!(
-                "[SDB::Tools::{tool_source}::BinaryInstaller] Destination appears to be a file path, using parent directory and appending new filename"
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Destination appears to be a file path, using its parent and appending target filename"
             );
-            // If 'to' has a parent, join new_name to parent; otherwise use 'to' as is
-            if let Some(parent) = to.parent() {
-                parent.join(new_name)
-            } else {
-                PathBuf::from(new_name)
-            }
-        }
-    } else {
-        log_debug!(
-            "[SDB::Tools::{tool_source}::BinaryInstaller] rename_to is not set, will copy without renaming"
-        );
-
-        // If no rename, use the original filename
-        if to.is_dir() {
-            log_debug!(
-                "[SDB::Tools::{tool_source}::BinaryInstaller] Destination is a directory, appending original filename"
-            );
-            let file_name = from.file_name().ok_or_else(|| {
-                log_error!("[SDB::Tools::{tool_source}::BinaryInstaller] Source path has no filename component");
-                io::Error::new(io::ErrorKind::InvalidInput, "[SDB::Tools::{tool_source}::BinaryInstaller] Source path has no filename")
-            })?;
-            to.join(file_name)
+            to.parent().unwrap().join(target_name)
         } else {
-            log_debug!("[SDB::Tools::{tool_source}::BinaryInstaller] Using destination path as-is");
-            to.to_path_buf()
+            PathBuf::from(target_name)
         }
     };
 
@@ -529,83 +506,63 @@ pub fn move_and_rename_binary(
         log_debug!("[SDB::Tools::{tool_source}::BinaryInstaller] No parent directories to create");
     }
 
-    // Decide operation based on rename_to
-    if tool_entry.rename_to.is_none() {
-        log_debug!(
-            "[SDB::Tools::{tool_source}::BinaryInstaller] Performing simple copy operation (no rename)"
-        );
-        log_debug!(
-            "[SDB::Tools::{tool_source}::BinaryInstaller] Copying from {} to {}",
-            from.to_string_lossy().yellow(),
-            final_destination.to_string_lossy().cyan()
-        );
+    log_debug!("[SDB::Tools::{tool_source}::BinaryInstaller] Performing rename/move operation");
+    log_debug!(
+        "[SDB::Tools::{tool_source}::BinaryInstaller] Attempting fs::rename from {} to {}",
+        from.to_string_lossy().yellow(),
+        final_destination.to_string_lossy().cyan()
+    );
 
-        fs::copy(from, &final_destination)?;
+    // Perform the move operation using `fs::rename`.
+    match fs::rename(from, &final_destination) {
+        Ok(_) => {
+            log_debug!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Binary renamed/moved successfully to {}",
+                final_destination.to_string_lossy().green()
+            );
+            Ok(())
+        }
+        // Handle the specific error case where `fs::rename` fails due to `CrossesDevices`.
+        Err(e) if e.kind() == io::ErrorKind::CrossesDevices => {
+            log_warn!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Cross-device link detected (error: {}), falling back to copy and remove",
+                e
+            );
+            log_debug!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: copying from {} to {}",
+                from.to_string_lossy().yellow(),
+                final_destination.to_string_lossy().cyan()
+            );
 
-        log_debug!(
-            "[SDB::Tools::{tool_source}::BinaryInstaller] Binary copied successfully to {}",
-            final_destination.to_string_lossy().green()
-        );
-        Ok(())
-    } else {
-        log_debug!("[SDB::Tools::{tool_source}::BinaryInstaller] Performing rename/move operation");
-        log_debug!(
-            "[SDB::Tools::{tool_source}::BinaryInstaller] Attempting fs::rename from {} to {}",
-            from.to_string_lossy().yellow(),
-            final_destination.to_string_lossy().cyan()
-        );
+            fs::copy(from, &final_destination)?;
+            log_debug!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: copy completed successfully"
+            );
+            log_debug!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: removing original file at {}",
+                from.to_string_lossy()
+            );
 
-        // Perform the move operation using `fs::rename`.
-        match fs::rename(from, &final_destination) {
-            Ok(_) => {
-                log_debug!(
-                    "[SDB::Tools::{tool_source}::BinaryInstaller] Binary renamed/moved successfully to {}",
-                    final_destination.to_string_lossy().green()
-                );
-                Ok(())
-            }
-            // Handle the specific error case where `fs::rename` fails due to `CrossesDevices`.
-            Err(e) if e.kind() == io::ErrorKind::CrossesDevices => {
-                log_warn!(
-                    "[SDB::Tools::{tool_source}::BinaryInstaller] Cross-device link detected (error: {}), falling back to copy and remove",
-                    e
-                );
-                log_debug!(
-                    "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: copying from {} to {}",
-                    from.to_string_lossy().yellow(),
-                    final_destination.to_string_lossy().cyan()
-                );
-
-                fs::copy(from, &final_destination)?;
-                log_debug!(
-                    "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: copy completed successfully"
-                );
-                log_debug!(
-                    "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: removing original file at {}",
-                    from.to_string_lossy()
-                );
-
-                fs::remove_file(from)?;
-                log_debug!(
-                    "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: original file removed from {}",
-                    from.to_string_lossy()
-                );
-                log_debug!(
-                    "[SDB::Tools::{tool_source}::BinaryInstaller] Binary copied and original removed successfully. Final location: {}",
-                    final_destination.to_string_lossy().green()
-                );
-                Ok(())
-            }
-            Err(e) => {
-                log_error!(
-                    "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to rename binary from {} to {}: {} (error kind: {:?})",
-                    from.to_string_lossy(),
-                    final_destination.to_string_lossy(),
-                    e,
-                    e.kind()
-                );
-                Err(e)
-            }
+            fs::remove_file(from)?;
+            log_debug!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Fallback: original file removed from {}",
+                from.to_string_lossy()
+            );
+            log_debug!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Binary copied and original removed successfully. Final location: {}",
+                final_destination.to_string_lossy().green()
+            );
+            Ok(())
+        }
+        Err(e) => {
+            log_error!(
+                "[SDB::Tools::{tool_source}::BinaryInstaller] Failed to rename binary from {} to {}: {} (error kind: {:?})",
+                from.to_string_lossy(),
+                final_destination.to_string_lossy(),
+                e,
+                e.kind()
+            );
+            Err(e)
         }
     }
 }
@@ -684,6 +641,70 @@ pub fn make_executable(path: &Path, tool_entry: &ToolEntry, tool_source: String)
         file_path.to_string_lossy().green()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_move_and_rename_binary_with_tool_name() {
+        let temp_dir = tempdir().unwrap();
+        let source_dir = tempdir().unwrap();
+        let source_file = source_dir.path().join("downloaded-binary");
+        File::create(&source_file).unwrap();
+
+        let tool_entry = ToolEntry {
+            name: "mytool".to_string(),
+            version: None,
+            source: crate::schemas::tools_enums::SourceType::Github,
+            url: None,
+            repo: None,
+            tag: None,
+            rename_to: None,
+            options: None,
+            executable_path_after_extract: None,
+            post_installation_hooks: None,
+            configuration_manager: Default::default(),
+        };
+
+        let dest_dir = temp_dir.path().to_path_buf();
+        move_and_rename_binary(&source_file, &dest_dir, &tool_entry, "GitHub".to_string()).unwrap();
+
+        assert!(dest_dir.join("mytool").exists());
+        assert!(!source_file.exists());
+    }
+
+    #[test]
+    fn test_move_and_rename_binary_with_rename_to() {
+        let temp_dir = tempdir().unwrap();
+        let source_dir = tempdir().unwrap();
+        let source_file = source_dir.path().join("downloaded-binary");
+        File::create(&source_file).unwrap();
+
+        let tool_entry = ToolEntry {
+            name: "mytool".to_string(),
+            version: None,
+            source: crate::schemas::tools_enums::SourceType::Github,
+            url: None,
+            repo: None,
+            tag: None,
+            rename_to: Some("myrenamedtool".to_string()),
+            options: None,
+            executable_path_after_extract: None,
+            post_installation_hooks: None,
+            configuration_manager: Default::default(),
+        };
+
+        let dest_dir = temp_dir.path().to_path_buf();
+        move_and_rename_binary(&source_file, &dest_dir, &tool_entry, "GitHub".to_string()).unwrap();
+
+        assert!(dest_dir.join("myrenamedtool").exists());
+        assert!(!dest_dir.join("mytool").exists());
+        assert!(!source_file.exists());
+    }
 }
 
 // Provide a dummy implementation for `make_executable` on non-Unix systems to avoid compilation errors.

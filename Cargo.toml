@@ -69,7 +69,7 @@ flate2 = "1.1.2"
 # 'tar' is a crate for creating, reading, and extracting `.tar` archives.
 # These archives are commonly used on Unix-like systems to bundle multiple files into one.
 # It's often used in conjunction with a compression library like `flate2` or `bzip2`.
-tar = "0.4.44"
+tar = "0.4.45"
 
 # 'zip' is a library for working with `.zip` archives.
 # Zip files are another popular format for bundling and compressing files, especially common on Windows.
@@ -93,7 +93,7 @@ tempfile = "3.20.0"
 # 'xz2' provides bindings to the `liblzma` (XZ) compression library.
 # This crate allows your application to handle `.xz` compressed files and `.tar.xz` archives,
 # which are known for high compression ratios.
-xz2 = "0.1.7"
+xz2 = { version = "0.1.7", features = ["static"] }
 
 # 'goblin' is a crate for parsing various binary executable formats (ELF, Mach-O, PE).
 # This can be useful for inspecting executable files, understanding their structure,
