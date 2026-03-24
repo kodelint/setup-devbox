@@ -562,20 +562,17 @@ mod tests {
 
     #[test]
     fn test_is_excluded_asset() {
-        assert!(is_excluded_asset(&"b3sums".to_lowercase()));
-        assert!(is_excluded_asset(&"B3SUMS".to_lowercase()));
-        assert!(is_excluded_asset(&"shasums".to_lowercase()));
-        assert!(is_excluded_asset(&"sha256sums".to_lowercase()));
-        assert!(is_excluded_asset(&"checksums.txt".to_lowercase()));
-        assert!(is_excluded_asset(&"license.md".to_lowercase()));
-        assert!(is_excluded_asset(&"readme.txt".to_lowercase()));
-        assert!(is_excluded_asset(&"changelog".to_lowercase()));
-        assert!(is_excluded_asset(&"mytool.tar.gz.sig".to_lowercase()));
-        assert!(is_excluded_asset(&"mytool.asc".to_lowercase()));
+        assert!(is_excluded_asset("b3sums"));
+        assert!(is_excluded_asset("shasums"));
+        assert!(is_excluded_asset("sha256sums"));
+        assert!(is_excluded_asset("checksums.txt"));
+        assert!(is_excluded_asset("license.md"));
+        assert!(is_excluded_asset("readme.txt"));
+        assert!(is_excluded_asset("changelog"));
+        assert!(is_excluded_asset("mytool.tar.gz.sig"));
+        assert!(is_excluded_asset("mytool.asc"));
 
-        assert!(!is_excluded_asset(
-            &"mytool-darwin-arm64.tar.gz".to_lowercase()
-        ));
-        assert!(!is_excluded_asset(&"mytool".to_lowercase()));
+        assert!(!is_excluded_asset("mytool-darwin-arm64.tar.gz"));
+        assert!(!is_excluded_asset("mytool"));
     }
 }
