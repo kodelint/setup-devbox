@@ -196,7 +196,7 @@ jobs:
           new_ver="${{ needs.analyze.outputs.new_version }}"
           # Use cargo-release to update files
           # We use --no-verify to ignore the 'dist' folder artifacts
-          cargo release version $new_ver --execute --no-confirm --no-verify
+          cargo release version $new_ver --execute --no-confirm
           git-cliff --tag v$new_ver > CHANGELOG.md
 
           git add Cargo.toml Cargo.lock CHANGELOG.md
