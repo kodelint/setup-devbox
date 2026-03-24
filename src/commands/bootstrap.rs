@@ -614,8 +614,8 @@ impl Bootstrapper {
             .map_err(|e| BootstrapError::BrewDownloadFailed(e.to_string()))?;
 
         // Create a temporary file for the script
-        let mut temp_file = tempfile::NamedTempFile::new()
-            .map_err(BootstrapError::BrewInstallationStartFailed)?;
+        let mut temp_file =
+            tempfile::NamedTempFile::new().map_err(BootstrapError::BrewInstallationStartFailed)?;
 
         temp_file
             .write_all(script_content.as_bytes())
