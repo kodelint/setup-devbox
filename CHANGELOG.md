@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-03-24
+
+### Security
+
+- Update tar and rustls-webpki to fix vulnerabilities ([8a54261](https://github.com/kodelint/setup-devbox/commit/8a54261af58954d4044070e8e74b44acb55a0ac1))(by kodelint)
+
+### 🏠 Miscellaneous Tasks
+
+- Update local tools and finalize release workflow ([0081a5f](https://github.com/kodelint/setup-devbox/commit/0081a5fa8fbf91f4764082b98c6f4cb969e03d8d))(by kodelint)
+- Fix clippy redundant closure warnings ([527f612](https://github.com/kodelint/setup-devbox/commit/527f612e95a5ceb8de610a4f7af63f098118d324))(by kodelint)
+
+### 🐛 Bug Fixes
+
+- **github**: Ignore checksum files and ensure consistent binary naming ([e50d4b9](https://github.com/kodelint/setup-devbox/commit/e50d4b98287d2be4531c2d5dfb304a9bf6c49aa6))(by kodelint)
+- Trigger release for github installer and security updates ([ca64396](https://github.com/kodelint/setup-devbox/commit/ca6439678a6733f6a4a320afc7c7a7cf754c0373))(by kodelint)
+- Trigger release for github installer and security updates ([c18e00c](https://github.com/kodelint/setup-devbox/commit/c18e00cfbe037af733b7407d622b071f151fab10))(by kodelint)
+
+### 🔧 Continuous Integration
+
+- Fix cargo release command by removing unsupported --no-verify flag ([e9aa0d4](https://github.com/kodelint/setup-devbox/commit/e9aa0d4984eb0727c28d9d2bb069e7d6e592e005))(by kodelint)
+
+### 🚀 Features
+
+- Link xz2 statically to remove runtime dependency on system liblzma ([d187c2d](https://github.com/kodelint/setup-devbox/commit/d187c2d84a886ce63ee2e392a7d12e1d4c38d3ce))(by kodelint)
+
+### 🧪 Testing
+
+- Simplify is_excluded_asset test suite ([a7acbd3](https://github.com/kodelint/setup-devbox/commit/a7acbd336150a4943b88ffbc94d8298d0e34ce9b))(by kodelint)
+
 ## [1.1.0] - 2026-03-10
 
 ### 🏠 Miscellaneous Tasks
